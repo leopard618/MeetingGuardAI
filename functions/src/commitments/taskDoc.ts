@@ -33,7 +33,8 @@
  * of ids.ts (commitmentTaskId, taskFieldsDigest: built from summary ids and HMACs under the
  * summaries Keyring, shared/sealed.ts).
  *
- * Product text rule: ASCII punctuation only in this file; Spanish text keeps its accents.
+ * Product text rule: ASCII punctuation only in this file; Spanish, Portuguese, French and German
+ * text keep their accents.
  */
 import {
   AI_TASK_LIMITS,
@@ -228,16 +229,45 @@ export function taskTitleFor(suggestionTitle: string, draftTitle: string | null 
   return edited.length > 0 ? edited : suggestionTitle;
 }
 
+/** The origin line's languages (M12: the app languages; anything else reads English). */
+type OriginLanguage = 'en' | 'es' | 'pt' | 'fr' | 'de';
+
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'] as const;
+// M12: output only. The recap parser's month words (shared/textDates.ts) stay EN and ES.
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'] as const;
+const MONTHS_FR = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'] as const;
+const MONTHS_DE = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'] as const;
 
-function originDate(date: string, language: 'en' | 'es'): string {
+/** "Oct 16, 2026" / "16 oct 2026" / "16 out 2026" / "16 oct. 2026" / "16. Okt. 2026". */
+function originDate(date: string, language: OriginLanguage): string {
   const [y, m, d] = date.split('-').map(Number) as [number, number, number];
-  return language === 'es' ? `${d} ${MONTHS_ES[m - 1] ?? ''} ${y}` : `${MONTHS_EN[m - 1] ?? ''} ${d}, ${y}`;
+  switch (language) {
+    case 'es':
+      return `${d} ${MONTHS_ES[m - 1] ?? ''} ${y}`;
+    case 'pt':
+      return `${d} ${MONTHS_PT[m - 1] ?? ''} ${y}`;
+    case 'fr':
+      return `${d} ${MONTHS_FR[m - 1] ?? ''} ${y}`;
+    case 'de':
+      return `${d}. ${MONTHS_DE[m - 1] ?? ''} ${y}`;
+    default:
+      return `${MONTHS_EN[m - 1] ?? ''} ${d}, ${y}`;
+  }
+}
+
+/** 'es', 'pt', 'fr' or 'de' by prefix ("pt-BR" is 'pt'); anything else is English. */
+function originLanguageOf(language: string | null): OriginLanguage {
+  const lower = typeof language === 'string' ? language.toLowerCase() : '';
+  for (const candidate of ['es', 'pt', 'fr', 'de'] as const) if (lower.startsWith(candidate)) return candidate;
+  return 'en';
 }
 
 export interface OriginLineInput {
-  /** The request's (or the WhatsApp user's) language; anything but Spanish reads English (M12 adds more). */
+  /**
+   * The request's (or the WhatsApp user's) language: es, pt, fr or de by prefix, anything else
+   * reads English.
+   */
   language: string | null;
   mode: CommitmentMode;
   /** The user's own calendar title of the meeting; null for a kept summary. */
@@ -246,29 +276,64 @@ export interface OriginLineInput {
   date: string | null;
 }
 
+/** The four sentence parts of an origin line in one language. */
+interface OriginTexts {
+  /** After the line: who added it. */
+  tail: (ai: boolean) => string;
+  /** Before the meeting title. */
+  titled: (ai: boolean) => string;
+  /** A kept summary (no meeting title). */
+  kept: (ai: boolean) => string;
+  /** A kept summary's date, " dated <date>". */
+  dated: (date: string) => string;
+}
+
+const ORIGIN_TEXTS: Readonly<Record<OriginLanguage, OriginTexts>> = {
+  en: {
+    tail: (ai) => (ai ? 'Suggested by Meeting Guard AI, added by you.' : 'Added by you.'),
+    titled: (ai) => (ai ? "From your notetaker's summary of" : "From the action items of your notetaker's summary of"),
+    kept: (ai) => (ai ? 'From a notetaker summary' : 'From the action items of a notetaker summary'),
+    dated: (date) => ` dated ${date}`,
+  },
+  es: {
+    tail: (ai) => (ai ? 'Sugerida por Meeting Guard AI, agregada por ti.' : 'Agregada por ti.'),
+    titled: (ai) => (ai ? 'De la minuta de tu asistente de notas sobre' : 'De las tareas de la minuta de tu asistente de notas sobre'),
+    kept: (ai) => (ai ? 'De una minuta de tu asistente de notas' : 'De las tareas de una minuta de tu asistente de notas'),
+    dated: (date) => ` con fecha ${date}`,
+  },
+  pt: {
+    tail: (ai) => (ai ? 'Sugerida pelo Meeting Guard AI, adicionada por você.' : 'Adicionada por você.'),
+    titled: (ai) => (ai ? 'Do resumo do seu assistente de anotações sobre' : 'Das tarefas do resumo do seu assistente de anotações sobre'),
+    kept: (ai) => (ai ? 'De um resumo do assistente de anotações' : 'Das tarefas de um resumo do assistente de anotações'),
+    dated: (date) => ` com data de ${date}`,
+  },
+  fr: {
+    tail: (ai) => (ai ? 'Suggérée par Meeting Guard AI, ajoutée par vous.' : 'Ajoutée par vous.'),
+    titled: (ai) => (ai ? 'Du compte rendu de votre assistant de prise de notes sur' : 'Des tâches du compte rendu de votre assistant de prise de notes sur'),
+    kept: (ai) => (ai ? "D'un compte rendu d'assistant de prise de notes" : "Des tâches d'un compte rendu d'assistant de prise de notes"),
+    dated: (date) => ` du ${date}`,
+  },
+  de: {
+    tail: (ai) => (ai ? 'Von Meeting Guard AI vorgeschlagen, von Ihnen hinzugefügt.' : 'Von Ihnen hinzugefügt.'),
+    titled: (ai) => (ai ? 'Aus dem Protokoll Ihres Notizassistenten zu' : 'Aus den Aufgaben im Protokoll Ihres Notizassistenten zu'),
+    kept: (ai) => (ai ? 'Aus dem Protokoll eines Notizassistenten' : 'Aus den Aufgaben im Protokoll eines Notizassistenten'),
+    dated: (date) => ` vom ${date}`,
+  },
+};
+
 /**
  * The task description (section 11): where the task came from, never summary text. The meeting
- * title is the user's own calendar title, cut to 200 characters.
+ * title is the user's own calendar title, cut to 200 characters. M12: EN, ES, PT (pt-BR), FR and
+ * DE; the line lands in the task and syncs to To Do and Google Tasks, so it is permanent once written.
  */
 export function commitmentOriginLine(input: OriginLineInput): string {
-  const language: 'en' | 'es' = typeof input.language === 'string' && input.language.toLowerCase().startsWith('es') ? 'es' : 'en';
+  const language = originLanguageOf(input.language);
+  const texts = ORIGIN_TEXTS[language];
   const title = input.meetingTitle === null ? '' : sliceSafe(collapseWhitespace(input.meetingTitle), 200).trim();
   const date = input.date !== null && isLocalDate(input.date) ? originDate(input.date, language) : null;
   const ai = input.mode === 'ai';
-  if (language === 'es') {
-    const tail = ai ? 'Sugerida por Meeting Guard AI, agregada por ti.' : 'Agregada por ti.';
-    const what = ai ? 'De la minuta de tu asistente de notas' : 'De las tareas de la minuta de tu asistente de notas';
-    if (title.length > 0) return `${what} sobre ${title}${date === null ? '' : ` (${date})`}. ${tail}`;
-    const kept = ai ? 'De una minuta de tu asistente de notas' : 'De las tareas de una minuta de tu asistente de notas';
-    return `${kept}${date === null ? '' : ` con fecha ${date}`}. ${tail}`;
-  }
-  const tail = ai ? 'Suggested by Meeting Guard AI, added by you.' : 'Added by you.';
-  if (title.length > 0) {
-    const what = ai ? "From your notetaker's summary of" : "From the action items of your notetaker's summary of";
-    return `${what} ${title}${date === null ? '' : ` (${date})`}. ${tail}`;
-  }
-  const kept = ai ? 'From a notetaker summary' : 'From the action items of a notetaker summary';
-  return `${kept}${date === null ? '' : ` dated ${date}`}. ${tail}`;
+  if (title.length > 0) return `${texts.titled(ai)} ${title}${date === null ? '' : ` (${date})`}. ${texts.tail(ai)}`;
+  return `${texts.kept(ai)}${date === null ? '' : texts.dated(date)}. ${texts.tail(ai)}`;
 }
 
 // ---------------------------------------------------------------------------------------------

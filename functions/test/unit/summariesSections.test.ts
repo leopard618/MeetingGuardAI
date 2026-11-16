@@ -3167,7 +3167,7 @@ describe('parseSections: bulleted owner groups (Fathom Next Steps)', () => {
 
 describe('extractSummaryMeta: notetaker banner and participants line (Fathom)', () => {
   const titleOf = (lines: readonly string[]): string | null => extractSummaryMeta(lines.join('\n'), null).titleLine;
-  const FATHOM_DATE = 'October 16, 2026  •  28 mins  • View Meeting';
+  const FATHOM_DATE = `October 16, 2026  ${ch(0x2022)}  28 mins  ${ch(0x2022)} View Meeting`;
 
   it('skips the banner and takes the meeting name under the participants line', () => {
     expect(titleOf(['Get your own FREE AI Meeting Assistant', 'Meeting with Dana Lee', 'Acme - Weekly sync', FATHOM_DATE, 'Action Items'])).toBe(

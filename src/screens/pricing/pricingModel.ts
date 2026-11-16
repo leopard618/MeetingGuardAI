@@ -15,7 +15,8 @@ import { formatUsd, getPlans, type BillingCycle, type PlanId, type PlanTier } fr
 import { PLAN_AI_LIMITS, type AssistantUsage, type Plan as EntitlementPlan, type UsagePeriod } from '../../core/aiContract';
 import type { AppErrorCode } from '../../core/errors';
 import { PLAY_PRODUCT_IDS, type StoreOffering, type StorePackage } from '../../core/contracts';
-import type { Language } from '../../core/types';
+import type { AppLanguage } from '../../core/types';
+import { LOCALE_TAGS } from '../../i18n/locale';
 
 /** What the screen knows about the RevenueCat offering. */
 export type StoreState =
@@ -135,7 +136,7 @@ export function buildPlanCards(
   cycle: BillingCycle,
   currentTier: PlanTier | null,
   store: StoreState = STORE_UNCONFIGURED,
-  language: Language = 'en',
+  language: AppLanguage = 'en',
   activeProductId: string | null = null,
   otherStoreProductId: string | null = null,
 ): PlanCard[] {
@@ -181,10 +182,10 @@ export function buildPlanCards(
   });
 }
 
-const PRICE_LOCALES: Readonly<Record<Language, string>> = { en: 'en-US', es: 'es-ES' };
+const PRICE_LOCALES: Readonly<Record<AppLanguage, string>> = LOCALE_TAGS;
 
 /** "$7.99" / "7,99 US$" (prices are in US dollars; the store shows the local price at purchase). */
-export function formatPriceUsd(amount: number, language: Language): string {
+export function formatPriceUsd(amount: number, language: AppLanguage): string {
   try {
     return new Intl.NumberFormat(PRICE_LOCALES[language], {
       style: 'currency',
@@ -198,7 +199,7 @@ export function formatPriceUsd(amount: number, language: Language): string {
 }
 
 /** A store amount (micros) in the store's own currency, e.g. per-month equivalents of yearly plans. */
-export function formatStorePrice(amountMicros: number, currencyCode: string, language: Language): string {
+export function formatStorePrice(amountMicros: number, currencyCode: string, language: AppLanguage): string {
   const amount = amountMicros / 1_000_000;
   try {
     return new Intl.NumberFormat(PRICE_LOCALES[language], {

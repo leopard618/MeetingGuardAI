@@ -2,7 +2,9 @@
  * Every user-visible string the WhatsApp bot sends (EN + ES; docs/v1/ARCHITECTURE.md §27).
  *
  * Language: a LINKED user gets their app language (users/{uid}/settings/preferences.language),
- * falling back to 'en'. The inbound Cloud API payload carries NO locale, so an UNLINKED sender
+ * falling back to 'en'. M12: BOT_STRINGS frame the assistant and stay EN + ES (a pt, fr or de user
+ * reads English there); only the suggested-tasks texts (SUMMARY_BOT_STRINGS) speak every app
+ * language (EN, ES, PT as pt-BR, FR, DE). The inbound Cloud API payload carries NO locale, so an UNLINKED sender
  * has no known language and gets the bilingual EN + ES variants below.
  *
  * Product text rule (tested by src/i18n/__tests__/noTypographicChars.test.ts, which sweeps
@@ -10,7 +12,7 @@
  * em/en dashes, no ellipsis character, no curly quotes. Spanish accents, inverted marks and
  * guillemets are fine (and expected: the app's ES voice uses them, so the bot matches it).
  */
-import { AI_ALLOWANCES, type Language } from '../shared/aiContract';
+import { AI_ALLOWANCES, type AppLanguage, type Language } from '../shared/aiContract';
 import { MAX_INTERACTIVE_BODY_CHARS } from './send';
 
 export interface BotMeetingSummaryInput {
@@ -182,8 +184,43 @@ const SUMMARY_ES: SummaryBotStrings = {
   expired: 'Esa lista expiró. Escribe compromisos para ver una nueva.',
 };
 
-export const SUMMARY_BOT_STRINGS: Readonly<Record<Language, SummaryBotStrings>> = { en: SUMMARY_EN, es: SUMMARY_ES };
+// M12: each language names its own trigger word (whatsapp/summaryRoute.ts SUMMARY_TRIGGER_PHRASES).
+const SUMMARY_PT: SummaryBotStrings = {
+  unavailable: 'As tarefas sugeridas não estão disponíveis agora. Abra o app para revisá-las.',
+  stillPreparing: 'Ainda estou preparando suas tarefas sugeridas. Escreva compromissos de novo em um minuto.',
+  replyTimeout: 'Isso está demorando mais que o normal. Escreva compromissos de novo em um minuto para ver o que foi adicionado.',
+  closed: 'Fechado. Nada foi alterado.',
+  nothingMarked: 'Nada está marcado. Responda com os números que você quer.',
+  expired: 'Essa lista expirou. Escreva compromissos para ver uma nova.',
+};
 
-export function summaryBotStrings(language: Language): SummaryBotStrings {
-  return SUMMARY_BOT_STRINGS[language] ?? SUMMARY_BOT_STRINGS.en;
+const SUMMARY_FR: SummaryBotStrings = {
+  unavailable: "Les tâches suggérées ne sont pas disponibles pour le moment. Ouvrez l'application pour les consulter.",
+  stillPreparing: 'Vos tâches suggérées sont encore en préparation. Écrivez engagements à nouveau dans une minute.',
+  replyTimeout: "Cela prend plus de temps que d'habitude. Écrivez engagements à nouveau dans une minute pour voir ce qui a été ajouté.",
+  closed: "Fermé. Rien n'a été modifié.",
+  nothingMarked: "Rien n'est coché. Répondez avec les numéros souhaités.",
+  expired: 'Cette liste a expiré. Écrivez engagements pour en obtenir une nouvelle.',
+};
+
+const SUMMARY_DE: SummaryBotStrings = {
+  unavailable: 'Vorgeschlagene Aufgaben sind gerade nicht verfügbar. Öffnen Sie die App, um sie zu prüfen.',
+  stillPreparing: 'Ihre vorgeschlagenen Aufgaben werden noch vorbereitet. Schreiben Sie in einer Minute noch einmal Zusagen.',
+  replyTimeout: 'Das dauert länger als üblich. Schreiben Sie in einer Minute noch einmal Zusagen, um zu sehen, was hinzugefügt wurde.',
+  closed: 'Geschlossen. Es wurde nichts geändert.',
+  nothingMarked: 'Nichts ist markiert. Antworten Sie mit den gewünschten Nummern.',
+  expired: 'Diese Liste ist abgelaufen. Schreiben Sie Zusagen für eine neue Liste.',
+};
+
+export const SUMMARY_BOT_STRINGS: Readonly<Record<AppLanguage, SummaryBotStrings>> = {
+  en: SUMMARY_EN,
+  es: SUMMARY_ES,
+  pt: SUMMARY_PT,
+  fr: SUMMARY_FR,
+  de: SUMMARY_DE,
+};
+
+/** The suggested-tasks texts in the app language; anything unknown reads English. */
+export function summaryBotStrings(language: AppLanguage | string): SummaryBotStrings {
+  return Object.prototype.hasOwnProperty.call(SUMMARY_BOT_STRINGS, language) ? SUMMARY_BOT_STRINGS[language as AppLanguage] : SUMMARY_BOT_STRINGS.en;
 }

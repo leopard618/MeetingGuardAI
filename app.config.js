@@ -37,6 +37,12 @@ const EAS_PROJECT_ID = '139b18d2-655f-458f-854a-27e423530626';
 // never set this variable, so their config is unchanged.
 const IS_LOCAL_TEST_BUILD = process.env.MG_LOCAL_TEST_BUILD === '1';
 
+// Hindi and Mandarin verdict tests (M12): a local test APK may force the speech locale of the
+// assistant's voice input and spoken replies (hi-IN, en-IN, zh-CN or cmn-Hans-CN) while the UI
+// stays English. Read only in local test builds, so an EAS (store) build never carries it; the
+// app ignores any value outside that list (src/screens/assistant/voiceModel.ts).
+const VOICE_LOCALE_TEST = IS_LOCAL_TEST_BUILD ? trim(process.env.EXPO_PUBLIC_VOICE_LOCALE_TEST) : '';
+
 /**
  * iOS URL scheme required by @react-native-google-signin/google-signin: the "reversed" iOS
  * OAuth client ID (com.googleusercontent.apps.<id>). Taken from EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME,
@@ -117,7 +123,22 @@ module.exports = {
     // 1.6.0 (V2 Stage 2): the full-screen alarm native module and the Microsoft sign-in redirect
     // (meetingguardai://auth/microsoft) are native changes: store/APK build only, never an OTA
     // update onto 1.5.x. Frozen 2026-11-05 (docs/v2/RELEASE-1.6.0.md section 0).
+    // 1.7.0 (M12 languages): expo-localization supportedLocales gains pt, fr and de, and `locales`
+    // adds an InfoPlist.strings per language (CFBundleLocalizations, locales_config.xml and
+    // resourceConfigurations change). Native config: store/APK build only, never an OTA update
+    // onto 1.6.x. `version` moves to 1.7.0 at the 1.7.0 freeze (docs/v2/RELEASE-1.7.0-LANGUAGES.md).
     version: '1.6.0',
+    // iOS permission prompts per language (M12): each file becomes <lang>.lproj/InfoPlist.strings.
+    // Expo writes the values unescaped, so no double quotes, backslashes or line breaks in them
+    // (src/i18n/__tests__/nativeStrings.test.ts). The English constants above stay the base
+    // Info.plist values and en.json repeats them. iOS-only keys ("ios"), so Android gets no files.
+    locales: {
+      en: './src/i18n/native/en.json',
+      es: './src/i18n/native/es.json',
+      pt: './src/i18n/native/pt.json',
+      fr: './src/i18n/native/fr.json',
+      de: './src/i18n/native/de.json',
+    },
     scheme: 'meetingguardai',
     platforms: ['ios', 'android'],
     orientation: 'portrait',
@@ -257,9 +278,11 @@ module.exports = {
       [
         'expo-localization',
         {
+          // Language-only tags, as i18n loads them (load: 'languageOnly'); pt is Brazilian
+          // Portuguese. Native config (1.7.0): store/APK build only.
           supportedLocales: {
-            ios: ['en', 'es'],
-            android: ['en', 'es'],
+            ios: ['en', 'es', 'pt', 'fr', 'de'],
+            android: ['en', 'es', 'pt', 'fr', 'de'],
           },
         },
       ],
@@ -296,6 +319,7 @@ module.exports = {
       eas: {
         projectId: EAS_PROJECT_ID,
       },
+      ...(VOICE_LOCALE_TEST ? { voiceLocaleTest: VOICE_LOCALE_TEST } : {}),
     },
   },
 };

@@ -45,6 +45,9 @@ jest.mock('firebase/auth', () => ({
 
 jest.mock('firebase/functions', () => ({ httpsCallable: jest.fn() }));
 
+// M12: the app language the verification and password-reset emails are sent in.
+jest.mock('../../../i18n', () => ({ getLanguage: jest.fn(() => 'pt') }));
+
 jest.mock('../../../config/firebase', () => ({
   auth: { currentUser: null, authStateReady: jest.fn(async () => undefined) },
   functions: { region: 'us-central1' },
@@ -73,6 +76,7 @@ interface FirebaseAuthMock {
   createUserWithEmailAndPassword: MockFn;
   updateProfile: MockFn;
   sendEmailVerification: MockFn;
+  sendPasswordResetEmail: MockFn;
   signOut: MockFn;
   onAuthStateChanged: MockFn;
 }
@@ -82,7 +86,7 @@ interface Loaded {
   google: Record<string, MockFn>;
   fb: FirebaseAuthMock;
   httpsCallable: MockFn;
-  firebaseConfig: { auth: { currentUser: unknown } };
+  firebaseConfig: { auth: { currentUser: unknown; languageCode?: string | null } };
   env: { google: { webClientId: string | null } };
 }
 
@@ -313,6 +317,35 @@ describe('email verification', () => {
       details: { reason: 'too_many_requests' },
     });
     firebaseConfig.auth.currentUser = null;
+  });
+
+  it('M12: sends the verification and password-reset emails in the app language (auth.languageCode)', async () => {
+    const { authService, fb, firebaseConfig } = load();
+    const i18n = jest.requireMock('../../../i18n') as { getLanguage: MockFn };
+    firebaseConfig.auth.languageCode = null;
+    fb.sendPasswordResetEmail.mockImplementation(async () => {
+      expect(firebaseConfig.auth.languageCode).toBe('pt');
+    });
+    await authService.sendPasswordReset('ana@example.com');
+    expect(fb.sendPasswordResetEmail).toHaveBeenCalledWith(firebaseConfig.auth, 'ana@example.com');
+
+    i18n.getLanguage.mockReturnValue('de');
+    const current = firebaseUser('uid-1');
+    firebaseConfig.auth.currentUser = current;
+    fb.sendEmailVerification.mockImplementation(async () => {
+      expect(firebaseConfig.auth.languageCode).toBe('de');
+    });
+    await authService.resendVerification();
+    expect(fb.sendEmailVerification).toHaveBeenCalledWith(current);
+
+    i18n.getLanguage.mockReturnValue('fr');
+    fb.createUserWithEmailAndPassword.mockResolvedValue({ user: firebaseUser('uid-4', null) });
+    await authService.signUpWithEmail('ana@example.com', 'secret1', '');
+    expect(firebaseConfig.auth.languageCode).toBe('fr');
+
+    firebaseConfig.auth.currentUser = null;
+    delete firebaseConfig.auth.languageCode;
+    i18n.getLanguage.mockReturnValue('pt');
   });
 
   it('reloadUser refreshes emailVerified, force-mints a fresh ID token and tells auth listeners', async () => {

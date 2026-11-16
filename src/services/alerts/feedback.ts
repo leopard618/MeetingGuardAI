@@ -19,6 +19,7 @@ import * as Speech from 'expo-speech';
 import { Vibration } from 'react-native';
 
 import { createLogger } from '../../core/logger';
+import { speechLocale } from '../../i18n/locale';
 import {
   ALARM_RAMP_DURATION_MS,
   ALARM_RAMP_START_FACTOR,
@@ -31,7 +32,7 @@ import {
   VOICE_MAX_REPEATS,
   VOICE_REPEAT_MS,
 } from './constants';
-import type { AlertIntensity, AlertSoundType, FeedbackPort, Language } from './types';
+import type { AlertIntensity, AlertSoundType, AppLanguage, FeedbackPort } from './types';
 
 const log = createLogger('alerts.feedback');
 
@@ -46,15 +47,16 @@ export interface FeedbackRequest {
   volume: number;
   vibrationEnabled: boolean;
   /** Text read aloud (already localized in `language`); null = no voice. */
-  voice: { text: string; language: Language } | null;
+  voice: { text: string; language: AppLanguage } | null;
 }
 
 export interface FeedbackHandle {
   stop(): void;
 }
 
-export function speechLanguageTag(language: Language): string {
-  return language === 'es' ? 'es-ES' : 'en-US';
+/** TTS locale of the voice readout (M12: the shared table in src/i18n/locale.ts, e.g. 'fr' -> 'fr-FR'). */
+export function speechLanguageTag(language: AppLanguage): string {
+  return speechLocale(language);
 }
 
 function clampVolume(value: number): number {

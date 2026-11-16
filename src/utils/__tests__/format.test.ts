@@ -201,3 +201,36 @@ describe('formatMeetingTimeRange', () => {
     );
   });
 });
+
+describe('M12 languages (pt-BR, fr, de)', () => {
+  const now = new Date('2026-09-28T10:00:00.000Z');
+  const meeting = { startAt: MADRID_3PM, durationMinutes: 60, allDay: false, date: '2026-10-05' };
+
+  it('defaults to a 24-hour clock', () => {
+    expect(uses24HourClock({ language: 'pt' })).toBe(true);
+    expect(uses24HourClock({ language: 'fr' })).toBe(true);
+    expect(uses24HourClock({ language: 'de' })).toBe(true);
+    expect(formatTime(MADRID_3PM, { timeZone: MADRID, language: 'fr' })).toBe('15:00');
+    expect(formatTime(MADRID_3PM, { timeZone: MADRID, language: 'pt', use24Hour: false })).toBe('3:00 PM');
+  });
+
+  it('formats dates with each locale', () => {
+    expect(formatDate('2026-10-05', 'medium', { language: 'pt' })).toBe('5 out 2026');
+    expect(formatDate('2026-10-05', 'medium', { language: 'fr' })).toBe('5 oct. 2026');
+    expect(formatDate('2026-10-05', 'medium', { language: 'de' })).toBe('5. Okt. 2026');
+    expect(formatDate('2026-10-05', 'full', { language: 'de' })).toBe('Montag, 5. Oktober 2026');
+  });
+
+  it('formats meeting ranges with the day label of each language', () => {
+    expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'pt', now })).toBe('segunda, 5 out · 15:00 - 16:00');
+    expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'fr', now })).toBe('lun. 5 oct. · 15:00 - 16:00');
+    expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'de', now })).toBe('Mo., 5. Okt. · 15:00 - 16:00');
+  });
+
+  it('formats relative times through the date-fns locale', () => {
+    const base = { timeZone: MADRID, now: NOW } as const;
+    expect(formatRelative(MADRID_3PM, { ...base, language: 'pt' })).toBe('em 5 minutos');
+    expect(formatRelative(MADRID_3PM, { ...base, language: 'fr' })).toBe('dans 5 minutes');
+    expect(formatRelative(MADRID_3PM, { ...base, language: 'de' })).toBe('in 5 Minuten');
+  });
+});

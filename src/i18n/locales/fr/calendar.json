@@ -1,0 +1,178 @@
+{
+  "screen": {
+    "subtitle": "Gardez Meeting Guard synchronisé avec vos calendriers connectés et les calendriers de ce téléphone."
+  },
+  "status": {
+    "lastSynced": "Dernière synchronisation {{time}}",
+    "neverSynced": "Pas encore synchronisé",
+    "syncing": "Synchronisation..."
+  },
+  "google": {
+    "title": "Google Calendar",
+    "description": "Synchronisation bidirectionnelle avec votre Google Calendar principal. Les réunions que vous créez ici apparaissent dans Google Calendar (avec des invitations pour les participants), et vos événements Google reçoivent les alertes Meeting Guard.",
+    "state": {
+      "connected": "Connecté",
+      "notConnected": "Non connecté",
+      "permissionNeeded": "Accès au calendrier requis"
+    },
+    "permissionNeededHint": "Meeting Guard n'a plus accès à votre Google Calendar. Accordez de nouveau l'accès pour continuer la synchronisation.",
+    "twoWaySync": "Synchronisation bidirectionnelle",
+    "connect": "Connecter Google Calendar",
+    "connecting": "Connexion...",
+    "grantAccess": "Autoriser l'accès au calendrier",
+    "connectedTitle": "Google Calendar connecté",
+    "firstSyncSummary": "{{created}} événements importés et {{pushed}} réunions envoyées à Google Calendar.",
+    "firstSyncFailed": "Connecté, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard réessaiera automatiquement.",
+    "scopeDenied": "L'accès au calendrier n'a pas été accordé. Vous pouvez vous reconnecter à tout moment.",
+    "disconnectTitle": "Arrêter la synchronisation Google Calendar ?",
+    "disconnectMessage": "Les événements importés de Google Calendar seront retirés de Meeting Guard. Rien n'est supprimé de votre Google Calendar.",
+    "disconnect": "Arrêter la synchronisation",
+    "disconnectAndRevoke": "Arrêter la synchronisation et retirer l'accès",
+    "disconnecting": "Arrêt de la synchronisation...",
+    "disconnectedTitle": "La synchronisation Google Calendar est désactivée",
+    "untitledEvent": "(Sans titre)"
+  },
+  "outlook": {
+    "title": "Calendrier Outlook",
+    "description": "Synchronisation bidirectionnelle avec le calendrier de votre compte Microsoft (Outlook, Microsoft 365). Les réunions que vous créez ici apparaissent dans Outlook, y compris les réunions récurrentes, et vos événements Outlook reçoivent les alertes Meeting Guard.",
+    "state": {
+      "connected": "Connecté",
+      "notConnected": "Non connecté"
+    },
+    "account": "Compte Microsoft : {{email}}",
+    "twoWaySync": "Synchronisation bidirectionnelle",
+    "connect": "Connecter Outlook",
+    "connecting": "Connexion...",
+    "connectedTitle": "Outlook connecté",
+    "firstSyncSummary": "{{created}} événements importés et {{pushed}} réunions envoyées à Outlook.",
+    "firstSyncFailed": "Connecté, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard réessaiera automatiquement.",
+    "connectFailed": "La connexion Microsoft n'a pas abouti. Réessayez.",
+    "disconnectTitle": "Arrêter la synchronisation Outlook ?",
+    "disconnectMessage": "Les événements importés d'Outlook seront retirés de Meeting Guard. Rien n'est supprimé de votre calendrier Outlook.",
+    "disconnect": "Arrêter la synchronisation",
+    "disconnectAndRevoke": "Arrêter la synchronisation et vérifier l'accès",
+    "disconnecting": "Arrêt de la synchronisation...",
+    "disconnectedTitle": "La synchronisation Outlook est désactivée",
+    "untitledEvent": "(Sans titre)"
+  },
+  "todo": {
+    "title": "Microsoft To Do",
+    "description": "Synchronisation bidirectionnelle de vos tâches avec Microsoft To Do sur le même compte Microsoft qu'Outlook. Le titre, les notes, l'échéance, le rappel et l'état terminé sont synchronisés dans les deux sens. Lorsque la synchronisation Google Tasks est aussi activée, les tâches de To Do sont également copiées dans votre liste Google Tasks.",
+    "state": {
+      "on": "Synchronisation active",
+      "needsList": "Liste requise",
+      "off": "Désactivée"
+    },
+    "connectFirst": "Connectez d'abord Outlook ci-dessus. Les tâches se synchronisent via le même compte Microsoft.",
+    "syncTasks": "Synchroniser les tâches avec To Do",
+    "chooseList": "Dans quelle liste vos tâches doivent-elles aller ?",
+    "defaultList": "{{name}} (liste par défaut de To Do)",
+    "loadingLists": "Chargement de vos listes...",
+    "listsFailed": "Impossible de charger vos listes To Do : {{error}}",
+    "startSync": "Démarrer la synchronisation",
+    "starting": "Démarrage...",
+    "syncSwitch": "Synchroniser les tâches",
+    "listLabel": "Liste : {{name}}",
+    "changeList": "Changer de liste",
+    "needsListHint": "Choisissez une liste pour que les nouvelles tâches arrivent dans Microsoft To Do.",
+    "chooseListAction": "Choisir une liste",
+    "enabledTitle": "Microsoft To Do connecté",
+    "firstSyncSummary": "{{created}} tâches importées et {{pushed}} tâches envoyées à To Do.",
+    "firstSyncFailed": "Activée, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard réessaiera automatiquement.",
+    "disableTitle": "Arrêter la synchronisation To Do ?",
+    "disableMessage": "Les tâches importées de To Do seront retirées de Meeting Guard. Rien n'est supprimé dans Microsoft To Do.",
+    "disable": "Arrêter la synchronisation",
+    "disabling": "Arrêt de la synchronisation...",
+    "disabledTitle": "La synchronisation To Do est désactivée",
+    "permissionHint": "Microsoft n'a pas encore autorisé l'accès aux tâches pour cette connexion. Arrêtez la synchronisation Outlook ci-dessus et reconnectez-la pour l'accorder."
+  },
+  "gtasks": {
+    "title": "Google Tasks",
+    "description": "Synchronisation bidirectionnelle de vos tâches avec Google Tasks sur le compte Google connecté sur ce téléphone. Le titre, les notes, l'échéance et l'état terminé sont synchronisés dans les deux sens. Lorsque la synchronisation Microsoft To Do est aussi activée, les tâches de Google Tasks sont également copiées dans votre liste To Do.",
+    "state": {
+      "on": "Synchronisation active",
+      "needsList": "Liste requise",
+      "off": "Désactivée"
+    },
+    "connectFirst": "Connectez-vous d'abord avec Google sur cet appareil. Les tâches se synchronisent via ce compte Google.",
+    "syncTasks": "Synchroniser les tâches avec Google Tasks",
+    "chooseList": "Dans quelle liste vos tâches doivent-elles aller ?",
+    "defaultList": "{{name}} (liste par défaut de Google)",
+    "loadingLists": "Chargement de vos listes...",
+    "listsFailed": "Impossible de charger vos listes Google Tasks : {{error}}",
+    "startSync": "Démarrer la synchronisation",
+    "starting": "Démarrage...",
+    "syncSwitch": "Synchroniser les tâches",
+    "listLabel": "Liste : {{name}}",
+    "changeList": "Changer de liste",
+    "needsListHint": "Choisissez une liste pour que les nouvelles tâches arrivent dans Google Tasks.",
+    "chooseListAction": "Choisir une liste",
+    "enabledTitle": "Google Tasks connecté",
+    "firstSyncSummary": "{{created}} tâches importées et {{pushed}} tâches envoyées à Google Tasks.",
+    "firstSyncFailed": "Activée, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard réessaiera automatiquement.",
+    "scopeDenied": "L'accès à Google Tasks n'a pas été accordé. La synchronisation reste désactivée tant que vous ne l'autorisez pas.",
+    "disableTitle": "Arrêter la synchronisation Google Tasks ?",
+    "disableMessage": "Les tâches importées de Google Tasks seront retirées de Meeting Guard. Rien n'est supprimé dans Google Tasks.",
+    "disable": "Arrêter la synchronisation",
+    "disabling": "Arrêt de la synchronisation...",
+    "disabledTitle": "La synchronisation Google Tasks est désactivée",
+    "permissionHint": "Google n'a pas encore autorisé l'accès aux tâches pour ce compte. Arrêtez la synchronisation et redémarrez-la pour l'accorder."
+  },
+  "device": {
+    "title": "Calendriers de ce téléphone",
+    "description": "Importez les événements des calendriers de ce téléphone et, si vous le souhaitez, ajoutez vos réunions Meeting Guard à l'un d'eux.",
+    "permission": {
+      "request": "Autoriser l'accès au calendrier",
+      "denied": "L'accès au calendrier est désactivé pour Meeting Guard.",
+      "openSettings": "Ouvrir les réglages"
+    },
+    "loading": "Chargement des calendriers...",
+    "empty": "Il n'y a aucun calendrier sur ce téléphone.",
+    "retry": "Réessayer",
+    "import": {
+      "title": "Importer les événements de",
+      "googleSynced": "Déjà synchronisé via Google Calendar",
+      "a11y": "Importer les événements de {{calendar}}"
+    },
+    "export": {
+      "title": "Ajouter les réunions Meeting Guard à",
+      "none": "Ne pas les ajouter à un calendrier du téléphone",
+      "hint": "Seules les réunions Meeting Guard sont ajoutées, sans rappels de calendrier (Meeting Guard vous alerte). Les réunions récurrentes ne sont pas ajoutées dans cette version."
+    }
+  },
+  "sync": {
+    "now": "Synchroniser",
+    "syncing": "Synchronisation...",
+    "doneTitle": "Synchronisation terminée",
+    "problemsTitle": "Synchronisation terminée avec des problèmes",
+    "googleResult": "Google Calendar : {{created}} nouveaux, {{updated}} mis à jour, {{removed}} retirés, {{pushed}} envoyés à Google.",
+    "outlookResult": "Outlook : {{created}} nouveaux, {{updated}} mis à jour, {{removed}} retirés, {{pushed}} envoyés à Outlook.",
+    "deviceResult": "Calendriers du téléphone : {{created}} nouveaux, {{updated}} mis à jour, {{removed}} retirés, {{pushed}} ajoutés au calendrier de votre téléphone.",
+    "failedGoogle_one": "{{count}} modification n'a pas pu être envoyée à Google Calendar.",
+    "failedGoogle_other": "{{count}} modifications n'ont pas pu être envoyées à Google Calendar.",
+    "failedOutlook_one": "{{count}} modification n'a pas pu être envoyée à Outlook.",
+    "failedOutlook_other": "{{count}} modifications n'ont pas pu être envoyées à Outlook.",
+    "failedDevice_one": "{{count}} réunion n'a pas pu être ajoutée au calendrier de votre téléphone.",
+    "failedDevice_other": "{{count}} réunions n'ont pas pu être ajoutées au calendrier de votre téléphone.",
+    "todoResult": "Microsoft To Do : {{created}} nouvelles, {{updated}} mises à jour, {{removed}} retirées, {{pushed}} envoyées à To Do.",
+    "failedTodo_one": "{{count}} tâche n'a pas pu être envoyée à Microsoft To Do.",
+    "failedTodo_other": "{{count}} tâches n'ont pas pu être envoyées à Microsoft To Do.",
+    "gtasksResult": "Google Tasks : {{created}} nouvelles, {{updated}} mises à jour, {{removed}} retirées, {{pushed}} envoyées à Google Tasks.",
+    "failedGtasks_one": "{{count}} tâche n'a pas pu être envoyée à Google Tasks.",
+    "failedGtasks_other": "{{count}} tâches n'ont pas pu être envoyées à Google Tasks.",
+    "providerError": "{{provider}} : {{error}}",
+    "nothingToSync": "Rien à synchroniser pour l'instant. Connectez d'abord Google Calendar ou choisissez des calendriers sur ce téléphone.",
+    "providers": {
+      "google": "Google Calendar",
+      "outlook": "Outlook",
+      "device": "Calendriers du téléphone",
+      "todo": "Microsoft To Do",
+      "gtasks": "Google Tasks"
+    }
+  },
+  "actions": {
+    "ok": "OK",
+    "cancel": "Annuler"
+  },
+  "errorTitle": "Une erreur s'est produite"
+}

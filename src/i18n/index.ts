@@ -2,9 +2,11 @@
  * I18N public API (owner: i18n-nav). Layer L1: imports only core (+ i18next, expo-localization,
  * AsyncStorage). Talks to the data layer only through appEvents.
  *
- * - i18next + react-i18next + expo-localization; resources bundled from ./locales/{en,es}/<ns>.json
- *   (one file per namespace, each owned by its area). Keys are ALWAYS namespace-qualified:
+ * - i18next + react-i18next + expo-localization; resources bundled from
+ *   ./locales/{en,es,pt,fr,de}/<ns>.json (one file per namespace, each owned by its area; the
+ *   en/es-only namespaces exist only in en and es). Keys are ALWAYS namespace-qualified:
  *   t('alerts:max.title'). Fallback language 'en'. compatibilityJSON is not set (i18next >= 24).
+ * - ./locale: per-language locale data (Intl tags, date-fns locales, week start, 24 h default).
  * - Importing this module initializes i18next synchronously (device language) so `t` works in
  *   headless tasks; initI18n() then applies the persisted language (GLOBAL_STORAGE_KEYS.language).
  * - setLanguage persists locally and emits appEvents 'language:changed' (the data layer writes
@@ -34,3 +36,4 @@ export {
   languageFromLocaleCode,
   normalizeLanguage,
 } from './detect';
+export { DATE_FNS_LOCALES, DEFAULT_24_HOUR, LOCALE_TAGS, speechLocale, weekStartsOnFor } from './locale';

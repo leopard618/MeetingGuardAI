@@ -25,6 +25,7 @@ import {
   emailSchema,
   httpUrlSchema,
   recurrenceRuleSchema,
+  toBaseLanguage,
   type AiAction,
   type AiMeetingChanges,
   type AiMeetingDraft,
@@ -32,14 +33,15 @@ import {
   type AiTaskChanges,
   type AiTaskDraft,
   type AiTaskPerson,
+  type AppLanguage,
   type AssistantMode,
   type ConferenceDetails,
-  type Language,
   type MeetingLocation,
   type PendingResolution,
   type RecurrenceRule,
 } from '../shared/aiContract';
 import type { ContextMeeting, MeetingContext } from './context';
+import { plainClip } from './plainText';
 import type { TaskContext } from './tasksContext';
 import {
   formatIsoWithOffset,
@@ -76,7 +78,8 @@ export interface ToolCall {
 }
 
 export interface MappingContext {
-  language: Language;
+  /** Card summary language: the app UI language (M12: en, es, pt, fr, de). Meetings keep en/es. */
+  language: AppLanguage;
   mode: AssistantMode;
   userTimeZone: string;
   context: MeetingContext;
@@ -305,7 +308,8 @@ function common(args: { summary: string; confidence: number }, ctx: MappingConte
   };
 }
 
-const DEFAULT_SUMMARIES: Readonly<Record<Language, Record<AiAction['type'], string>>> = {
+/** Card caption when the model left the summary empty, in the UI language (exported for tests). */
+export const DEFAULT_SUMMARIES: Readonly<Record<AppLanguage, Record<AiAction['type'], string>>> = {
   en: {
     create_meeting: 'Create a meeting',
     update_meeting: 'Update a meeting',
@@ -330,6 +334,42 @@ const DEFAULT_SUMMARIES: Readonly<Record<Language, Record<AiAction['type'], stri
     delete_task: 'Eliminar una tarea',
     list_tasks: 'Mostrar tareas',
   },
+  pt: {
+    create_meeting: 'Criar uma reunião',
+    update_meeting: 'Atualizar uma reunião',
+    delete_meeting: 'Excluir uma reunião',
+    share_meeting: 'Compartilhar uma reunião',
+    bulk_update: 'Atualizar várias reuniões',
+    list: 'Mostrar reuniões',
+    create_task: 'Criar uma tarefa',
+    update_task: 'Atualizar uma tarefa',
+    delete_task: 'Excluir uma tarefa',
+    list_tasks: 'Mostrar tarefas',
+  },
+  fr: {
+    create_meeting: 'Créer une réunion',
+    update_meeting: 'Modifier une réunion',
+    delete_meeting: 'Supprimer une réunion',
+    share_meeting: 'Partager une réunion',
+    bulk_update: 'Modifier plusieurs réunions',
+    list: 'Afficher les réunions',
+    create_task: 'Créer une tâche',
+    update_task: 'Modifier une tâche',
+    delete_task: 'Supprimer une tâche',
+    list_tasks: 'Afficher les tâches',
+  },
+  de: {
+    create_meeting: 'Besprechung erstellen',
+    update_meeting: 'Besprechung ändern',
+    delete_meeting: 'Besprechung löschen',
+    share_meeting: 'Besprechung teilen',
+    bulk_update: 'Mehrere Besprechungen ändern',
+    list: 'Besprechungen anzeigen',
+    create_task: 'Aufgabe erstellen',
+    update_task: 'Aufgabe ändern',
+    delete_task: 'Aufgabe löschen',
+    list_tasks: 'Aufgaben anzeigen',
+  },
 };
 
 function mapCreate(raw: string, ctx: MappingContext, provenance: Provenance): AiAction {
@@ -353,7 +393,8 @@ function mapCreate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
     participants: acceptParticipants(args.participants, provenance, emailsOf(ctx.mode !== 'chat' ? ctx.context.followUp : null)),
     preparationTips: acceptTips(args.preparation_tips),
     customAlertTimes: args.alert_minutes_before === null ? null : acceptAlertTimes(args.alert_minutes_before),
-    language: ctx.language,
+    // Meetings keep the en/es language (M12): pt/fr/de UI users get an 'en' meeting.
+    language: toBaseLanguage(ctx.language),
     recurrence: args.recurrence === null ? null : mapRecurrence(args.recurrence, zone),
   };
   return { type: 'create_meeting', ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].create_meeting), meeting };
@@ -592,7 +633,8 @@ function mapShare(raw: string, ctx: MappingContext, provenance: Provenance): AiA
   ].slice(0, AI_LIMITS.maxRecipients);
   // Without an accepted address, fall back to the share sheet (the user picks the recipients).
   const channel = args.channel === 'email' && recipients.length > 0 ? 'email' : 'system_share';
-  const message = args.message ? clip(args.message, AI_LIMITS.maxShareMessageChars) : '';
+  // Written by the model and sent to other people: plain punctuation (curly quotes, dashes) like the reply.
+  const message = args.message ? plainClip(args.message, AI_LIMITS.maxShareMessageChars) : '';
   return {
     type: 'share_meeting',
     ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].share_meeting),

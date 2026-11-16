@@ -10,7 +10,7 @@ jest.mock('firebase-functions/logger', () => ({ debug: jest.fn(), info: jest.fn(
 import * as logger from 'firebase-functions/logger';
 import type { Firestore } from 'firebase-admin/firestore';
 
-import type { AiAction, AssistantRequest, AssistantResponse } from '../../src/shared/aiContract';
+import { summaryCommitmentsSchema, type AiAction, type AppLanguage, type AssistantRequest, type AssistantResponse } from '../../src/shared/aiContract';
 import { SUMMARY_WHATSAPP_TUNING } from '../../src/config';
 import { handleSummaryWhatsApp, type SummaryWhatsAppDeps } from '../../src/summaries/whatsappCommitments';
 import { uidTagOf, type SummaryOffer, type SummaryWhatsAppRequest, type SummaryWhatsAppResponse } from '../../src/summaries/whatsappProtocol';
@@ -20,6 +20,7 @@ import type { WhatsappButton, WhatsappSender } from '../../src/whatsapp/send';
 import { firestoreSummaryOfferStore, firestoreWhatsappStore, parseSession, withFreshContext } from '../../src/whatsapp/session';
 import { hashLinkCode } from '../../src/whatsapp/signature';
 import type { PortResult, SummaryPort } from '../../src/whatsapp/summaryPort';
+import { renderOffer } from '../../src/summaries/whatsappRender';
 import { isSummaryTrigger, parseSummaryReply } from '../../src/whatsapp/summaryRoute';
 import { processInboundMessage, processWebhookPayload, type InboundMessage, type WebhookDeps } from '../../src/whatsapp/webhook';
 import { NOW, OTHER_UID, SUMMARY_A, UID, harness, seedMeeting, seedSummary, type Harness } from './commitmentsHarness';
@@ -194,6 +195,88 @@ describe('reading the text', () => {
     expect(parseSummaryReply('IA')).toEqual({ kind: 'ai' });
     for (const other of ['hello', 'drop', 'drop it', '1 3 please', '0', '1000', 'yes', 'si', '1-3', '']) expect([other, parseSummaryReply(other)]).toEqual([other, null]);
   });
+
+  it('M12: knows the pt, fr and de trigger phrases (accents folded), and nothing near them', () => {
+    for (const phrase of ['compromissos', 'Compromissos!', 'tarefas do meu resumo', 'engagements', 'ENGAGEMENTS.', `T${String.fromCodePoint(0xe2)}ches de mon compte rendu`, 'Zusagen', 'zusagen?', 'Aufgaben aus meinem Protokoll']) {
+      expect([phrase, isSummaryTrigger(phrase)]).toEqual([phrase, true]);
+    }
+    for (const phrase of ['compromisso', 'meus compromissos', 'engagement', 'zusage', 'aufgaben', 'protokoll']) expect([phrase, isSummaryTrigger(phrase)]).toEqual([phrase, false]);
+  });
+
+  it('M12: reads the pt, fr and de reply words; yes-words and other text stay null', () => {
+    for (const word of ['TODAS', 'todos', 'tous', 'Toutes', 'ALLE']) expect([word, parseSummaryReply(word)]).toEqual([word, { kind: 'all' }]);
+    for (const word of ['nenhuma', 'NENHUM', 'aucune', 'Aucun', 'KEINE', 'keiner']) expect([word, parseSummaryReply(word)]).toEqual([word, { kind: 'none' }]);
+    for (const word of [`n${String.fromCodePoint(0xe3)}o`, 'nao', 'NON', 'annuler', 'Nein', 'abbrechen']) expect([word, parseSummaryReply(word)]).toEqual([word, { kind: 'close' }]);
+    for (const word of ['IA', 'ki', 'KI']) expect([word, parseSummaryReply(word)]).toEqual([word, { kind: 'ai' }]);
+    expect(parseSummaryReply('REMOVER 2')).toEqual({ kind: 'drop', numbers: [2] });
+    expect(parseSummaryReply('tirar 2 e 4')).toEqual({ kind: 'drop', numbers: [2, 4] });
+    expect(parseSummaryReply('retirer 3')).toEqual({ kind: 'drop', numbers: [3] });
+    expect(parseSummaryReply('supprimer 1, 3')).toEqual({ kind: 'drop', numbers: [1, 3] });
+    expect(parseSummaryReply('Entfernen 2 und 5')).toEqual({ kind: 'drop', numbers: [2, 5] });
+    expect(parseSummaryReply('1 e 3')).toEqual({ kind: 'numbers', numbers: [1, 3] });
+    expect(parseSummaryReply('1 et 3')).toEqual({ kind: 'numbers', numbers: [1, 3] });
+    expect(parseSummaryReply('1 und 3')).toEqual({ kind: 'numbers', numbers: [1, 3] });
+    // No collision: a yes-word, a bare drop word, or a sentence is never a reply.
+    for (const other of ['sim', 'oui', 'ja', 'remover', 'entfernen', 'alle 3', 'keine ahnung', 'non merci', 'nein danke', 'tudo']) {
+      expect([other, parseSummaryReply(other)]).toEqual([other, null]);
+    }
+  });
+
+  it('M12: every reply word a list footer names, in every language, is one this parser accepts', () => {
+    const list = summaryCommitmentsSchema.parse({
+      key: `x_${'a'.repeat(16)}`,
+      mode: 'as_written',
+      preparedAt: '2026-10-17T15:00:00.000Z',
+      preselect: { allowed: true, selectAll: true, reason: null },
+      origin: { meetingId: null, meetingTitle: 'Weekly sync', occurrenceDate: null, localDate: '2026-10-16', tier: 'vendor_verified', senderDomain: null, forwardedBy: null },
+      truncated: false,
+      meetingChanged: false,
+      items: [1, 2].map((n) => ({
+        anchorId: `i_${n.toString(16).padStart(12, '0')}`,
+        number: n,
+        anchorKind: 'item',
+        sectionKind: 'action_items',
+        sectionHeading: null,
+        quote: `Task ${n}`,
+        title: `Task ${n}`,
+        owner: null,
+        due: null,
+        confidence: null,
+        flags: [],
+        preselected: true,
+        status: 'open',
+        taskId: null,
+        taskExists: null,
+        via: null,
+      })),
+    });
+    const WORDS: Record<AppLanguage, { all: string; drop: string; none: string; ai: string }> = {
+      en: { all: 'ALL', drop: 'DROP', none: 'NONE', ai: 'AI' },
+      es: { all: 'TODOS', drop: 'QUITAR', none: 'NINGUNO', ai: 'IA' },
+      pt: { all: 'TODAS', drop: 'REMOVER', none: 'NENHUMA', ai: 'IA' },
+      fr: { all: 'TOUTES', drop: 'RETIRER', none: 'AUCUNE', ai: 'IA' },
+      de: { all: 'ALLE', drop: 'ENTFERNEN', none: 'KEINE', ai: 'KI' },
+    };
+    for (const language of Object.keys(WORDS) as AppLanguage[]) {
+      const rendered = renderOffer({
+        language,
+        commitments: list,
+        ai: 'offered',
+        reminderZoneKnown: true,
+        offer: { offerId: '0'.repeat(16), uidTag: 'f'.repeat(16), summaryId: 'a'.repeat(64), expiresAt: '2026-10-17T15:15:00.000Z' },
+      });
+      const words = WORDS[language];
+      // The reply words in capitals of the footer are exactly these four ("Meeting Guard AI" and
+      // "OpenAI" aside), so none of them can be one the parser would miss.
+      const footer = (rendered.text.split('\n\n').at(-1) ?? '').replace(/Meeting Guard AI/g, '').replace(/OpenAI/g, '');
+      const upper = [...new Set(footer.match(/\b[A-Z]{2,}\b/g) ?? [])].sort();
+      expect([language, upper]).toEqual([language, [words.all, words.drop, words.none, words.ai].sort()]);
+      expect(parseSummaryReply(words.all)).toEqual({ kind: 'all' });
+      expect(parseSummaryReply(`${words.drop} 2`)).toEqual({ kind: 'drop', numbers: [2] });
+      expect(parseSummaryReply(words.none)).toEqual({ kind: 'none' });
+      expect(parseSummaryReply(words.ai)).toEqual({ kind: 'ai' });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -254,6 +337,42 @@ describe('routing', () => {
     expect(w.port.calls).toEqual([]);
     expect(w.assistant).toHaveLength(2);
     expect(sessionOf(w).summaryOffer).toEqual(offer({ ai: 'none' }));
+  });
+
+  it('M12: a pt user gets pt suggested-task texts and sends pt to the worker; the assistant frame stays en', async () => {
+    const w = world({
+      port: new FakePort((request) =>
+        request.op === 'reply' ? { kind: 'ok', response: { outcome: 'decided', text: 'RESULT', buttons: null, offer: { action: 'refresh', offer: offer() } } } : listAnswer(),
+      ),
+    });
+    w.db.seed(`users/${UID}/settings/preferences`, { language: 'pt', timezone: 'America/Sao_Paulo' });
+    await processInboundMessage(text('Compromissos'), w.deps);
+    expect(w.port.calls[0]?.request).toEqual({ op: 'offer', phoneE164: PHONE, language: 'pt' });
+    await processInboundMessage(text('1 e 3'), w.deps);
+    expect(w.port.calls[1]?.request).toEqual({ op: 'reply', phoneE164: PHONE, language: 'pt', offer: offer(), selection: { kind: 'numbers', numbers: [1, 3] } });
+    await processInboundMessage(text(`N${String.fromCodePoint(0xe3)}o`), w.deps);
+    expect(w.port.calls).toHaveLength(2);
+    expect(w.sender.sent.at(-1)?.body).toBe(SUMMARY_BOT_STRINGS.pt.closed);
+    armed(w, offer({ marked: [] }));
+    await processInboundMessage(text('todas'), w.deps);
+    expect(w.sender.sent.at(-1)?.body).toBe(SUMMARY_BOT_STRINGS.pt.nothingMarked);
+    // The assistant bridge keeps en/es: a pt user's chat request is English.
+    await processInboundMessage(text('O que tenho amanha?'), w.deps);
+    expect(w.assistant.map((request) => request.language)).toEqual(['en']);
+  });
+
+  it('M12: the fr and de button paths answer in that language; an unknown stored language reads English', async () => {
+    const cases = [
+      ['fr', SUMMARY_BOT_STRINGS.fr.expired],
+      ['de', SUMMARY_BOT_STRINGS.de.expired],
+      ['xx', SUMMARY_BOT_STRINGS.en.expired],
+    ] as const;
+    for (const [language, expected] of cases) {
+      const w = world();
+      w.db.seed(`users/${UID}/settings/preferences`, { language, timezone: 'Europe/Paris' });
+      await processInboundMessage(button(`wa_sum_all:${'b'.repeat(16)}`), w.deps);
+      expect([language, w.sender.sent.at(-1)?.body]).toEqual([language, expected]);
+    }
   });
 
   it('an expired offer, or one made for another uid, is not a live offer', async () => {
@@ -450,6 +569,27 @@ describe('end to end with the worker', () => {
     for (const content of ['Provide APK', 'Bish', 'Urpayroll', 'commitments']) expect(stored).not.toContain(content);
     expect(sessionOf(w).turns.map((turn) => turn.text)).toEqual(['hello', 'Assistant reply.']);
     expect(h.db.paths(`users/${UID}/tasks/`)).toHaveLength(1);
+  });
+
+  it('M12: a de user gets the German list, result and origin line through the real worker', async () => {
+    const h = harness();
+    seedSummary(h.db, SUMMARY_A);
+    seedMeeting(h.db);
+    const w = connected(h);
+    h.db.seed(`users/${UID}/settings/preferences`, { language: 'de', timezone: 'America/Mexico_City' });
+    await processInboundMessage(text('Zusagen'), w.deps);
+    const list = w.sender.sent[0]?.body ?? '';
+    expect(list).toMatch(/^Die Aufgaben aus dem Protokoll Ihres Notizassistenten zu "/);
+    expect(list).toContain('1. [x] Bish: Provide APK access/files to Urpayroll');
+    expect(list).toContain('Antworten Sie ALLE, um die ');
+    expect(w.port.calls[0]?.request.language).toBe('de');
+    await processInboundMessage(text('1'), w.deps);
+    expect(w.sender.sent.at(-1)?.body).toMatch(/^1 Aufgabe hinzugef\u00fcgt: Bish: Provide APK access\/files to Urpayroll\./);
+    const tasks = h.db.paths(`users/${UID}/tasks/`);
+    expect(tasks).toHaveLength(1);
+    expect(String(h.db.data(tasks[0] ?? '')?.description)).toMatch(/^Aus den Aufgaben im Protokoll Ihres Notizassistenten zu .+\. Von Ihnen hinzugef\u00fcgt\.$/);
+    await processInboundMessage(text('1'), w.deps);
+    expect(w.sender.sent.at(-1)?.body).toBe('Schon in Ihren Aufgaben: 1.');
   });
 
   it('the ALL button adds the marked ones, and AI prepares only after the reply AI', async () => {

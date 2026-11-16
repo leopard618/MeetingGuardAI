@@ -12,7 +12,7 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import type { CalendarStatus, TodoList, TranslateFn } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
-import type { Language } from '../../core/types';
+import type { AppLanguage } from '../../core/types';
 import { componentMetrics, radii, spacing, typography } from '../../theme/tokens';
 import { todoStateView } from './calendarSyncModel';
 import { InlineProgress, PrimaryButton, RadioRow, SyncLine, partStyles } from './CalendarSyncParts';
@@ -29,7 +29,7 @@ export interface TodoCardProps {
   working: TodoWork;
   palette: CalendarPalette;
   t: TranslateFn;
-  language: Language;
+  language: AppLanguage;
   now: Date;
   loadLists(): Promise<TodoList[]>;
   onEnable(list: TodoList): void;

@@ -11,7 +11,7 @@
  */
 import type { AppErrorCode } from './errors';
 import { createLogger } from './logger';
-import type { AlertIntensity, Language, Preferences, PreferenceKey, TaskExternalRefs } from './types';
+import type { AlertIntensity, AppLanguage, Preferences, PreferenceKey, TaskExternalRefs } from './types';
 
 // ---------------------------------------------------------------------------------------------
 // Payloads
@@ -134,7 +134,7 @@ export interface CalendarSyncedEvent {
 }
 
 export interface LanguageChangedEvent {
-  language: Language;
+  language: AppLanguage;
   /** 'user' = explicit choice (persist to preferences); 'preferences' = applied from synced prefs; 'device' = initial device default. */
   source: 'user' | 'preferences' | 'device';
 }

@@ -70,6 +70,7 @@ import { AppError, isAppError } from '../../core/errors';
 import type { Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
 import type { AuthUser } from '../../core/types';
+import { getLanguage } from '../../i18n';
 import { requestMicrosoftIdToken } from '../microsoft/signIn';
 
 import { authError, getAuthErrorReason, mapAppleSignInError, mapFirebaseAuthError, mapGoogleSignInError, type GoogleStatusCodes } from './authErrors';
@@ -127,6 +128,20 @@ function requireAuth(): Auth {
     throw authError('not_configured', 'firebase_not_configured', 'Firebase is not configured');
   }
   return firebaseAuth;
+}
+
+/**
+ * M12: Firebase writes its verification and password-reset emails in `auth.languageCode`, so it is
+ * set to the app language (en, es, pt, fr or de) right before each send. Firebase's default
+ * templates exist in all five; customized console templates need their own text per language.
+ * A failure keeps the project default (the email still goes out).
+ */
+function setEmailLanguage(authInstance: Auth): void {
+  try {
+    authInstance.languageCode = getLanguage();
+  } catch (error) {
+    log.warn('Email language could not be set', error instanceof Error ? error.name : typeof error);
+  }
 }
 
 type GoogleSignInModule = typeof import('@react-native-google-signin/google-signin');
@@ -735,6 +750,7 @@ export const authService: AuthServiceImpl = {
     // Verification email, NON-BLOCKING (§25): the account exists and is signed in either way;
     // the assistant stays gated until verified and EmailAuthScreen offers a resend.
     try {
+      setEmailLanguage(authInstance);
       void sendEmailVerification(user).catch((error: unknown) => {
         log.warn('Verification email could not be sent', mapFirebaseAuthError(error).code);
       });
@@ -760,6 +776,7 @@ export const authService: AuthServiceImpl = {
     const authInstance = requireAuth();
     const trimmed = requireEmail(email);
     try {
+      setEmailLanguage(authInstance);
       await sendPasswordResetEmail(authInstance, trimmed);
     } catch (error) {
       throw mapFirebaseAuthError(error);
@@ -771,6 +788,7 @@ export const authService: AuthServiceImpl = {
     const user = authInstance.currentUser;
     if (!user) throw new AppError('unauthenticated', 'Nobody is signed in');
     try {
+      setEmailLanguage(authInstance);
       await sendEmailVerification(user);
     } catch (error) {
       throw mapFirebaseAuthError(error);

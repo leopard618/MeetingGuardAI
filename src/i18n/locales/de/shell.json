@@ -1,0 +1,39 @@
+{
+  "header": {
+    "back": "Zurück",
+    "openMenu": "Menü öffnen",
+    "darkMode": "Zum dunklen Modus wechseln",
+    "lightMode": "Zum hellen Modus wechseln",
+    "switchLanguage": "Sprache auf {{language}} umstellen",
+    "assistant": "KI-Assistent öffnen",
+    "assistantHint": "Lange drücken und ziehen, um ihn zu verschieben"
+  },
+  "sidebar": {
+    "close": "Menü schließen",
+    "language": "Sprache",
+    "theme": "Darstellung",
+    "themeModes": {
+      "system": "System",
+      "light": "Hell",
+      "dark": "Dunkel"
+    },
+    "items": {
+      "Dashboard": "Übersicht",
+      "ChooseCreationMethod": "Neue Besprechung",
+      "TotalMeetings": "Alle Besprechungen",
+      "Calendar": "Kalender",
+      "Notes": "Notizen",
+      "Tasks": "Aufgaben",
+      "AIChat": "KI-Assistent",
+      "Pricing": "Tarife",
+      "Settings": "Einstellungen"
+    }
+  },
+  "errorBoundary": {
+    "title": "Etwas ist schiefgelaufen",
+    "message": "Bei Meeting Guard ist ein unerwartetes Problem aufgetreten. Versuchen Sie es erneut. Wenn es weiterhin auftritt, schließen Sie die App und öffnen Sie sie erneut.",
+    "retryHint": "Lädt Meeting Guard neu",
+    "screenMessage": "Auf diesem Bildschirm ist ein unerwartetes Problem aufgetreten. Versuchen Sie es erneut oder gehen Sie zurück. Wenn es weiterhin auftritt, schließen Sie die App und öffnen Sie sie erneut.",
+    "screenRetryHint": "Lädt den Bildschirm neu"
+  }
+}

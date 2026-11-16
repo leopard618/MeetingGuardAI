@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "NSCalendarsUsageDescription": "Meeting Guard AI verwendet Ihren Kalender, um Ihre Besprechungen anzuzeigen, zu erstellen und zu aktualisieren und um Besprechungsalarme zu planen.",
+    "NSCalendarsFullAccessUsageDescription": "Meeting Guard AI verwendet Ihren Kalender, um Ihre Besprechungen anzuzeigen, zu erstellen und zu aktualisieren und um Besprechungsalarme zu planen.",
+    "NSPhotoLibraryUsageDescription": "Mit Meeting Guard AI können Sie Fotos aus Ihrer Mediathek an eine Besprechung anhängen.",
+    "NSCameraUsageDescription": "Mit Meeting Guard AI können Sie ein Foto aufnehmen und an eine Besprechung anhängen.",
+    "NSMicrophoneUsageDescription": "Meeting Guard AI verwendet das Mikrofon, damit Sie mit dem Assistenten sprechen können, statt zu tippen.",
+    "NSSpeechRecognitionUsageDescription": "Meeting Guard AI verwendet die Spracherkennung, um Ihre gesprochenen Worte in Text für den Assistenten umzuwandeln. Sie sehen den Text immer, bevor etwas passiert."
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "greeting": {
+    "morningNoName": "Guten Morgen",
+    "afternoonNoName": "Guten Tag",
+    "eveningNoName": "Guten Abend"
+  },
+  "offline": {
+    "title": "Sie sind offline",
+    "message": "Sie können weiterarbeiten. Änderungen werden auf diesem Gerät gespeichert und synchronisiert, sobald Sie wieder online sind.",
+    "pending_one": "{{count}} Änderung wartet auf die Synchronisierung.",
+    "pending_other": "{{count}} Änderungen warten auf die Synchronisierung."
+  },
+  "loading": "Ihre Besprechungen werden geladen...",
+  "loadError": "Ihre Besprechungen konnten nicht geladen werden: {{reason}}",
+  "refresh": {
+    "failed": "Aktualisierung fehlgeschlagen: {{reason}}",
+    "calendarFailed": "Kalendersynchronisierung fehlgeschlagen: {{reason}}"
+  },
+  "setup": {
+    "eyebrow": "Empfohlen",
+    "a11y": "Empfohlen: {{title}}",
+    "notNow": "Nicht jetzt",
+    "verify_email": {
+      "title": "E-Mail-Adresse bestätigen",
+      "body": "Der Assistent und Zoom-Links erfordern eine bestätigte Adresse. Öffnen Sie den Link in der E-Mail, die wir Ihnen gesendet haben."
+    },
+    "connect_calendar": {
+      "title": "Kalender verbinden",
+      "body": "Verbinden Sie Google Calendar oder Outlook: Ihre Besprechungen erhalten Alarme von Meeting Guard, und die hier erstellten gelangen mit Einladungen in Ihren Kalender.",
+      "action": "Kalender verbinden"
+    },
+    "sync_tasks": {
+      "title": "Aufgaben synchronisieren",
+      "body": {
+        "todo": "Wählen Sie eine Liste in Microsoft To Do, und Ihre Aufgaben bleiben an beiden Orten auf dem gleichen Stand. Wenn Sie eine Aufgabe in To Do erledigen, wird ihre Erinnerung hier stummgeschaltet.",
+        "gtasks": "Wählen Sie eine Liste in Google Tasks, und Ihre Aufgaben bleiben an beiden Orten auf dem gleichen Stand. Wenn Sie eine Aufgabe in Google Tasks erledigen, wird ihre Erinnerung hier stummgeschaltet."
+      },
+      "action": "Aufgaben synchronisieren"
+    }
+  },
+  "next": {
+    "title": "Nächste Besprechung",
+    "current": "Läuft gerade",
+    "none": "Keine anstehenden Besprechungen",
+    "noneHint": "Erstellen Sie eine Besprechung oder verbinden Sie einen Kalender, um sie hier zu sehen.",
+    "connect": "Kalender verbinden",
+    "allDayTitle": "Außerdem demnächst",
+    "startingNow": "Beginnt jetzt",
+    "join": "Teilnehmen",
+    "joinA11y": "An {{title}} teilnehmen",
+    "details": "Details",
+    "detailsA11y": "Details zu {{title}}",
+    "openLinkFailed": "Der Besprechungslink konnte nicht geöffnet werden.",
+    "startsInLabel": "Beginnt in",
+    "startsLabel": "Beginnt",
+    "endsInLabel": "Endet in",
+    "online": "Online",
+    "participants_one": "{{count}} Teilnehmer",
+    "participants_other": "{{count}} Teilnehmer",
+    "noPlace": "Noch kein Link oder Ort",
+    "runningLate": "Ich verspäte mich",
+    "runningLateA11y": "Ich verspäte mich zu {{title}}",
+    "endNow": "Jetzt beenden",
+    "endNowA11y": "{{title}} jetzt beenden"
+  },
+  "today": {
+    "title": "Heute",
+    "count_one": "{{count}} Besprechung",
+    "count_other": "{{count}} Besprechungen",
+    "empty": "Heute keine Besprechungen",
+    "emptyHint": "Genießen Sie die freie Zeit oder planen Sie etwas Neues.",
+    "create": "Neue Besprechung",
+    "now": "Jetzt",
+    "done": "Erledigt",
+    "cancelled": "Abgesagt",
+    "allDay": "Ganztägig",
+    "overlapsWith": "Überschneidet sich mit {{title}}",
+    "overlapsMany_one": "Überschneidet sich mit {{count}} Besprechung",
+    "overlapsMany_other": "Überschneidet sich mit {{count}} Besprechungen",
+    "rightAfter": "Beginnt direkt nach {{title}}",
+    "itemA11y": "{{time}}, {{title}}. {{state}}"
+  },
+  "insights": {
+    "title": "Ihre Woche",
+    "thisWeek": "Diese Woche",
+    "meetings_one": "{{count}} Besprechung",
+    "meetings_other": "{{count}} Besprechungen",
+    "overlaps_one": "{{count}} Überschneidung zwischen Besprechungen",
+    "overlaps_other": "{{count}} Überschneidungen zwischen Besprechungen",
+    "backToBack_one": "{{count}} Besprechung beginnt direkt nach einer anderen",
+    "backToBack_other": "{{count}} Besprechungen beginnen direkt nach einer anderen",
+    "missingPlace_one": "{{count}} Besprechung hat keinen Link oder Ort",
+    "missingPlace_other": "{{count}} Besprechungen haben keinen Link oder Ort",
+    "withTips_one": "{{count}} Besprechung hat Vorbereitungstipps",
+    "withTips_other": "{{count}} Besprechungen haben Vorbereitungstipps",
+    "allClear": "Keine Überschneidungen, direkt aufeinanderfolgenden Besprechungen oder fehlenden Links für den Rest der Woche.",
+    "seeAll": "Alle Einblicke anzeigen",
+    "chartA11y": "Besprechungszeit pro Tag in dieser Woche",
+    "weeklySummary": "Wochenübersicht",
+    "vsLastWeek": "vs. {{value}} letzte Woche",
+    "total": "{{duration}} insgesamt"
+  },
+  "actions": {
+    "title": "Schnellaktionen",
+    "manual": "Neue Besprechung",
+    "ai": "Neu mit KI",
+    "whatsapp": "WhatsApp",
+    "whatsappA11y": "WhatsApp: demnächst, noch nicht verfügbar",
+    "whatsappReadyA11y": "WhatsApp: Besprechungen per Nachricht erstellen. Öffnet die WhatsApp-Einrichtung",
+    "notes": "Notizen"
+  },
+  "tasks": {
+    "title": "Aufgaben",
+    "openCount_one": "{{count}} offen",
+    "openCount_other": "{{count}} offen",
+    "nothingDueToday": "Heute ist nichts fällig. Ihre offenen Aufgaben finden Sie im Bereich Aufgaben.",
+    "empty": "Noch keine Aufgaben. Fügen Sie eine hinzu oder sagen Sie es einfach dem Assistenten.",
+    "overdue": "Überfällig",
+    "today": "Heute",
+    "viewAll": "Alle Aufgaben anzeigen"
+  }
+}

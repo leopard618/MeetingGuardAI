@@ -17,7 +17,14 @@ describe('normalizeLanguage', () => {
     ['es_ES', 'es'],
     ['EN-us', 'en'],
     [' en ', 'en'],
-    ['fr', null],
+    ['fr', 'fr'],
+    ['pt-BR', 'pt'],
+    ['pt_PT', 'pt'],
+    ['fr-CA', 'fr'],
+    ['de-AT', 'de'],
+    ['de-CH', 'de'],
+    ['it', null],
+    ['hi-IN', null],
     ['', null],
     [null, null],
     [42, null],
@@ -26,10 +33,16 @@ describe('normalizeLanguage', () => {
   });
 });
 
-describe('languageFromLocaleCode (es* -> es, else en)', () => {
+describe('languageFromLocaleCode (a supported language, else en)', () => {
   it.each([
     ['es-419', 'es'],
-    ['pt-BR', 'en'],
+    ['pt-BR', 'pt'],
+    ['pt-PT', 'pt'],
+    ['fr-CA', 'fr'],
+    ['de-CH', 'de'],
+    ['en-GB', 'en'],
+    ['hi-IN', 'en'],
+    ['zh-Hans-CN', 'en'],
     [null, 'en'],
     [undefined, 'en'],
   ])('%p -> %p', (input, expected) => {
@@ -42,6 +55,8 @@ describe('device detection', () => {
     mockedGetLocales.mockReturnValue([{ languageCode: 'es', languageTag: 'es-AR' }, { languageCode: 'en' }]);
     expect(detectDeviceLanguage()).toBe('es');
     mockedGetLocales.mockReturnValue([{ languageCode: 'de', languageTag: 'de-DE' }, { languageCode: 'es' }]);
+    expect(detectDeviceLanguage()).toBe('de');
+    mockedGetLocales.mockReturnValue([{ languageCode: 'it', languageTag: 'it-IT' }, { languageCode: 'es' }]);
     expect(detectDeviceLanguage()).toBe('en');
   });
 

@@ -1,15 +1,16 @@
 /**
- * Route registrations and their titles stay consistent: every route has a header title in EN and
- * ES, and no title, sidebar label or bottom-bar label is left behind for a route that no longer exists.
+ * Route registrations and their titles stay consistent: every route has a header title in every
+ * app language (en, es, pt, fr, de), and no title, sidebar label or bottom-bar label is left
+ * behind for a route that no longer exists.
  */
-import type { Language } from '../../core/types';
+import { APP_LANGUAGES, type AppLanguage } from '../../core/types';
 import { RESOURCES } from '../../i18n/resources';
 import { ROUTES } from '../routes';
 
-const LANGUAGES: readonly Language[] = ['en', 'es'];
+const LANGUAGES: readonly AppLanguage[] = APP_LANGUAGES;
 const ROUTE_NAMES = Object.keys(ROUTES).sort();
 
-function table(language: Language, namespace: 'navigation' | 'shell', key: string): Record<string, unknown> {
+function table(language: AppLanguage, namespace: 'navigation' | 'shell', key: string): Record<string, unknown> {
   const tree = RESOURCES[language][namespace] as Record<string, unknown>;
   const node = key.split('.').reduce<unknown>((value, part) => (value as Record<string, unknown> | undefined)?.[part], tree);
   return (node ?? {}) as Record<string, unknown>;

@@ -1,0 +1,38 @@
+{
+  "title": "Assistant WhatsApp",
+  "subtitle": "Créez et gérez vos réunions par message WhatsApp.",
+  "row": {
+    "section": "Intégrations",
+    "title": "Assistant WhatsApp",
+    "subtitle": "Associez votre compte au bot WhatsApp"
+  },
+  "explainer": "Associez votre numéro WhatsApp pour créer des réunions par message. Générez un code ici, puis envoyez-le au bot depuis WhatsApp. Le code ne fonctionne qu'une fois et expire au bout de quelques minutes.",
+  "code": {
+    "generate": "Générer un code",
+    "value": "Votre code : {{code}}",
+    "countdown": "Expire dans {{time}}",
+    "copy": "Copier le code",
+    "copied": "Code copié",
+    "expired": "Ce code a expiré. Générez-en un nouveau.",
+    "sendTo": "Envoyez ce code par WhatsApp au {{number}}"
+  },
+  "open": "Ouvrir WhatsApp",
+  "linked": {
+    "title": "Votre WhatsApp est associé",
+    "number": "Numéro du bot : {{number}}",
+    "yourNumber": "Le numéro associé se termine par {{last4}}"
+  },
+  "unlink": {
+    "action": "Dissocier WhatsApp",
+    "confirmTitle": "Dissocier WhatsApp ?",
+    "confirmBody": "Le bot ne reconnaîtra plus votre numéro. Vous pourrez l'associer à nouveau à tout moment.",
+    "done": "WhatsApp dissocié."
+  },
+  "status": {
+    "unavailable": "L'assistant WhatsApp n'est pas encore disponible. Revenez bientôt."
+  },
+  "error": {
+    "rateLimited": "Vous avez demandé trop de codes aujourd'hui. Réessayez demain.",
+    "generic": "Un problème est survenu. Réessayez."
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "subtitle": "Auf diesem Gerät aus den Besprechungen in Meeting Guard berechnet. Es wird nichts gesendet, außer Sie fragen den Assistenten.",
+  "period": {
+    "week": "Diese Woche",
+    "month": "Dieser Monat"
+  },
+  "range": "{{from}} - {{to}}",
+  "loading": "Ihre Besprechungen werden geladen...",
+  "loadError": "Ihre Besprechungen konnten nicht geladen werden: {{reason}}",
+  "empty": "Keine Besprechungen in diesem Zeitraum",
+  "emptyHint": "Einblicke erscheinen, sobald hier Besprechungen vorhanden sind. Erstellen Sie eine oder verbinden Sie einen Kalender.",
+  "meetings_one": "{{count}} Besprechung",
+  "meetings_other": "{{count}} Besprechungen",
+  "stats": {
+    "meetings": "Besprechungen",
+    "time": "Zeit in Besprechungen",
+    "average": "Durchschnittliche Dauer",
+    "averageNone": "Keine Besprechungen mit Uhrzeit",
+    "allDay_one": "Enthält {{count}} ganztägigen Termin (ohne Zeit gezählt)",
+    "allDay_other": "Enthält {{count}} ganztägige Termine (ohne Zeit gezählt)",
+    "busiest": "Vollster Tag",
+    "busiestValue": "{{date}} · {{meetings}} · {{duration}}"
+  },
+  "load": {
+    "title": "Auslastung nach Tag",
+    "monthHint": "Monatssummen für jeden Wochentag.",
+    "rowA11y": "{{day}}: {{meetings}}, {{duration}}"
+  },
+  "weekday": {
+    "0": "So",
+    "1": "Mo",
+    "2": "Di",
+    "3": "Mi",
+    "4": "Do",
+    "5": "Fr",
+    "6": "Sa"
+  },
+  "weekdayLong": {
+    "0": "Sonntag",
+    "1": "Montag",
+    "2": "Dienstag",
+    "3": "Mittwoch",
+    "4": "Donnerstag",
+    "5": "Freitag",
+    "6": "Samstag"
+  },
+  "sources": {
+    "title": "Woher Ihre Besprechungen kommen",
+    "manual": "In Meeting Guard erstellt",
+    "ai_chat": "KI-Assistent",
+    "whatsapp": "WhatsApp",
+    "google": "Google Calendar",
+    "device": "Gerätekalender",
+    "outlook": "Outlook-Kalender"
+  },
+  "conflicts": {
+    "title": "Überschneidende Besprechungen",
+    "none": "Keine überschneidenden Besprechungen in diesem Zeitraum.",
+    "pair": "{{first}} und {{second}}",
+    "openA11y": "{{title}} öffnen"
+  },
+  "backToBack": {
+    "title": "Besprechungen ohne Pause",
+    "hint": "Weniger als 5 Minuten zwischen dem Ende einer Besprechung und dem Beginn der nächsten.",
+    "none": "Keine Besprechungen ohne Pause in diesem Zeitraum.",
+    "item": "{{second}} beginnt direkt nach {{first}}"
+  },
+  "attention": {
+    "title": "Demnächst: einen Blick wert",
+    "missingPlace_one": "{{count}} Besprechung hat keinen Link und keinen Ort",
+    "missingPlace_other": "{{count}} Besprechungen haben keinen Link und keinen Ort",
+    "withTips_one": "{{count}} Besprechung hat Vorbereitungstipps",
+    "withTips_other": "{{count}} Besprechungen haben Vorbereitungstipps",
+    "none": "Jede anstehende Besprechung in diesem Zeitraum hat einen Link oder einen Ort."
+  },
+  "ai": {
+    "title": "KI-Vorschläge",
+    "description": "Optional. Der Assistent liest Ihre Besprechungen und schlägt vor, wie Sie mit Überschneidungen, Pausen und Vorbereitung umgehen. Nichts ändert sich, bis Sie es im Assistenten bestätigen.",
+    "button": "KI-Vorschläge erhalten",
+    "confirmTitle": "KI-Vorschläge erhalten?",
+    "confirmUsage": "Dabei wird eine Anfrage an den KI-Assistenten gesendet, die auf Ihr tägliches KI-Limit angerechnet wird ({{usage}}).",
+    "confirmNoUsage": "Dabei wird eine Anfrage an den KI-Assistenten gesendet, die auf Ihr tägliches KI-Limit angerechnet wird.",
+    "confirmPrivacy": "Ihre Besprechungen der letzten 7 Tage und der nächsten 60 Tage werden über unseren Server von OpenAI verarbeitet, um die Vorschläge zu erstellen.",
+    "confirm": "Vorschläge erhalten",
+    "sending": "Der Assistent wird gefragt...",
+    "busy": "Der Assistent beantwortet gerade eine andere Anfrage. Versuchen Sie es gleich noch einmal.",
+    "offline": "KI-Vorschläge benötigen eine Internetverbindung.",
+    "promptWeek": "Prüfe meine Besprechungen dieser Woche. Schlage vor, wie ich Überschneidungen auflöse, wo ich Pausen zwischen direkt aufeinanderfolgenden Besprechungen einplane und was ich vorbereiten sollte. Ändere noch nichts.",
+    "promptMonth": "Prüfe meine Besprechungen dieses Monats. Schlage vor, wie ich Überschneidungen auflöse, wo ich Pausen zwischen direkt aufeinanderfolgenden Besprechungen einplane und was ich vorbereiten sollte. Ändere noch nichts.",
+    "replyTitle": "Der Assistent sagt",
+    "proposed_one": "Der Assistent hat {{count}} Änderung vorgeschlagen. Prüfen Sie sie im Assistenten; nichts wird gespeichert, bis Sie bestätigen.",
+    "proposed_other": "Der Assistent hat {{count}} Änderungen vorgeschlagen. Prüfen Sie sie im Assistenten; nichts wird gespeichert, bis Sie bestätigen.",
+    "openChat": "Im Assistenten fortfahren",
+    "retry": "Erneut versuchen"
+  }
+}

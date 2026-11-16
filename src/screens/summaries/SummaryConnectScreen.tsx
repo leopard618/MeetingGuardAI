@@ -100,7 +100,7 @@ const CHECK_KEYS = ['signature', 'sender', 'mailbox', 'fresh', 'match', 'refused
 /** Section 14 wording; 'refused' carries the caveat that a real summary sent straight here waits for an OK. */
 const PRIVACY_KEYS = ['encrypted', 'yoursOnly', 'deletable', 'refused'] as const;
 
-type CopiedTarget = 'address' | `code:${string}`;
+type CopiedTarget = 'address' | `code:${string}` | `sender:${string}`;
 type Busy = 'create' | 'regenerate' | 'mailboxes' | `dismiss:${string}`;
 
 export interface SummaryConnectScreenProps {
@@ -733,6 +733,42 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
               {t(setupTabKey(value))}
             </Chip>
           ))}
+        </View>
+        <View style={[styles.subBox, { borderColor: colors.outlineVariant }]} testID="summary-connect-notetakers">
+          <Text variant="titleSmall" accessibilityRole="header">
+            {t('summaries:connect.notetakers.title')}
+          </Text>
+          {(status.notetakers ?? []).length > 0 ? (
+            <>
+              <Text variant="bodySmall" style={muted}>
+                {t('summaries:connect.notetakers.hint')}
+              </Text>
+              {(status.notetakers ?? []).map((notetaker) => (
+                <View key={notetaker.sender} style={styles.buttonRow} testID={`summary-connect-notetaker-${notetaker.sender}`}>
+                  <Text variant="bodyMedium" style={styles.flex} selectable>
+                    {t('summaries:connect.notetakers.item', { name: notetaker.name, sender: notetaker.sender })}
+                  </Text>
+                  <MGButton
+                    variant="outline"
+                    size="sm"
+                    icon="content-copy"
+                    onPress={() => copy(`sender:${notetaker.sender}`, notetaker.sender)}
+                    accessibilityLabel={t('summaries:connect.notetakers.copyLabel', { name: notetaker.name })}
+                    testID={`summary-connect-notetaker-copy-${notetaker.sender}`}
+                  >
+                    {copied === `sender:${notetaker.sender}` ? t('summaries:connect.notetakers.copied') : t('summaries:connect.notetakers.copy')}
+                  </MGButton>
+                </View>
+              ))}
+            </>
+          ) : (
+            <Text variant="bodySmall" style={muted} testID="summary-connect-notetakers-none">
+              {t('summaries:connect.notetakers.none')}
+            </Text>
+          )}
+          <Text variant="bodySmall" style={muted}>
+            {t('summaries:connect.notetakers.other')}
+          </Text>
         </View>
         <Text variant="bodySmall" style={muted}>
           {t('summaries:connect.setup.browserHint')}

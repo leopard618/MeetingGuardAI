@@ -1,11 +1,16 @@
+import { APP_LANGUAGES } from '../../../core/aiContract';
+import { speechLanguageTag } from '../../../services/alerts/feedback';
 import {
   VOICE_MAX_SESSION_MS,
   VOICE_SILENCE_AFTER_SPEECH_MS,
   VOICE_SILENCE_NO_SPEECH_MS,
+  chooseTtsVoice,
   joinSegments,
+  recognitionSupport,
   shouldAutoSend,
   voiceCommand,
   voiceLocale,
+  voiceLocaleOverride,
   voiceProblemForError,
   routeFinalTranscript,
 } from '../voiceModel';
@@ -14,6 +19,76 @@ describe('voiceLocale', () => {
   it('maps the app languages to the same tags as the alert readout', () => {
     expect(voiceLocale('en')).toBe('en-US');
     expect(voiceLocale('es')).toBe('es-ES');
+    expect(voiceLocale('pt')).toBe('pt-BR');
+    expect(voiceLocale('fr')).toBe('fr-FR');
+    expect(voiceLocale('de')).toBe('de-DE');
+    for (const language of APP_LANGUAGES) expect(voiceLocale(language)).toBe(speechLanguageTag(language));
+  });
+
+  it('uses the test-build override when one is set (Hindi and Mandarin verdicts)', () => {
+    expect(voiceLocale('en', 'hi-IN')).toBe('hi-IN');
+    expect(voiceLocale('en', null)).toBe('en-US');
+  });
+});
+
+describe('voiceLocaleOverride', () => {
+  it('accepts only the verdict test locales, in any spelling', () => {
+    expect(voiceLocaleOverride('hi-IN')).toBe('hi-IN');
+    expect(voiceLocaleOverride(' en_in ')).toBe('en-IN');
+    expect(voiceLocaleOverride('zh-CN')).toBe('zh-CN');
+    expect(voiceLocaleOverride('cmn-hans-cn')).toBe('cmn-Hans-CN');
+  });
+
+  it('ignores anything else, so a real build always speaks the UI language', () => {
+    expect(voiceLocaleOverride(undefined)).toBeNull();
+    expect(voiceLocaleOverride('')).toBeNull();
+    expect(voiceLocaleOverride('pt-BR')).toBeNull();
+    expect(voiceLocaleOverride('xx')).toBeNull();
+    expect(voiceLocaleOverride(42)).toBeNull();
+  });
+});
+
+describe('recognitionSupport', () => {
+  it('is unknown when the platform lists nothing (Android 12 and lower)', () => {
+    expect(recognitionSupport('pt-BR', { locales: [], installedLocales: [] })).toBe('unknown');
+  });
+
+  it('accepts the locale in either spelling, or another region of the language', () => {
+    expect(recognitionSupport('pt-BR', { locales: ['en-US', 'pt_BR'], installedLocales: [] })).toBe('supported');
+    expect(recognitionSupport('fr-FR', { locales: [], installedLocales: ['fr-CA'] })).toBe('supported');
+    expect(recognitionSupport('de-DE', { locales: ['DE-de'], installedLocales: [] })).toBe('supported');
+  });
+
+  it('is unsupported when the language is missing from a non-empty list', () => {
+    expect(recognitionSupport('de-DE', { locales: ['en-US', 'es-ES'], installedLocales: ['en-US'] })).toBe('unsupported');
+  });
+});
+
+describe('chooseTtsVoice', () => {
+  const voice = (identifier: string, language: string, quality = 'Default') => ({ identifier, language, quality });
+
+  it('is unknown when the device lists no voices', () => {
+    expect(chooseTtsVoice('pt-BR', [])).toEqual({ available: null, voice: null });
+  });
+
+  it('prefers the exact locale, then an enhanced voice', () => {
+    const voices = [voice('pt-pt', 'pt-PT', 'Enhanced'), voice('pt-br', 'pt-BR'), voice('pt-br-hq', 'pt-BR', 'Enhanced')];
+    expect(chooseTtsVoice('pt-BR', voices)).toEqual({ available: true, voice: 'pt-br-hq' });
+  });
+
+  it('leaves the voice to the platform when the exact locale has only default voices', () => {
+    // iOS 17+ lists novelty voices (Bells, Zarvox) under every locale: never pick one blindly.
+    const voices = [voice('bells', 'fr-FR'), voice('thomas', 'fr-FR'), voice('fr-ca', 'fr-CA', 'Enhanced')];
+    expect(chooseTtsVoice('fr-FR', voices)).toEqual({ available: true, voice: null });
+    expect(chooseTtsVoice('fr-FR', [...voices, voice('amelie-hq', 'fr-FR', 'Premium')])).toEqual({ available: true, voice: 'amelie-hq' });
+  });
+
+  it('falls back to another region of the same language', () => {
+    expect(chooseTtsVoice('pt-BR', [voice('en', 'en-US'), voice('pt-pt', 'pt_PT')])).toEqual({ available: true, voice: 'pt-pt' });
+  });
+
+  it('reports a missing language instead of picking another language', () => {
+    expect(chooseTtsVoice('de-DE', [voice('en', 'en-US'), voice('es', 'es-ES')])).toEqual({ available: false, voice: null });
   });
 });
 
@@ -31,8 +106,8 @@ describe('voiceProblemForError', () => {
     expect(voiceProblemForError('no-speech')).toBe('noSpeech');
   });
 
-  it('maps an unsupported language to unavailable', () => {
-    expect(voiceProblemForError('language-not-supported')).toBe('unavailable');
+  it('maps an unsupported language to its own message (a missing language pack, M12)', () => {
+    expect(voiceProblemForError('language-not-supported')).toBe('languageUnavailable');
   });
 
   it('maps everything else to a generic error', () => {
@@ -129,6 +204,46 @@ describe('voiceCommand', () => {
     expect(voiceCommand('yes, but move it to 5pm', 'en')).toBeNull();
     expect(voiceCommand('confirm the second one only', 'en')).toBeNull();
     expect(voiceCommand('no idea what is on today', 'en')).toBeNull();
+  });
+
+  it('confirms and cancels in Portuguese, French and German (M12)', () => {
+    for (const text of ['sim', 'Sim, confirmo.', 'isso mesmo', 'pode criar', 'tá certo', 'sim, por favor', 'eu confirmo']) {
+      expect(voiceCommand(text, 'pt')).toBe('confirm');
+    }
+    for (const text of ['não', 'Não, obrigado.', 'cancela isso', 'deixa pra lá', 'cancela tudo']) {
+      expect(voiceCommand(text, 'pt')).toBe('cancel');
+    }
+    for (const text of ['oui', "Oui, d'accord.", "d'accord", "oui s'il vous plaît", "c'est bon", 'vas-y', 'je confirme', 'oui merci']) {
+      expect(voiceCommand(text, 'fr')).toBe('confirm');
+    }
+    for (const text of ['non', 'Non merci.', 'annule', 'annule tout', 'laisse tomber']) {
+      expect(voiceCommand(text, 'fr')).toBe('cancel');
+    }
+    for (const text of ['ja', 'Ja, bitte.', 'genau', 'in Ordnung', 'ich bestätige', 'ja bestätigen', 'Bestätigen.']) {
+      expect(voiceCommand(text, 'de')).toBe('confirm');
+    }
+    for (const text of ['nein', 'Nein, danke.', 'abbrechen', 'alles abbrechen', 'lieber nicht']) {
+      expect(voiceCommand(text, 'de')).toBe('cancel');
+    }
+  });
+
+  it('never takes a qualified or negated answer as a command in pt, fr and de', () => {
+    expect(voiceCommand('sim mas amanhã', 'pt')).toBeNull();
+    expect(voiceCommand('sim, mas às 5', 'pt')).toBeNull();
+    expect(voiceCommand('oui mais demain', 'fr')).toBeNull();
+    expect(voiceCommand('oui mais à 17h', 'fr')).toBeNull();
+    expect(voiceCommand('pas parfait', 'fr')).toBeNull();
+    expect(voiceCommand('ja aber morgen', 'de')).toBeNull();
+    expect(voiceCommand('ja aber um 5', 'de')).toBeNull();
+    expect(voiceCommand('nicht richtig', 'de')).toBeNull();
+    // Ambiguous words never decide: "si" is also "if", "para" is also "for", "doch" is a contradiction.
+    expect(voiceCommand('si', 'fr')).toBeNull();
+    expect(voiceCommand('para', 'pt')).toBeNull();
+    expect(voiceCommand('doch', 'de')).toBeNull();
+    // Contradictions stay null.
+    expect(voiceCommand('sim não', 'pt')).toBeNull();
+    expect(voiceCommand('oui non', 'fr')).toBeNull();
+    expect(voiceCommand('ja nein', 'de')).toBeNull();
   });
 
   it('follows the app language strictly', () => {

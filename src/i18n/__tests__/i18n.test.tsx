@@ -5,7 +5,7 @@ import { Text } from 'react-native';
 import { appEvents, type LanguageChangedEvent, type PreferencesChangedEvent } from '../../core/events';
 import { GLOBAL_STORAGE_KEYS } from '../../core/identifiers';
 import { getDeviceTimeZone } from '../../core/time';
-import { createDefaultPreferences } from '../../core/types';
+import { createDefaultPreferences, type AppLanguage } from '../../core/types';
 import {
   I18nProvider,
   getLanguage,
@@ -18,13 +18,14 @@ import {
   useT,
 } from '..';
 import { collapseMeridiemPeriod, resetI18nStateForTests } from '../i18n';
+import { RESOURCES } from '../resources';
 
 jest.mock('expo-localization', () => ({
   getLocales: jest.fn(() => [{ languageCode: 'es', languageTag: 'es-MX' }]),
   getCalendars: jest.fn(() => [{ timeZone: 'America/Mexico_City', uses24hourClock: true }]),
 }));
 
-function prefsEvent(overrides: Partial<PreferencesChangedEvent> & { language?: 'en' | 'es'; updatedAt?: string | null }): PreferencesChangedEvent {
+function prefsEvent(overrides: Partial<PreferencesChangedEvent> & { language?: AppLanguage; updatedAt?: string | null }): PreferencesChangedEvent {
   const preferences = {
     ...createDefaultPreferences({ language: overrides.language ?? 'en', timezone: 'UTC' }),
     updatedAt: overrides.updatedAt === undefined ? '2026-09-28T10:00:00.000Z' : overrides.updatedAt,
@@ -78,7 +79,7 @@ describe('initialization', () => {
   });
 
   it('ignores an invalid persisted value', async () => {
-    await AsyncStorage.setItem(GLOBAL_STORAGE_KEYS.language, 'fr');
+    await AsyncStorage.setItem(GLOBAL_STORAGE_KEYS.language, 'it');
     await initI18n();
     expect(getLanguage()).toBe('es');
   });
@@ -111,14 +112,34 @@ describe('setLanguage', () => {
     expect(await AsyncStorage.getItem(GLOBAL_STORAGE_KEYS.language)).toBeNull();
   });
 
+  it('switches to French (M12), persists it and emits language:changed', async () => {
+    const events: LanguageChangedEvent[] = [];
+    const off = appEvents.on('language:changed', (event) => {
+      events.push(event);
+    });
+    await setLanguage('fr');
+    off();
+    expect(getLanguage()).toBe('fr');
+    expect(i18n.language).toBe('fr');
+    expect(await AsyncStorage.getItem(GLOBAL_STORAGE_KEYS.language)).toBe('fr');
+    expect(events).toEqual([{ language: 'fr', source: 'user' }]);
+  });
+
+  it('restores a persisted Portuguese choice', async () => {
+    await AsyncStorage.setItem(GLOBAL_STORAGE_KEYS.language, 'pt');
+    await initI18n();
+    expect(getLanguage()).toBe('pt');
+  });
+
   it('rejects unsupported languages with invalid_input', async () => {
-    await expect(setLanguage('fr' as never)).rejects.toMatchObject({ name: 'AppError', code: 'invalid_input' });
+    await expect(setLanguage('it' as never)).rejects.toMatchObject({ name: 'AppError', code: 'invalid_input' });
   });
 });
 
 describe('preferences sync', () => {
   it('applies remote language changes and the saved language at session start', () => {
     expect(languageFromPreferencesEvent(prefsEvent({ language: 'en' }), 'es')).toBe('en');
+    expect(languageFromPreferencesEvent(prefsEvent({ language: 'de' }), 'es')).toBe('de');
     expect(languageFromPreferencesEvent(prefsEvent({ language: 'en', origin: 'cache', changedKeys: [] }), 'es')).toBe('en');
   });
 
@@ -141,6 +162,33 @@ describe('preferences sync', () => {
     expect(getLanguage()).toBe('en');
     expect(events).toEqual([{ language: 'en', source: 'preferences' }]);
     expect(await AsyncStorage.getItem(GLOBAL_STORAGE_KEYS.language)).toBe('en');
+  });
+
+  it('applies a German language from synced preferences (M12)', async () => {
+    await act(async () => {
+      appEvents.emit('preferences:changed', prefsEvent({ language: 'de' }));
+    });
+    expect(getLanguage()).toBe('de');
+    expect(await AsyncStorage.getItem(GLOBAL_STORAGE_KEYS.language)).toBe('de');
+  });
+});
+
+describe('M12 languages', () => {
+  it('shows the en/es-only executive assistant (matters) in English to a Portuguese user', async () => {
+    await setLanguage('pt');
+    expect(t('matters:row.title')).toBe('Hand over a matter');
+    expect(t('matters:row.title', { lng: 'es' })).not.toBe('Hand over a matter');
+  });
+
+  it('uses the _one form for 0 in French', () => {
+    const one = (RESOURCES.fr.common.format as Record<string, string>).days_one ?? '';
+    expect(t('common:format.days', { count: 0, lng: 'fr' })).toBe(one.replace('{{count}}', '0'));
+  });
+
+  it('names every language by its own name in every language', () => {
+    for (const lng of ['en', 'es', 'pt', 'fr', 'de']) {
+      expect(['pt', 'fr', 'de'].map((code) => t(`common:language.${code}`, { lng }))).toEqual(['Português', 'Français', 'Deutsch']);
+    }
   });
 });
 

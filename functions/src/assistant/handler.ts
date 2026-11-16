@@ -33,6 +33,7 @@ import { UpstreamError, assistantError } from './errors';
 import type { GlobalBudget } from './globalBudget';
 import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
 import { isPlainConsent, lastUserText, missingMoveQuestion } from './guards';
+import { plainClip } from './plainText';
 import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply, listAnswerItems } from './prompt';
 import { recoverToolCallsFromText } from './recover';
 import { consumeQuota, refundQuota, settleClarification, type QuotaDecision, type QuotaStore } from './quota';
@@ -157,6 +158,9 @@ export async function handleAssistant(
 export async function runAssistant(uid: string, request: AssistantRequest, deps: AssistantDeps): Promise<AssistantResponse> {
   const startedAt = Date.now();
   const now = deps.now();
+  // M12: request.language is the UI language (en, es, pt, fr, de). The reply, the card summaries,
+  // the fallback texts and the move question follow it; meeting drafts keep en/es (actions.ts).
+  const language = request.language;
 
   let quota: QuotaDecision;
   try {
@@ -193,7 +197,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       tasksContext = buildTaskContext(taskRecords, now);
     }
     const { messages } = buildPromptMessages({
-      language: request.language,
+      language,
       timeZone: request.timezone,
       now,
       mode: request.mode,
@@ -238,7 +242,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     const recovered = recoverToolCallsFromText(completion.content ?? '', new Set(tools.map((tool) => tool.function.name)));
     const toolCalls = completion.toolCalls.length > 0 ? completion.toolCalls : recovered.toolCalls;
     const mapped = mapToolCalls(toolCalls, {
-      language: request.language,
+      language,
       mode: request.mode,
       userTimeZone: request.timezone,
       context,
@@ -264,7 +268,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     // voice-only user must hear the actual items (and hear "nothing" when the answer is nothing).
     const reads = mapped.actions.filter((action) => !isMutatingAction(action));
     const onlyLists = mapped.actions.length > 0 && reads.length === mapped.actions.length;
-    const listAnswer = onlyLists ? composeListAnswer(reads, context, tasksContext, request.language, request.timezone) : null;
+    const listAnswer = onlyLists ? composeListAnswer(reads, context, tasksContext, language, request.timezone) : null;
     if (reply.length > 0 && listAnswer !== null) {
       // The model wrote a caption ("Here is your day.") and left the items to the card. Append
       // the composed items unless the reply already names at least one of them.
@@ -276,7 +280,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     if (resolutionBlocked) {
       // The model took a qualified answer for consent and nothing was applied: its own
       // "confirming it now" sentence would be a lie. Say what to do instead.
-      reply = fallbackReply(request.language, 'resolve_tap');
+      reply = fallbackReply(language, 'resolve_tap');
     }
     if (reply.length === 0) {
       // Every proposal the model made was dropped (e.g. a timed meeting without a time): tell
@@ -287,7 +291,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
         reply = listAnswer;
       } else {
         reply = fallbackReply(
-          request.language,
+          language,
           request.mode === 'followup'
             ? 'followup'
             : request.mode === 'debrief'
@@ -308,9 +312,16 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     }
     // A meeting move with linked, dated tasks must ask about them; append the question when the
     // model left it out, so the promise does not depend on the model remembering.
-    const moveQuestion = missingMoveQuestion(mapped.actions, tasksContext, request.language, reply);
+    const moveQuestion = missingMoveQuestion(mapped.actions, tasksContext, language, reply);
     if (moveQuestion !== null) reply = reply.length > 0 ? reply + ' ' + moveQuestion : moveQuestion;
-    if (reply.length > AI_LIMITS.maxReplyChars) reply = reply.slice(0, AI_LIMITS.maxReplyChars);
+    // Plain punctuation only (product text rule; the reply is also read aloud): French and German
+    // model output often carries curly apostrophes, guillemets and low quotes. Before the clip,
+    // because "..." is longer than the ellipsis character it replaces.
+    reply = plainClip(reply, AI_LIMITS.maxReplyChars);
+    const actions = mapped.actions.map((action) => ({ ...action, summary: plainClip(action.summary, AI_LIMITS.maxSummaryChars) }));
+    const suggestions = [
+      ...new Set(mapped.suggestions.map((suggestion) => plainClip(suggestion, AI_LIMITS.maxSuggestionChars))),
+    ];
 
     // A reply that only asks the user for missing details (no tool call, no proposal, no
     // resolution, a question) is not charged, at most CLARIFICATIONS_PER_ACTION times in a row;
@@ -327,8 +338,8 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
 
     const response: AssistantResponse = {
       reply,
-      actions: mapped.actions,
-      suggestions: mapped.suggestions,
+      actions,
+      suggestions,
       usage,
       ...(resolution !== null ? { resolution } : {}),
     };

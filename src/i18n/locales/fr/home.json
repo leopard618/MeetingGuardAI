@@ -1,0 +1,122 @@
+{
+  "greeting": {
+    "morningNoName": "Bonjour",
+    "afternoonNoName": "Bon après-midi",
+    "eveningNoName": "Bonsoir"
+  },
+  "offline": {
+    "title": "Vous êtes hors ligne",
+    "message": "Vous pouvez continuer à travailler. Les modifications sont enregistrées sur cet appareil et se synchronisent dès que vous êtes de nouveau en ligne.",
+    "pending_one": "{{count}} modification en attente de synchronisation.",
+    "pending_other": "{{count}} modifications en attente de synchronisation."
+  },
+  "loading": "Chargement de vos réunions...",
+  "loadError": "Impossible de charger vos réunions : {{reason}}",
+  "refresh": {
+    "failed": "Actualisation impossible : {{reason}}",
+    "calendarFailed": "Échec de la synchronisation du calendrier : {{reason}}"
+  },
+  "setup": {
+    "eyebrow": "Recommandé",
+    "a11y": "Recommandé : {{title}}",
+    "notNow": "Pas maintenant",
+    "verify_email": {
+      "title": "Vérifiez votre e-mail",
+      "body": "L'assistant et les liens Zoom nécessitent une adresse vérifiée. Ouvrez le lien dans l'e-mail que nous vous avons envoyé."
+    },
+    "connect_calendar": {
+      "title": "Connectez votre calendrier",
+      "body": "Connectez Google Calendar ou Outlook : vos réunions reçoivent les alertes Meeting Guard, et celles que vous créez ici arrivent dans votre calendrier avec les invitations.",
+      "action": "Connecter un calendrier"
+    },
+    "sync_tasks": {
+      "title": "Synchronisez vos tâches",
+      "body": {
+        "todo": "Choisissez une liste Microsoft To Do et vos tâches restent synchronisées des deux côtés. Terminer une tâche dans To Do coupe son rappel ici.",
+        "gtasks": "Choisissez une liste Google Tasks et vos tâches restent synchronisées des deux côtés. Terminer une tâche dans Google Tasks coupe son rappel ici."
+      },
+      "action": "Synchroniser les tâches"
+    }
+  },
+  "next": {
+    "title": "Prochaine réunion",
+    "current": "En cours",
+    "none": "Aucune réunion à venir",
+    "noneHint": "Créez une réunion ou connectez un calendrier pour la voir ici.",
+    "connect": "Connecter un calendrier",
+    "allDayTitle": "À venir également",
+    "startingNow": "Commence maintenant",
+    "join": "Rejoindre",
+    "joinA11y": "Rejoindre {{title}}",
+    "details": "Détails",
+    "detailsA11y": "Détails de {{title}}",
+    "openLinkFailed": "Le lien de la réunion n'a pas pu être ouvert.",
+    "startsInLabel": "Commence dans",
+    "startsLabel": "Commence",
+    "endsInLabel": "Se termine dans",
+    "online": "En ligne",
+    "participants_one": "{{count}} participant",
+    "participants_other": "{{count}} participants",
+    "noPlace": "Pas encore de lien ni de lieu",
+    "runningLate": "Je suis en retard",
+    "runningLateA11y": "Je suis en retard pour {{title}}",
+    "endNow": "Terminer maintenant",
+    "endNowA11y": "Terminer {{title}} maintenant"
+  },
+  "today": {
+    "title": "Aujourd'hui",
+    "count_one": "{{count}} réunion",
+    "count_other": "{{count}} réunions",
+    "empty": "Aucune réunion aujourd'hui",
+    "emptyHint": "Profitez de ce temps libre, ou planifiez quelque chose de nouveau.",
+    "create": "Nouvelle réunion",
+    "now": "En cours",
+    "done": "Terminée",
+    "cancelled": "Annulée",
+    "allDay": "Toute la journée",
+    "overlapsWith": "Chevauche {{title}}",
+    "overlapsMany_one": "Chevauche {{count}} réunion",
+    "overlapsMany_other": "Chevauche {{count}} réunions",
+    "rightAfter": "Commence juste après {{title}}",
+    "itemA11y": "{{time}}, {{title}}. {{state}}"
+  },
+  "insights": {
+    "title": "Votre semaine",
+    "thisWeek": "Cette semaine",
+    "meetings_one": "{{count}} réunion",
+    "meetings_other": "{{count}} réunions",
+    "overlaps_one": "{{count}} chevauchement entre réunions",
+    "overlaps_other": "{{count}} chevauchements entre réunions",
+    "backToBack_one": "{{count}} réunion commence juste après une autre",
+    "backToBack_other": "{{count}} réunions commencent juste après une autre",
+    "missingPlace_one": "{{count}} réunion n'a ni lien ni lieu",
+    "missingPlace_other": "{{count}} réunions n'ont ni lien ni lieu",
+    "withTips_one": "{{count}} réunion a des conseils de préparation",
+    "withTips_other": "{{count}} réunions ont des conseils de préparation",
+    "allClear": "Aucun chevauchement, aucune réunion enchaînée et aucun lien manquant pour le reste de la semaine.",
+    "seeAll": "Voir toutes les statistiques",
+    "chartA11y": "Temps de réunion par jour cette semaine",
+    "weeklySummary": "Résumé de la semaine",
+    "vsLastWeek": "contre {{value}} la semaine dernière",
+    "total": "{{duration}} au total"
+  },
+  "actions": {
+    "title": "Actions rapides",
+    "manual": "Nouvelle réunion",
+    "ai": "Nouvelle avec l'IA",
+    "whatsapp": "WhatsApp",
+    "whatsappA11y": "WhatsApp : bientôt disponible, pas encore accessible",
+    "whatsappReadyA11y": "WhatsApp : créez des réunions par message. Ouvre la configuration WhatsApp",
+    "notes": "Notes"
+  },
+  "tasks": {
+    "title": "Tâches",
+    "openCount_one": "{{count}} à faire",
+    "openCount_other": "{{count}} à faire",
+    "nothingDueToday": "Rien à faire aujourd'hui. Vos tâches ouvertes se trouvent dans l'écran Tâches.",
+    "empty": "Aucune tâche pour l'instant. Ajoutez-en une, ou dites-le simplement à l'assistant.",
+    "overdue": "En retard",
+    "today": "Aujourd'hui",
+    "viewAll": "Voir toutes les tâches"
+  }
+}

@@ -7,6 +7,7 @@
  * real legal entity; have the texts reviewed by counsel before publishing material changes.
  */
 import { AI_ALLOWANCES } from '../../core/aiContract';
+import { SUMMARY_PROVIDER_RETENTION_DAYS } from '../summaries/summaryText';
 
 export type LegalDocumentId = 'privacy' | 'terms';
 
@@ -32,6 +33,7 @@ export const LEGAL_SECTIONS: Readonly<Record<LegalDocumentId, readonly string[]>
     'zoom',
     'whatsapp',
     'ai',
+    'summaries',
     'notifications',
     'sharing',
     'transfers',
@@ -99,6 +101,8 @@ export function legalVariables(jurisdiction: string): Record<string, string | nu
     freePerDay: AI_ALLOWANCES.free.perDay,
     proLimit: AI_ALLOWANCES.pro.perMonth,
     premiumLimit: AI_ALLOWANCES.premium.perMonth,
+    /** Days Postmark keeps each inbound summary email (privacy.sections.summaries, M10 section 14). */
+    summaryProviderDays: SUMMARY_PROVIDER_RETENTION_DAYS,
   };
 }
 

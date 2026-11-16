@@ -28,6 +28,45 @@ describe('isPlainConsent (server backstop for "an unclear reply never executes")
     }
   });
 
+  it('accepts plain consent and refusal in Portuguese, French and German (M12)', () => {
+    for (const text of [
+      'sim', 'Sim, confirmo.', 'sim, pode', 'claro', 'não', 'nao, cancela', 'sim, obrigado',
+      'oui', "oui d'accord", 'Oui, merci.', 'parfait', 'non', 'non merci', 'si', 'oui je confirme',
+      'ja', 'ja bitte', 'Ja, genau.', 'gerne', 'nein', 'nein danke', 'abbrechen',
+    ]) {
+      expect(isPlainConsent(text)).toBe(true);
+    }
+  });
+
+  it('rejects a qualified yes in Portuguese, French and German (M12, safety critical)', () => {
+    for (const text of [
+      'sim, mas às 5',
+      'sim mas as 5',
+      'sim, só a primeira',
+      'pode, mas depois do almoço',
+      'oui mais à 17h',
+      'oui, mais plus tard',
+      'oui seulement la première',
+      "oui si c'est à 9h",
+      'ja aber um 5',
+      'ja, aber später',
+      'ja, nur die erste',
+      'ja wenn es um 9 ist',
+      // Decomposed accents (a + combining grave) still count as the qualifier.
+      'oui a\u0300 17h',
+      // A number is never plain consent, with or without a qualifier word or accent.
+      'oui 17h',
+      'ja 17:30',
+      'sim, as 5',
+      'sim as cinco',
+      'oui au bureau',
+      'ja am Freitag',
+      'yes 5pm',
+    ]) {
+      expect(isPlainConsent(text)).toBe(false);
+    }
+  });
+
   it('rejects long messages, which are requests rather than answers', () => {
     expect(isPlainConsent('yes please go ahead and create that meeting for me now thanks')).toBe(false);
     expect(isPlainConsent('')).toBe(false);
@@ -78,6 +117,9 @@ describe('missingMoveQuestion (the move prompt the reply must carry)', () => {
   it('asks about a linked, dated, open task the response did not move or mention', () => {
     expect(missingMoveQuestion([move], tasks, 'en', 'Moving the call to Thursday.')).toBe('Should I move "Prepare the proposal" as well?');
     expect(missingMoveQuestion([move], tasks, 'es', 'Muevo la llamada al jueves.')).toBe('¿Muevo también "Prepare the proposal"?');
+    expect(missingMoveQuestion([move], tasks, 'pt', 'Movendo a chamada.')).toBe('Devo mover "Prepare the proposal" também?');
+    expect(missingMoveQuestion([move], tasks, 'fr', "Je déplace l'appel.")).toBe('Dois-je aussi déplacer "Prepare the proposal" ?');
+    expect(missingMoveQuestion([move], tasks, 'de', 'Ich verschiebe den Anruf.')).toBe('Soll ich "Prepare the proposal" auch verschieben?');
   });
 
   it('stays silent when the reply already names the task, or the response moves it', () => {

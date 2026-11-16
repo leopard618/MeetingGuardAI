@@ -1,0 +1,117 @@
+{
+  "comingSoonTitle": "Assinaturas em breve",
+  "comingSoonBody": "Os planos pagos ainda não podem ser comprados. Tudo do plano Grátis continua funcionando enquanto isso.",
+  "comingSoon": "Em breve",
+  "comingSoonA11y": "{{plan}}: em breve, ainda não disponível para compra",
+  "currentPlan": "Plano atual",
+  "popular": "Mais popular",
+  "perMonth": "mês",
+  "perYear": "ano",
+  "priceA11y": "{{price}} por {{period}}",
+  "monthlyEquivalent": "Cobrança anual · {{price}} por mês",
+  "save": "Economize {{percent}}%",
+  "cycle": {
+    "monthly": "Mensal",
+    "yearly": "Anual",
+    "monthlyA11y": "Mostrar preços mensais",
+    "yearlyA11y": "Mostrar preços anuais"
+  },
+  "plans": {
+    "free": {
+      "name": "Grátis",
+      "description": "Tudo o que você precisa para começar."
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Para uma agenda cheia e uso diário do assistente."
+    },
+    "premium": {
+      "name": "Premium",
+      "description": "Para uso intenso do assistente de IA."
+    }
+  },
+  "features": {
+    "introductory": "10 ações de IA grátis nos seus primeiros 7 dias, até 3 por dia",
+    "actionsPerMonth": "{{count}} ações de IA por mês",
+    "meetings": "Reuniões, notas e alertas",
+    "calendars": "Sincronização com o Google Calendar e o calendário do celular",
+    "everythingFree": "Tudo do plano Grátis"
+  },
+  "usage": {
+    "title": "Assistente de IA",
+    "plan": "Seu plano: {{plan}}",
+    "used": {
+      "day": "{{used}} de {{limit}} ações usadas hoje",
+      "window": "{{used}} de {{limit}} ações grátis usadas",
+      "month": "{{used}} de {{limit}} ações usadas este mês"
+    },
+    "resets": {
+      "day": "Reinicia {{time}}",
+      "window": "Cota grátis até {{time}}",
+      "month": "Renova {{time}}"
+    },
+    "exhausted": {
+      "day": "Você usou as ações grátis de hoje. Mais {{time}}.",
+      "window": "Você usou todas as ações grátis.",
+      "month": "Você usou todas as ações deste mês. Elas se renovam {{time}}."
+    },
+    "subscriptionRequired": "Suas ações grátis acabaram. Uma assinatura libera o assistente e o agendamento pelo WhatsApp; criar manualmente, lembretes e exportação continuam grátis.",
+    "thisDevice": "Atualizado a cada pedido ao assistente feito neste dispositivo.",
+    "introductory": "10 ações de IA grátis nos seus primeiros 7 dias, até 3 por dia",
+    "perMonth": "{{count}} ações de IA por mês",
+    "unknownYet": "Sua contagem aparece depois que você usar o assistente."
+  },
+  "store": {
+    "loading": "Carregando preços do Google Play...",
+    "loadErrorTitle": "Preços indisponíveis",
+    "loadError": "Não foi possível carregar os preços do Google Play, então as compras estão pausadas por enquanto. Os preços abaixo são apenas para referência.",
+    "retry": "Tentar novamente",
+    "retryA11y": "Tentar carregar novamente os preços do Google Play",
+    "buy": "Assinar {{plan}}",
+    "buyA11y": "Comprar o plano {{plan}} por {{price}} por {{period}}",
+    "trial": "Teste grátis de 3 dias",
+    "purchaseFailed": "A compra não foi concluída",
+    "activatingTitle": "Quase lá",
+    "activating": "Pagamento recebido. Ativando seu plano...",
+    "activatingSlow": "Isso está demorando mais que o normal. Seu plano será ativado sozinho em alguns minutos; você pode sair desta tela.",
+    "activated": "Seu plano {{plan}} está ativo.",
+    "restore": "Restaurar compras",
+    "restoreA11y": "Restaurar compras feitas com esta conta Google",
+    "restored": "Compra encontrada. Atualizando seu plano...",
+    "nothingToRestore": "Nenhuma compra anterior foi encontrada para esta conta.",
+    "restoreFailed": "Não foi possível restaurar as compras",
+    "manage": "Gerenciar assinatura",
+    "manageA11y": "Abrir sua assinatura no Google Play",
+    "activationTimeoutTitle": "Ainda processando",
+    "activationTimeout": "Sua compra está confirmada, mas seu plano ainda não foi atualizado aqui. Ele será atualizado automaticamente quando o processamento terminar - não é preciso comprar de novo.",
+    "loadingIos": "Carregando preços da App Store...",
+    "loadErrorIos": "Não foi possível carregar os preços da App Store, então as compras estão pausadas por enquanto. Os preços abaixo são apenas para referência.",
+    "retryA11yIos": "Tentar carregar novamente os preços da App Store",
+    "restoreA11yIos": "Restaurar compras feitas com esta conta Apple",
+    "manageA11yIos": "Abrir sua assinatura na App Store",
+    "trialIos": "Novos assinantes: teste grátis de 3 dias",
+    "switchToMonthly": "Mudar para cobrança mensal",
+    "switchToYearly": "Mudar para cobrança anual",
+    "switchTier": "Mudar para {{plan}}",
+    "switchA11y": "Mudar sua assinatura para {{plan}} por {{price}} por {{period}}",
+    "changeConfirmedTitle": "Alteração confirmada",
+    "changeConfirmedBody": "A alteração do seu plano foi registrada no Google Play. O tempo não usado é creditado automaticamente; algumas alterações começam na próxima renovação.",
+    "changeConfirmedBodyIos": "A alteração do seu plano foi registrada na App Store. Ela entra em vigor na próxima renovação.",
+    "managedInPlay": "Esta assinatura foi comprada no Google Play e só pode ser alterada lá.",
+    "managedInAppStore": "Esta assinatura foi comprada na App Store e só pode ser alterada lá."
+  },
+  "footer": "Os preços estão em dólares americanos. Antes de qualquer compra, o Google Play mostrará o preço final na sua moeda, incluindo impostos.",
+  "footerIos": "Os preços estão em dólares americanos. Antes de qualquer compra, a App Store mostrará o preço final na sua moeda, incluindo impostos.",
+  "renewal": "As assinaturas são mensais ou anuais e se renovam automaticamente pelo mesmo preço até que você cancele no Google Play, pelo menos 24 horas antes do fim do período.",
+  "renewalIos": "As assinaturas são mensais ou anuais e se renovam automaticamente pelo mesmo preço até que você cancele nas configurações da App Store, pelo menos 24 horas antes do fim do período.",
+  "legal": {
+    "privacy": "Política de Privacidade",
+    "terms": "Termos de Uso"
+  },
+  "planChanged": {
+    "title": "Plano atualizado",
+    "body": "Seu plano agora é {{plan}}"
+  },
+  "grantedTitle": "Seu plano {{plan}} está ativo",
+  "grantedBody": "As compras ainda não estão abertas; este plano foi concedido diretamente à sua conta. Todos os recursos dele estão disponíveis."
+}

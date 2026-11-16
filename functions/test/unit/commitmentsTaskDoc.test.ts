@@ -239,10 +239,48 @@ describe('commitmentOriginLine (section 11): where it came from, never summary t
     expect(commitmentOriginLine({ language: 'es-MX', mode: 'as_written', meetingTitle: null, date: '2026-10-16' })).toBe(
       'De las tareas de una minuta de tu asistente de notas con fecha 16 oct 2026. Agregada por ti.',
     );
-    // Any other language reads English until M12.
-    expect(commitmentOriginLine({ language: 'pt', mode: 'ai', meetingTitle: 'Sync', date: null })).toBe(
+    // Any language that is not an app language reads English.
+    expect(commitmentOriginLine({ language: 'it', mode: 'ai', meetingTitle: 'Sync', date: null })).toBe(
       "From your notetaker's summary of Sync. Suggested by Meeting Guard AI, added by you.",
     );
+    expect(commitmentOriginLine({ language: null, mode: 'as_written', meetingTitle: null, date: null })).toBe('From the action items of a notetaker summary. Added by you.');
+  });
+
+  it('M12: PT (pt-BR), FR and DE, AI and as written, filed and kept, with day-first dates', () => {
+    // Accented letters are written as \u escapes so this file stays ASCII.
+    expect(commitmentOriginLine({ language: 'pt', mode: 'ai', meetingTitle: 'Sincronia semanal', date: '2026-10-16' })).toBe(
+      'Do resumo do seu assistente de anota\u00e7\u00f5es sobre Sincronia semanal (16 out 2026). Sugerida pelo Meeting Guard AI, adicionada por voc\u00ea.',
+    );
+    expect(commitmentOriginLine({ language: 'pt-BR', mode: 'as_written', meetingTitle: null, date: '2026-02-03' })).toBe(
+      'Das tarefas de um resumo do assistente de anota\u00e7\u00f5es com data de 3 fev 2026. Adicionada por voc\u00ea.',
+    );
+    expect(commitmentOriginLine({ language: 'fr', mode: 'as_written', meetingTitle: 'Point hebdo', date: '2026-08-16' })).toBe(
+      'Des t\u00e2ches du compte rendu de votre assistant de prise de notes sur Point hebdo (16 ao\u00fbt 2026). Ajout\u00e9e par vous.',
+    );
+    expect(commitmentOriginLine({ language: 'fr-FR', mode: 'ai', meetingTitle: null, date: '2026-10-16' })).toBe(
+      "D'un compte rendu d'assistant de prise de notes du 16 oct. 2026. Sugg\u00e9r\u00e9e par Meeting Guard AI, ajout\u00e9e par vous.",
+    );
+    expect(commitmentOriginLine({ language: 'de', mode: 'ai', meetingTitle: 'Wochenrunde', date: '2026-03-16' })).toBe(
+      'Aus dem Protokoll Ihres Notizassistenten zu Wochenrunde (16. M\u00e4rz 2026). Von Meeting Guard AI vorgeschlagen, von Ihnen hinzugef\u00fcgt.',
+    );
+    expect(commitmentOriginLine({ language: 'de-DE', mode: 'as_written', meetingTitle: null, date: '2026-10-16' })).toBe(
+      'Aus den Aufgaben im Protokoll eines Notizassistenten vom 16. Okt. 2026. Von Ihnen hinzugef\u00fcgt.',
+    );
+    expect(commitmentOriginLine({ language: 'de', mode: 'ai', meetingTitle: null, date: null })).toBe(
+      'Aus dem Protokoll eines Notizassistenten. Von Meeting Guard AI vorgeschlagen, von Ihnen hinzugef\u00fcgt.',
+    );
+    // No typographic characters in any language, and the longest line still fits the description.
+    const banned = new RegExp(`[${[0x2014, 0x2013, 0x2026, 0x2018, 0x2019, 0x201c, 0x201d, 0x201e, 0x201a, 0xa0, 0x202f].map((code) => String.fromCodePoint(code)).join('')}]`);
+    for (const language of ['en', 'es', 'pt', 'fr', 'de']) {
+      for (const mode of ['ai', 'as_written'] as const) {
+        for (const meetingTitle of [null, `Weekly ${'x'.repeat(300)}`]) {
+          const line = commitmentOriginLine({ language, mode, meetingTitle, date: '2026-12-31' });
+          expect(line).not.toMatch(banned);
+          expect(line.length).toBeLessThan(400);
+          expect(buildCommitmentTaskDoc(input({ description: line })).ok).toBe(true);
+        }
+      }
+    }
   });
 
   it('cuts a long meeting title, keeps it on one line, and fits the 4,000-character description', () => {

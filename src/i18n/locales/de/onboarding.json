@@ -1,0 +1,148 @@
+{
+  "progress": "Schritt {{current}} von {{total}}",
+  "language": {
+    "title": "Willkommen bei Meeting Guard AI",
+    "subtitle": "Richten wir alles ein, damit Sie nie wieder eine Besprechung verpassen. Wählen Sie zuerst Ihre Sprache.",
+    "hint": "Sie können sie jederzeit im Menü ändern."
+  },
+  "calendars": {
+    "title": "Kalender verbinden",
+    "subtitle": "Meeting Guard alarmiert Sie bei den Besprechungen in Ihren Kalendern und hält alles synchron.",
+    "later": "Sie können das später in den Einstellungen ändern.",
+    "google": {
+      "title": "Google Calendar",
+      "description": "Synchronisierung in beide Richtungen: Besprechungen, die Sie hier erstellen, erscheinen in Google Calendar, und Ihre Google-Termine erhalten Alarme von Meeting Guard.",
+      "connect": "Google Calendar verbinden",
+      "connected": "Verbunden",
+      "success": "Google Calendar ist verbunden.",
+      "cancelled": "Google Calendar wurde nicht verbunden.",
+      "scopeDenied": "Der Kalenderzugriff wurde nicht gewährt. Sie können ihn später in den Einstellungen verbinden."
+    },
+    "outlook": {
+      "title": "Outlook-Kalender",
+      "description": "Synchronisierung in beide Richtungen mit dem Kalender Ihres Microsoft-Kontos (Outlook, Microsoft 365). Besprechungen, die Sie hier erstellen, erscheinen in Outlook, und Ihre Outlook-Termine erhalten Alarme von Meeting Guard.",
+      "microsoftHint": "Sie haben sich mit Microsoft angemeldet. Verbinden Sie dasselbe Konto, um Ihre Outlook-Besprechungen hier zu sehen.",
+      "connect": "Outlook verbinden",
+      "connected": "Verbunden",
+      "success": "Der Outlook-Kalender ist verbunden.",
+      "cancelled": "Outlook wurde nicht verbunden.",
+      "failed": "Outlook konnte nicht verbunden werden. Sie können es später in den Einstellungen erneut versuchen."
+    },
+    "device": {
+      "title": "Kalender auf diesem Gerät",
+      "description": "Importieren Sie Termine aus den Kalendern auf Ihrem Telefon, etwa aus iCloud- oder Outlook-Konten.",
+      "allow": "Kalenderzugriff erlauben",
+      "denied": "Der Kalenderzugriff ist deaktiviert. Sie können ihn in den Geräteeinstellungen aktivieren.",
+      "empty": "Auf diesem Gerät wurden keine Kalender gefunden.",
+      "googleNote": "Von Google synchronisiert: bereits durch die Synchronisierung mit Google Calendar abgedeckt."
+    }
+  },
+  "alerts": {
+    "title": "Wie sollen wir Sie alarmieren?",
+    "subtitle": "Wählen Sie, wie nachdrücklich Meeting Guard Sie vor einer Besprechung auf sich aufmerksam macht.",
+    "enabled": "Besprechungsalarme",
+    "intensity": {
+      "label": "Alarmintensität",
+      "max": {
+        "title": "Maximal",
+        "description": "Alarmton und Vibration. Bei geöffneter App füllt der Alarm den Bildschirm, liest die Meldung vor und wartet auf Ihre Reaktion. Bei geschlossener App oder gesperrtem Telefon ist er eine Alarmbenachrichtigung mit hoher Priorität."
+      },
+      "medium": {
+        "title": "Mittel",
+        "description": "Ein dauerhaftes Banner mit Ton. Sie können es minimieren, aber es bleibt, bis Sie reagieren."
+      },
+      "light": {
+        "title": "Leicht",
+        "description": "Eine kurze Benachrichtigung mit kurzem Ton."
+      }
+    },
+    "preview": {
+      "label": "Vorschau",
+      "meetingTitle": "Wöchentliche Teambesprechung",
+      "startsIn": "Beginnt in 5 Minuten",
+      "acknowledge": "Bin unterwegs",
+      "snooze": "Schlummern",
+      "lightText": "Wöchentliche Teambesprechung beginnt in 5 Minuten",
+      "play": "Beispiel abspielen",
+      "stop": "Stopp"
+    },
+    "sound": {
+      "label": "Ton",
+      "voice_and_sound": "Stimme + Ton",
+      "voice_only": "Nur Stimme",
+      "sound_only": "Nur Ton"
+    },
+    "volume": "Lautstärke",
+    "vibration": "Vibration",
+    "times": {
+      "label": "Erinnern",
+      "hint": "Eine oder mehrere auswählen.",
+      "atStart": "Zu Beginn",
+      "minutesBefore": "{{count}} Min. vorher",
+      "hoursBefore": "{{count}} Std. vorher",
+      "required": "Wählen Sie mindestens eine Erinnerungszeit."
+    },
+    "permission": {
+      "title": "Benachrichtigungen",
+      "description": "Meeting Guard braucht Benachrichtigungen, um Sie zu alarmieren, auch wenn die App geschlossen ist.",
+      "allow": "Benachrichtigungen erlauben",
+      "granted": "Benachrichtigungen sind aktiviert.",
+      "denied": "Benachrichtigungen sind deaktiviert. Aktivieren Sie sie in den Geräteeinstellungen, damit Alarme Sie erreichen.",
+      "provisional": "Benachrichtigungen werden still zugestellt. Erlauben Sie sie in den Einstellungen vollständig, um Ton und Banner zu erhalten."
+    },
+    "exactAlarms": {
+      "title": "Exakte Alarme (Android)",
+      "description": "Android kann Alarme verzögern, wenn Meeting Guard keine exakten Alarme verwenden darf. Aktivieren Sie \"Wecker und Erinnerungen\" für Meeting Guard, damit Alarme pünktlich klingeln.",
+      "open": "Wecker-Einstellungen öffnen"
+    },
+    "timeSensitive": {
+      "title": "Zeitkritische Alarme (iPhone)",
+      "description": "Besprechungsalarme sind als zeitkritisch markiert, damit sie einen Fokus durchbrechen können. Wenn Sie Fokus verwenden, erlauben Sie zeitkritische Mitteilungen für Meeting Guard."
+    }
+  },
+  "assistant": {
+    "title": "Lernen Sie Ihren KI-Assistenten kennen",
+    "subtitle": "Sagen Sie dem Assistenten in eigenen Worten, was Sie brauchen.",
+    "capabilitiesTitle": "Er kann:",
+    "capabilities": {
+      "create": "Besprechungen aus einem einzigen Satz erstellen",
+      "update": "Besprechungen verschieben, umbenennen oder ändern",
+      "delete": "Besprechungen absagen",
+      "share": "Besprechungsdetails mit anderen teilen",
+      "bulk": "Mehrere Besprechungen auf einmal ändern"
+    },
+    "confirm": "Der Assistent ändert nie etwas von sich aus: Sie sehen immer zuerst eine Bestätigungskarte.",
+    "examplesTitle": "Sagen Sie zum Beispiel",
+    "examples": {
+      "create": "Plane morgen um 9 Uhr ein Team-Standup mit einem Link für Google Meet",
+      "move": "Verschiebe meine Besprechung um 16 Uhr auf 17 Uhr",
+      "share": "Sende den Link zur Marketing-Besprechung an john@company.com",
+      "bulk": "Verschiebe alle meine Besprechungen morgen um 30 Minuten nach hinten"
+    },
+    "quotaIntro": "Ihre ersten {{days}} Tage enthalten {{total}} kostenlose KI-Aktionen, bis zu {{perDay}} pro Tag. Besprechungen und Aufgaben von Hand erstellen, Ihre Erinnerungen und der Export sind immer kostenlos.",
+    "quotaMonth": "Ihr {{plan}}-Tarif enthält {{count}} KI-Aktionen pro Monat.",
+    "plans": {
+      "free": "Kostenlos",
+      "pro": "Pro",
+      "premium": "Premium"
+    },
+    "privacyTitle": "Datenschutz",
+    "privacy": "Ihre Nachrichten werden zusammen mit Ihren anstehenden Besprechungen an unseren Server gesendet und von OpenAI verarbeitet, um Ihre Anfrage zu verstehen.",
+    "privacyLink": "Datenschutzerklärung lesen"
+  },
+  "firstMeeting": {
+    "title": "Erstellen Sie Ihre erste Besprechung",
+    "subtitle": "Wählen Sie den Weg, der Ihnen liegt. Den anderen können Sie später jederzeit nutzen.",
+    "manual": {
+      "title": "Formular ausfüllen",
+      "description": "Geben Sie Titel, Datum, Uhrzeit und Alarme selbst ein."
+    },
+    "ai": {
+      "title": "KI-Assistenten fragen",
+      "description": "Beschreiben Sie die Besprechung, und der Assistent bereitet sie zur Bestätigung vor."
+    },
+    "skip": "Überspringen und zur Übersicht",
+    "aiPrompt": "Plane morgen um 10 Uhr eine Besprechung mit meinem Team für 30 Minuten",
+    "finishing": "Einrichtung wird abgeschlossen..."
+  }
+}

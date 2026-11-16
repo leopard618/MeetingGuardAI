@@ -339,7 +339,7 @@ useAssistant.send(text)
 
 ## 10. i18n
 
-- **Setup.** i18next + react-i18next + expo-localization. Resources are bundled per namespace in `src/i18n/locales/{en,es}/<namespace>.json` and registered in `src/i18n/resources.ts`; the list is `I18N_NAMESPACE_LIST` in `contracts.ts`. Each area owns its namespace files:
+- **Setup.** i18next + react-i18next + expo-localization. Resources are bundled per namespace in `src/i18n/locales/{en,es,pt,fr,de}/<namespace>.json` (pt is Brazilian Portuguese; the `matters` namespace exists in en and es only and falls back to English) and registered in `src/i18n/resources.ts`; the list is `I18N_NAMESPACE_LIST` in `contracts.ts`. Each area owns its namespace files:
 
   | Namespaces | Owner |
   |---|---|
@@ -352,6 +352,7 @@ useAssistant.send(text)
   | `shell`, `landing`, `legal`, `pricing` | shell (`pricing` content changes in §20 belong to billing) |
   | `widget` | widget (§19; strings are passed to the native side pre-localized) |
 
+- **Native strings (1.7.0).** The iOS permission prompts are translated in `src/i18n/native/{en,es,pt,fr,de}.json` (an `ios` object with the six usage keys), wired through the Expo `locales` map in `app.config.js`: each file becomes `<lang>.lproj/InfoPlist.strings` at prebuild, and `en.json` repeats the base Info.plist values. Expo writes the values unescaped, so they hold no double quotes, backslashes or line breaks (`src/i18n/__tests__/nativeStrings.test.ts`). expo-localization `supportedLocales` lists the same five languages, which sets CFBundleLocalizations, the Android locales_config and resourceConfigurations. Both are native configuration: a store build, never an OTA update.
 - **Keys are always namespace-qualified**, for example `t('alerts:max.title')`. There are no unqualified keys and no namespace-bound translators.
 - **Tests.** `src/i18n/__tests__/resources.test.ts` fails when a key exists in one language only, or a value is empty. `src/i18n/__tests__/keysUsed.test.ts` scans every source file and fails when a key literal (static, or the static part of a dynamic `ns:a.b.${x}` key) is missing in EN or ES, or when `t()` gets an unqualified key. `src/navigation/__tests__/routeTitles.test.ts` keeps route titles and sidebar labels in step with `ROUTES`.
 - **Pluralization.** Use `_one` / `_other`. `intl-pluralrules` is imported first in `index.js`.
@@ -648,7 +649,8 @@ side: local Expo module `modules/mg-next-meeting-widget` (Kotlin), built like
   (`{ title, startAtMs, timeText, dateText, deepLink } | null` + static strings
   `{ emptyTitle, emptyBody, nowLabel }` from the `widget` i18n namespace); the native side never
   formats or translates. Strings follow the APP language; the module's `res/values` +
-  `res/values-es` strings are only the fallback for a widget added before the app first runs.
+  `res/values-es`, `values-pt`, `values-fr` and `values-de` strings are only the fallback for a
+  widget added before the app first runs.
 - **Native contract:** SharedPreferences hold the last data + strings. `setNextMeeting` re-renders
   every widget instance and, for non-null data, schedules ONE INEXACT AlarmManager broadcast at
   `startAtMs` (never `setExact`: no exact-alarm entanglement) so the provider swaps to the

@@ -1,11 +1,11 @@
 /**
  * Display model for the in-app alerts (owner: alerts). PURE given t / formatTime (unit-tested).
- * Every text, the voice readout included, follows the UI language (instant EN/ES switching): the
+ * Every text, the voice readout included, follows the UI language (instant switching): the
  * meeting's stored language is only the language it was created in, and a Spanish screen with an
  * English voice (or the reverse) is confusing. The title itself is read as written.
  */
 import type { FormatOptions, TranslateFn } from '../../core/contracts';
-import type { Language } from '../../core/types';
+import type { AppLanguage, Language } from '../../core/types';
 // Same area (alerts): the pure content helpers are imported directly to keep this module light.
 import { cleanText, leadText } from '../../services/alerts/content';
 
@@ -26,7 +26,7 @@ export interface AlertDisplayDeps {
   t: TranslateFn;
   formatTime(value: string, options: FormatOptions): string;
   /** UI language. */
-  uiLanguage: Language;
+  uiLanguage: AppLanguage;
   use24Hour: boolean | null;
   now: Date;
 }
@@ -43,7 +43,7 @@ export interface AlertDisplayModel {
   locationText: string | null;
   joinUrl: string | null;
   voiceText: string;
-  voiceLanguage: Language;
+  voiceLanguage: AppLanguage;
 }
 
 const NO_ESCAPE = { interpolation: { escapeValue: false } } as const;

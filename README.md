@@ -4,7 +4,9 @@ Meeting Guard AI is a meeting assistant for iPhone and Android. It keeps your me
 syncs them with Google Calendar, Outlook and the calendars on your phone, and makes sure you never
 miss one: alarms that ring even when the app is closed, including full-screen alarms over the lock
 screen on Android. An AI assistant creates, moves and shares meetings from plain text or voice, and
-nothing changes until you confirm it. English and Spanish.
+nothing changes until you confirm it. English, Spanish, Portuguese (Brazil), French and German
+(from version 1.7.0); the executive assistant and the reading of notetaker summaries stay English
+and Spanish.
 
 - Package / bundle id: `com.meetingguard.ai`
 - Client: Francisco Maldonado, Aeternum Tech Ltd. Developer: Dusko.
@@ -32,9 +34,11 @@ four stages:
    ("book the call and add a task the day before"), agenda questions and a daily briefing.
 2. **Stage 2, external tasks and follow-through:** Google Tasks and Microsoft To Do sync, Outlook
    calendar, personal debriefs after a meeting, the running-late flow.
-3. **Stage 3, languages and WhatsApp:** Portuguese, Hindi, and the full agent over WhatsApp.
-4. **Stage 4, guest links and more languages:** invitation links guests can answer without the
-   app, French, German, Mandarin.
+3. **Stage 3, languages and WhatsApp:** Portuguese, French and German everywhere (M12; the
+   executive assistant and the reading of notetaker summaries stay English and Spanish), written
+   verdicts on Hindi and Mandarin mixed speech, and the full agent over WhatsApp.
+4. **Stage 4, guest links:** invitation links guests can answer without the app, and the final
+   test pass in every language.
 
 The plan also adds an interface modernization and a feature that turns the meeting summaries from a
 notetaker into tasks with alarms.

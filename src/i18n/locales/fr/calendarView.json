@@ -1,0 +1,31 @@
+{
+  "previousMonth": "Mois précédent",
+  "nextMonth": "Mois suivant",
+  "today": "Aujourd'hui",
+  "goToToday": "Aller à aujourd'hui",
+  "todayMarker": "aujourd'hui",
+  "relation": {
+    "today": "Aujourd'hui",
+    "tomorrow": "Demain",
+    "yesterday": "Hier"
+  },
+  "meetingCount_one": "{{count}} réunion",
+  "meetingCount_other": "{{count}} réunions",
+  "noMeetings": "Aucune réunion",
+  "legend": {
+    "label": "Couleurs des points : {{sources}}",
+    "meetingguard": "Meeting Guard",
+    "google": "Google Calendar",
+    "outlook": "Outlook",
+    "device": "Calendrier de l'appareil",
+    "tasks": "Tâches"
+  },
+  "emptyDay": "Aucune réunion ce jour-là.",
+  "createOnDay": "Nouvelle réunion le {{date}}",
+  "createOnDayHint": "Ouvre le formulaire de réunion pour ce jour",
+  "loading": "Chargement de vos réunions...",
+  "errorTitle": "Impossible de charger vos réunions",
+  "hasTasks": "avec des tâches",
+  "taskCount_one": "{{count}} tâche",
+  "taskCount_other": "{{count}} tâches"
+}

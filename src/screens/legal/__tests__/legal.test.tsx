@@ -93,6 +93,24 @@ describe('legal content', () => {
     expect(sectionText('es', 'terms', 'plans')).not.toContain('no se pueden comprar');
   });
 
+  it('covers meeting summaries by email: Postmark, encryption, retention and OpenAI (M10, M11)', async () => {
+    for (const language of ['en', 'es'] as const) {
+      const summaries = sectionText(language, 'privacy', 'summaries');
+      for (const fact of ['Postmark', '{{summaryProviderDays}}', 'Google Secret Manager', 'OpenAI', 'WhatsApp', '12', '60', '30', '21']) {
+        expect(summaries).toContain(fact);
+      }
+      expect(sectionText(language, 'privacy', 'sharing')).toContain('Postmark');
+    }
+    expect(sectionText('en', 'privacy', 'summaries')).toContain('not end-to-end encryption');
+    expect(sectionText('es', 'privacy', 'summaries')).toContain('No es cifrado de extremo a extremo');
+
+    await i18n.changeLanguage('en');
+    const section = readLegalSection(translate, 'privacy', 'summaries', legalVariables('[LAW]'));
+    expect(section.title).toBe('Meeting summaries by email');
+    expect(section.body.join(' ')).toContain('keeps its copy for 45 days');
+    expect(section.body.join(' ')).not.toContain('{{');
+  });
+
   it('keeps the company details as clearly marked placeholders until they are filled in', () => {
     expect(isPlaceholder('[COMPANY LEGAL NAME]')).toBe(true);
     expect(isPlaceholder('Acme S.L.')).toBe(false);

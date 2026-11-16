@@ -1,0 +1,82 @@
+{
+  "app": {
+    "name": "Meeting Guard AI",
+    "shortName": "Meeting Guard"
+  },
+  "actions": {
+    "continue": "Continuar",
+    "back": "Voltar",
+    "skipForNow": "Pular por enquanto",
+    "done": "Concluído",
+    "retry": "Tentar novamente",
+    "cancel": "Cancelar",
+    "openSettings": "Abrir configurações",
+    "signOut": "Sair",
+    "signOutAnyway": "Sair mesmo assim",
+    "save": "Salvar"
+  },
+  "language": {
+    "label": "Idioma",
+    "en": "English",
+    "es": "Español",
+    "pt": "Português",
+    "fr": "Français",
+    "de": "Deutsch"
+  },
+  "format": {
+    "now": "agora",
+    "tomorrow": "amanhã",
+    "yesterday": "ontem",
+    "allDay": "Dia inteiro",
+    "days_one": "{{count}} dia",
+    "days_other": "{{count}} dias"
+  },
+  "splash": {
+    "loading": "Carregando...",
+    "slow": "Está demorando mais do que o normal. Verifique sua conexão com a internet."
+  },
+  "session": {
+    "signOutTitle": "Sair",
+    "signOutMessage": "Tem certeza de que deseja sair?",
+    "pendingWritesTitle": "Alterações não sincronizadas",
+    "pendingWritesMessage": "Algumas das suas alterações ainda não chegaram ao servidor. Se você sair agora, elas serão perdidas.",
+    "signOutFailed": "Não foi possível sair. Tente novamente.",
+    "prefsErrorTitle": "Não foi possível carregar suas configurações",
+    "prefsErrorMessage": "Verifique sua conexão com a internet e abra o app novamente, ou saia."
+  },
+  "consent": {
+    "prefix": "Ao continuar, você concorda com nossos",
+    "terms": "Termos de Serviço",
+    "and": "e",
+    "privacy": "Política de Privacidade"
+  },
+  "errors": {
+    "not_configured": "Este app não está configurado corretamente. Atualize para a versão mais recente.",
+    "not_implemented": "Este recurso ainda não está disponível.",
+    "unauthenticated": "Sua sessão expirou. Entre novamente.",
+    "permission_denied": "Você não tem permissão para fazer isso.",
+    "offline": "Você está offline. Verifique sua conexão e tente novamente.",
+    "timeout": "A solicitação demorou demais. Tente novamente.",
+    "not_found": "Não encontramos o que você procurava.",
+    "invalid_input": "Algumas informações não são válidas. Revise-as e tente novamente.",
+    "conflict": "Este item foi alterado em outro lugar. Tente novamente.",
+    "quota_exceeded": "Você atingiu seu limite por enquanto. Tente novamente mais tarde.",
+    "upstream_error": "Algo deu errado do nosso lado. Tente novamente em instantes.",
+    "cancelled": "A ação foi cancelada.",
+    "unsupported": "Esta ação não é compatível.",
+    "pending_writes": "Algumas alterações ainda não foram sincronizadas.",
+    "google_not_signed_in": "Entre com o Google para usar este recurso.",
+    "calendar_scope_missing": "O Meeting Guard precisa de permissão para acessar seu Google Calendar.",
+    "tasks_scope_missing": "O Meeting Guard precisa de permissão para acessar seu Google Tasks.",
+    "calendar_not_connected": "O Google Calendar não está conectado.",
+    "calendar_permission_denied": "O acesso ao calendário foi negado. Você pode permiti-lo nas configurações do dispositivo.",
+    "notification_permission_denied": "As notificações estão desativadas. Ative-as nas configurações do dispositivo para nunca perder uma reunião.",
+    "unknown": "Algo deu errado. Tente novamente."
+  },
+  "discard": {
+    "title": "Descartar alterações?",
+    "message": "Suas alterações não estão salvas. Se você sair agora, elas serão perdidas.",
+    "keepEditing": "Continuar editando",
+    "discard": "Descartar"
+  }
+}

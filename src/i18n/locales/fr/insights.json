@@ -1,0 +1,96 @@
+{
+  "subtitle": "Calculé sur cet appareil à partir des réunions de Meeting Guard. Rien n'est envoyé nulle part, sauf si vous le demandez à l'assistant.",
+  "period": {
+    "week": "Cette semaine",
+    "month": "Ce mois-ci"
+  },
+  "range": "{{from}} - {{to}}",
+  "loading": "Chargement de vos réunions...",
+  "loadError": "Impossible de charger vos réunions : {{reason}}",
+  "empty": "Aucune réunion sur cette période",
+  "emptyHint": "Les statistiques apparaissent dès que vous avez des réunions ici. Créez-en une ou connectez un calendrier.",
+  "meetings_one": "{{count}} réunion",
+  "meetings_other": "{{count}} réunions",
+  "stats": {
+    "meetings": "Réunions",
+    "time": "Temps en réunion",
+    "average": "Durée moyenne",
+    "averageNone": "Aucune réunion avec horaire",
+    "allDay_one": "Inclut {{count}} événement sur la journée entière (durée non comptée)",
+    "allDay_other": "Inclut {{count}} événements sur la journée entière (durée non comptée)",
+    "busiest": "Jour le plus chargé",
+    "busiestValue": "{{date}} · {{meetings}} · {{duration}}"
+  },
+  "load": {
+    "title": "Charge par jour",
+    "monthHint": "Totaux du mois pour chaque jour de la semaine.",
+    "rowA11y": "{{day}} : {{meetings}}, {{duration}}"
+  },
+  "weekday": {
+    "0": "Dim",
+    "1": "Lun",
+    "2": "Mar",
+    "3": "Mer",
+    "4": "Jeu",
+    "5": "Ven",
+    "6": "Sam"
+  },
+  "weekdayLong": {
+    "0": "Dimanche",
+    "1": "Lundi",
+    "2": "Mardi",
+    "3": "Mercredi",
+    "4": "Jeudi",
+    "5": "Vendredi",
+    "6": "Samedi"
+  },
+  "sources": {
+    "title": "D'où viennent vos réunions",
+    "manual": "Créées dans Meeting Guard",
+    "ai_chat": "Assistant IA",
+    "whatsapp": "WhatsApp",
+    "google": "Google Calendar",
+    "device": "Calendrier de l'appareil",
+    "outlook": "Calendrier Outlook"
+  },
+  "conflicts": {
+    "title": "Réunions qui se chevauchent",
+    "none": "Aucune réunion ne se chevauche sur cette période.",
+    "pair": "{{first}} et {{second}}",
+    "openA11y": "Ouvrir {{title}}"
+  },
+  "backToBack": {
+    "title": "Réunions enchaînées",
+    "hint": "Moins de 5 minutes entre la fin d'une réunion et le début de la suivante.",
+    "none": "Aucune réunion enchaînée sur cette période.",
+    "item": "{{second}} commence juste après {{first}}"
+  },
+  "attention": {
+    "title": "À venir : à vérifier",
+    "missingPlace_one": "{{count}} réunion n'a ni lien ni lieu",
+    "missingPlace_other": "{{count}} réunions n'ont ni lien ni lieu",
+    "withTips_one": "{{count}} réunion a des conseils de préparation",
+    "withTips_other": "{{count}} réunions ont des conseils de préparation",
+    "none": "Chaque réunion à venir sur cette période a un lien ou un lieu."
+  },
+  "ai": {
+    "title": "Suggestions de l'IA",
+    "description": "Facultatif. L'assistant lit vos réunions et suggère comment gérer les conflits, les pauses et la préparation. Rien ne change tant que vous ne l'avez pas confirmé dans l'assistant.",
+    "button": "Obtenir des suggestions IA",
+    "confirmTitle": "Obtenir des suggestions IA ?",
+    "confirmUsage": "Cela envoie une requête à l'assistant IA et compte dans votre limite IA quotidienne ({{usage}}).",
+    "confirmNoUsage": "Cela envoie une requête à l'assistant IA et compte dans votre limite IA quotidienne.",
+    "confirmPrivacy": "Vos réunions des 7 derniers jours et des 60 prochains jours sont traitées par OpenAI via notre serveur pour rédiger les suggestions.",
+    "confirm": "Obtenir les suggestions",
+    "sending": "Envoi à l'assistant...",
+    "busy": "L'assistant répond à une autre requête. Réessayez dans un instant.",
+    "offline": "Les suggestions IA nécessitent une connexion Internet.",
+    "promptWeek": "Analysez mes réunions de cette semaine. Suggérez comment résoudre les chevauchements, où ajouter des pauses entre les réunions enchaînées et ce que je dois préparer. Ne modifiez rien pour l'instant.",
+    "promptMonth": "Analysez mes réunions de ce mois-ci. Suggérez comment résoudre les chevauchements, où ajouter des pauses entre les réunions enchaînées et ce que je dois préparer. Ne modifiez rien pour l'instant.",
+    "replyTitle": "Réponse de l'assistant",
+    "proposed_one": "L'assistant a proposé {{count}} modification. Vérifiez-la dans l'assistant ; rien n'est enregistré tant que vous n'avez pas confirmé.",
+    "proposed_other": "L'assistant a proposé {{count}} modifications. Vérifiez-les dans l'assistant ; rien n'est enregistré tant que vous n'avez pas confirmé.",
+    "openChat": "Continuer dans l'assistant",
+    "retry": "Réessayer"
+  }
+}

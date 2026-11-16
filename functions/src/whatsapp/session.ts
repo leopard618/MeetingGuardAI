@@ -16,7 +16,7 @@
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import { WHATSAPP_TUNING } from '../config';
-import { aiActionSchema, usageDayKey, type AiAction, type Language } from '../shared/aiContract';
+import { APP_LANGUAGES, aiActionSchema, toBaseLanguage, usageDayKey, type AiAction, type AppLanguage, type Language } from '../shared/aiContract';
 // M11 (docs/v2/M11-DESIGN.md section 4.1 step 4): the summary offer's shape, ids only.
 import { parseSummaryOffer, type SummaryOffer } from '../summaries/whatsappProtocol';
 
@@ -174,8 +174,13 @@ export interface WhatsappStore {
    * `nonce` null accepts whatever proposal is pending (the 1/2 text fallback).
    */
   claimPendingActions(phoneE164: string, nonce: string | null, now: Date): Promise<ClaimResult>;
-  /** App language + time zone from users/{uid}/settings/preferences (defaults en/UTC). */
-  getPreferences(uid: string): Promise<{ language: Language; timezone: string }>;
+  /**
+   * App language + time zone from users/{uid}/settings/preferences (defaults en/UTC). M12:
+   * `uiLanguage` is the app language as set (en/es/pt/fr/de), used only by the suggested-tasks
+   * texts (summaryRoute.ts); `language` is its en/es base (toBaseLanguage) for everything that
+   * frames the assistant (BOT_STRINGS, confirm/cancel, lists), which stays en/es.
+   */
+  getPreferences(uid: string): Promise<{ language: Language; uiLanguage: AppLanguage; timezone: string }>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -399,9 +404,10 @@ export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
     async getPreferences(uid) {
       const snapshot = await db.doc(`users/${uid}/settings/preferences`).get();
       const data = (snapshot.exists ? snapshot.data() : {}) as Record<string, unknown>;
-      const language: Language = data.language === 'es' ? 'es' : 'en';
+      const uiLanguage: AppLanguage = (APP_LANGUAGES as readonly unknown[]).includes(data.language) ? (data.language as AppLanguage) : 'en';
+      const language: Language = toBaseLanguage(uiLanguage);
       const timezone = typeof data.timezone === 'string' && data.timezone.length > 0 ? data.timezone : 'UTC';
-      return { language, timezone };
+      return { language, uiLanguage, timezone };
     },
   };
 }

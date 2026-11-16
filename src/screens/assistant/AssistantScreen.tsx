@@ -118,6 +118,7 @@ function Welcome({
 
 export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const t = useT();
+  // M12: voice input, spoken replies and voice commands follow the UI language (en, es, pt, fr, de).
   const { language } = useLanguage();
   const { isDarkMode } = useTheme();
   const palette = assistantPalette(isDarkMode);
@@ -189,8 +190,12 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
 
   // --- Voice (V2 Stage 1) ---------------------------------------------------------------------
   const [spokenReplies, setSpokenReplies] = useSpokenReplySetting();
-  useSpokenReplies({ messages: assistant.messages, language, enabled: spokenReplies });
+  // The phone has no TTS voice for the language: say so (once per language and session, see
+  // useVoice) instead of reading the reply in another language's voice.
+  const noVoice = (): void => setFeedback({ tone: 'info', message: fmt.t('ai:voice.noVoice') });
+  useSpokenReplies({ messages: assistant.messages, language, enabled: spokenReplies, onNoVoice: noVoice });
 
+  // Includes 'languageUnavailable' (M12): ai:voice.languageUnavailable, a missing language pack.
   const voiceProblem = (problem: VoiceProblem): void =>
     setFeedback({ tone: problem === 'noSpeech' ? 'info' : 'warning', message: fmt.t(`ai:voice.${problem}`) });
 
@@ -204,7 +209,7 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
       for (const actionId of assistant.pendingActionIds) assistant.reject(actionId);
       const message = fmt.t('ai:voice.dismissed');
       setFeedback({ tone: 'info', message });
-      if (spokenReplies) speakAloud(message, language);
+      if (spokenReplies) speakAloud(message, language, { onNoVoice: noVoice });
       return;
     }
     setConfirming(true);
@@ -218,7 +223,7 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
     const summary = summarizeResults(fmt, results);
     if (summary) {
       setFeedback(summary);
-      if (spokenReplies) speakAloud(summary.message, language);
+      if (spokenReplies) speakAloud(summary.message, language, { onNoVoice: noVoice });
     }
   };
 

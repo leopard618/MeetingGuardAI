@@ -27,6 +27,10 @@ describe('month grid', () => {
   it('has 6 full weeks starting on the locale weekday', () => {
     expect(weekStartsOn('en')).toBe(0);
     expect(weekStartsOn('es')).toBe(1);
+    // M12: Brazilian Portuguese starts on Sunday, French and German on Monday.
+    expect(weekStartsOn('pt')).toBe(0);
+    expect(weekStartsOn('fr')).toBe(1);
+    expect(weekStartsOn('de')).toBe(1);
     // October 2026 starts on a Thursday.
     expect(weekdayOf('2026-10-01')).toBe(4);
     const sunday = buildMonthGrid({ year: 2026, month: 10 }, 0);
@@ -51,6 +55,9 @@ describe('month grid', () => {
   it('labels months and weekdays in the UI language', () => {
     expect(monthTitle({ year: 2026, month: 10 }, 'en')).toBe('October 2026');
     expect(monthTitle({ year: 2026, month: 10 }, 'es')).toBe('Octubre 2026');
+    expect(monthTitle({ year: 2026, month: 10 }, 'pt')).toBe('Outubro 2026');
+    expect(monthTitle({ year: 2026, month: 10 }, 'fr')).toBe('Octobre 2026');
+    expect(monthTitle({ year: 2026, month: 10 }, 'de')).toBe('Oktober 2026');
     expect(weekdayLabels(0, 'en').map((label) => label.short)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
     const es = weekdayLabels(1, 'es');
     expect(es[0]?.full).toBe('lunes');

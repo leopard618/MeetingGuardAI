@@ -46,7 +46,7 @@ import {
   DEFAULT_ENTITLEMENT,
   isGtasksLinked,
   isTodoLinked,
-  LANGUAGES,
+  APP_LANGUAGES,
   CANCELLED_OVERRIDE,
   mergePreferences,
   parseEntitlementDoc,
@@ -58,6 +58,8 @@ import {
   withRecurrenceOverride,
   type AuthUser,
   type Entitlement,
+  toBaseLanguage,
+  type AppLanguage,
   type Language,
   type Meeting,
   type MeetingCreateInput,
@@ -194,7 +196,7 @@ export interface DataEngineDeps {
   events?: EventBus<AppEventMap>;
   now?: () => Date;
   /** Current UI language (i18n). Falls back to the last language:changed value, then 'en'. */
-  getLanguage?: () => Language;
+  getLanguage?: () => AppLanguage;
   getTimeZone?: () => string;
   newEntryId?: () => string;
   timeouts?: Partial<DataEngineTimeouts>;
@@ -469,7 +471,7 @@ export class DataEngine {
   private readonly foreground: ForegroundMonitor | undefined;
   private readonly events: EventBus<AppEventMap>;
   private readonly clock: () => Date;
-  private readonly languageSource: (() => Language) | undefined;
+  private readonly languageSource: (() => AppLanguage) | undefined;
   private readonly timeZoneSource: () => string;
   private readonly newEntryId: () => string;
   private readonly timeouts: DataEngineTimeouts;
@@ -480,7 +482,7 @@ export class DataEngine {
   private epoch = 0;
   private readonly writeLock = new Mutex();
   private online: boolean | null = null;
-  private lastLanguage: Language | null = null;
+  private lastLanguage: AppLanguage | null = null;
 
   private readonly snapshotListeners = new Set<() => void>();
   private snapshot: DataSnapshot | null = null;
@@ -517,14 +519,23 @@ export class DataEngine {
     return this.clock().toISOString();
   }
 
-  language(): Language {
+  /** M12: the UI language (en, es, pt, fr, de), stored in Preferences.language. */
+  uiLanguage(): AppLanguage {
     try {
       const value = this.languageSource?.();
-      if (value && (LANGUAGES as readonly string[]).includes(value)) return value;
+      if (value && (APP_LANGUAGES as readonly string[]).includes(value)) return value;
     } catch {
       // i18n not initialized (e.g. very early headless start): use the last known language.
     }
     return this.lastLanguage ?? 'en';
+  }
+
+  /**
+   * M12: the language of a new meeting (the meeting `language` field stays en/es: meetingSchema
+   * and the Firestore rules accept only those). Every meeting default uses this, never uiLanguage.
+   */
+  meetingLanguage(): Language {
+    return toBaseLanguage(this.uiLanguage());
   }
 
   timeZone(): string {
@@ -532,11 +543,11 @@ export class DataEngine {
   }
 
   private defaultPreferences(): Preferences {
-    return createDefaultPreferences({ language: this.language(), timezone: this.timeZone() });
+    return createDefaultPreferences({ language: this.uiLanguage(), timezone: this.timeZone() });
   }
 
   private readContext(s: Session): ReadContext {
-    return { uid: s.uid, timeZone: this.timeZone(), language: this.language() };
+    return { uid: s.uid, timeZone: this.timeZone(), language: this.meetingLanguage() };
   }
 
   // ---- session helpers -----------------------------------------------------------------------
@@ -1964,7 +1975,7 @@ export class DataEngine {
         userId: s.uid,
         now: this.now(),
         defaultTimezone: this.timeZone(),
-        defaultLanguage: this.language(),
+        defaultLanguage: this.meetingLanguage(),
       });
       created = true;
       return {
@@ -2172,7 +2183,7 @@ export class DataEngine {
       userId: s.uid,
       now: this.now(),
       defaultTimezone: this.timeZone(),
-      defaultLanguage: this.language(),
+      defaultLanguage: this.meetingLanguage(),
     });
   }
 
@@ -2355,7 +2366,7 @@ export class DataEngine {
         uid: s.uid,
         now: this.now(),
         defaultTimezone: this.timeZone(),
-        defaultLanguage: this.language(),
+        defaultLanguage: this.meetingLanguage(),
       });
       for (const invalid of plan.invalidItems) {
         log.warn(`skipping calendar event #${invalid.index} (${invalid.reason})`);
@@ -2869,7 +2880,7 @@ export class DataEngine {
         uid: s.uid,
         email,
         timeZone: this.timeZone(),
-        language: this.language(),
+        language: this.meetingLanguage(),
         now: this.now(),
         existingMeetingIds: new Set(s.meetings.keys()),
         existingNoteIds: new Set(s.notes.keys()),

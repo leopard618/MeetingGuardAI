@@ -395,3 +395,36 @@ describe('AssistantScreen', () => {
     expect(screen.getByTestId('assistant-welcome')).toBeTruthy();
   });
 });
+
+describe('AssistantScreen voice language checks (M12)', () => {
+  // The native module mock (jest.setup.js) has no getSupportedLocales; each test adds its own.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { ExpoSpeechRecognitionModule } = require('expo-speech-recognition') as {
+    ExpoSpeechRecognitionModule: { start: jest.Mock; getSupportedLocales?: jest.Mock };
+  };
+
+  afterEach(() => {
+    delete ExpoSpeechRecognitionModule.getSupportedLocales;
+  });
+
+  it('says the language pack is missing instead of starting a recognizer that cannot listen', async () => {
+    ExpoSpeechRecognitionModule.getSupportedLocales = jest.fn(async () => ({ locales: ['es-ES', 'pt-BR'], installedLocales: [] }));
+    useAssistant.mockReturnValue(assistantState());
+    await renderChat();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('assistant-mic'));
+    });
+    expect(await screen.findByText(/Speech recognition for this language is not installed/)).toBeTruthy();
+    expect(ExpoSpeechRecognitionModule.start).not.toHaveBeenCalled();
+  });
+
+  it('listens in the UI language when the platform lists it, or cannot say (empty list)', async () => {
+    ExpoSpeechRecognitionModule.getSupportedLocales = jest.fn(async () => ({ locales: [], installedLocales: [] }));
+    useAssistant.mockReturnValue(assistantState());
+    await renderChat();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('assistant-mic'));
+    });
+    expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledWith(expect.objectContaining({ lang: 'en-US' }));
+  });
+});

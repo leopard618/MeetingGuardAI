@@ -1,0 +1,45 @@
+{
+  "title": "Pièces jointes",
+  "localOnly": "Stockées uniquement sur cet appareil. Les pièces jointes ne sont pas envoyées en ligne, ne se synchronisent pas avec vos autres appareils et ne sont pas partagées avec les participants.",
+  "limits": "Documents, images, vidéos, fichiers audio et archives jusqu'à {{maxMb}} Mo.",
+  "loading": "Chargement des pièces jointes...",
+  "empty": "Aucune pièce jointe pour l'instant.",
+  "loadError": "Impossible de lire les pièces jointes sur cet appareil.",
+  "addFile": "Ajouter un fichier",
+  "addPhoto": "Ajouter une photo",
+  "takePhoto": "Prendre une photo",
+  "open": "Ouvrir {{name}}",
+  "openHint": "Ouvre le fichier avec une autre application",
+  "remove": "Retirer {{name}}",
+  "removeTitle": "Retirer cette pièce jointe ?",
+  "removeMessage": "\"{{name}}\" sera supprimé de cet appareil.",
+  "removeConfirm": "Retirer",
+  "removed": "Pièce jointe retirée",
+  "added_one": "{{count}} fichier ajouté",
+  "added_other": "{{count}} fichiers ajoutés",
+  "failed_one": "Impossible d'ajouter {{count}} fichier",
+  "failed_other": "Impossible d'ajouter {{count}} fichiers",
+  "failure": {
+    "unsupported_type": "Le type de fichier de \"{{name}}\" n'est pas pris en charge.",
+    "too_large": "\"{{name}}\" dépasse {{maxMb}} Mo.",
+    "copy_failed": "Impossible d'enregistrer \"{{name}}\" sur cet appareil.",
+    "save_failed": "Impossible d'enregistrer \"{{name}}\" sur cet appareil."
+  },
+  "cameraDenied": "L'accès à l'appareil photo est désactivé. Vous pouvez l'autoriser dans les réglages de votre appareil.",
+  "missing": "Ce fichier ne se trouve plus sur cet appareil.",
+  "openFailed": "Aucune application de cet appareil ne peut ouvrir ce fichier.",
+  "meta": "{{size}} · ajouté le {{date}}",
+  "size": {
+    "b": "{{value}} o",
+    "kb": "{{value}} Ko",
+    "mb": "{{value}} Mo",
+    "gb": "{{value}} Go"
+  },
+  "category": {
+    "documents": "Document",
+    "images": "Image",
+    "videos": "Vidéo",
+    "audio": "Audio",
+    "archives": "Archive"
+  }
+}

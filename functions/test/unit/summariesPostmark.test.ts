@@ -42,9 +42,9 @@ function payload(overrides: Record<string, unknown> = {}): Record<string, unknow
 describe('SUMMARIES_FUNCTION_TUNING (design section 4 Options, finding 11)', () => {
   it('holds the design values for each summary function', () => {
     expect(SUMMARIES_FUNCTION_TUNING).toEqual({
-      inbound: { memory: '1GiB', cpu: 1, concurrency: 2, maxInstances: 3, timeoutSeconds: 60 },
-      read: { memory: '512MiB', timeoutSeconds: 30, maxInstances: 10 },
-      callables: { memory: '256MiB', timeoutSeconds: 10, maxInstances: 10 },
+      inbound: { memory: '1GiB', cpu: 1, concurrency: 2, maxInstances: 20, timeoutSeconds: 60 },
+      read: { memory: '512MiB', cpu: 1, concurrency: 20, timeoutSeconds: 30, maxInstances: 20 },
+      callables: { memory: '512MiB', cpu: 1, concurrency: 40, timeoutSeconds: 10, maxInstances: 10 },
     });
   });
 
@@ -413,6 +413,21 @@ describe('ship-dark gate (functions/src/summaries/gate.ts)', () => {
     expect(isPilotUid('', raw)).toBe(false);
     expect(isPilotUid('u1', '')).toBe(false);
     expect(isPilotUid('bad/uid', 'bad/uid')).toBe(false);
+  });
+
+  it('opens to every plain uid only with an entry of exactly "*"', () => {
+    for (const raw of ['*', ' * ', 'u1,*', '*,u1']) {
+      expect([raw, isPilotUid('anyone_1', raw), isPilotUid('u1', raw), parsePilotList(raw).everyone]).toEqual([raw, true, true, true]);
+    }
+    // Still a plain uid only, even for everyone.
+    expect(isPilotUid('bad/uid', '*')).toBe(false);
+    expect(isPilotUid('', '*')).toBe(false);
+    // Anything near "*" is dropped as invalid and opens nothing.
+    for (const raw of ['**', '*u1', 'u*', '"*"', '* *']) {
+      const list = parsePilotList(raw);
+      expect([raw, isPilotUid('anyone_1', raw), list.everyone, list.invalid]).toEqual([raw, false, false, 1]);
+    }
+    expect([...parsePilotList('*,u1').uids]).toEqual(['u1']);
   });
 
   it('tolerates a non-string list without throwing', () => {

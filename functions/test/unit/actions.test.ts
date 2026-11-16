@@ -1,7 +1,7 @@
-import { mapToolCalls, type MappingContext, type ToolCall } from '../../src/assistant/actions';
+import { DEFAULT_SUMMARIES, mapToolCalls, type MappingContext, type ToolCall } from '../../src/assistant/actions';
 import { buildMeetingContext, type MeetingContext } from '../../src/assistant/context';
 import { buildTaskContext } from '../../src/assistant/tasksContext';
-import { aiActionSchema, type AiAction } from '../../src/shared/aiContract';
+import { APP_LANGUAGES, aiActionSchema, type AiAction } from '../../src/shared/aiContract';
 import { meetingDoc } from './fakes';
 
 // Monday 2026-09-28, 16:15 in Madrid.
@@ -524,6 +524,31 @@ describe('robustness', () => {
         .actions,
     );
     expect(action).toMatchObject({ summary: 'Eliminar una reunión', confidence: 100 });
+  });
+
+  it('has a default summary for every action type in every app language (M12), in plain punctuation', () => {
+    const types = Object.keys(DEFAULT_SUMMARIES.en).sort();
+    expect(types).toHaveLength(10);
+    for (const language of APP_LANGUAGES) {
+      expect(Object.keys(DEFAULT_SUMMARIES[language]).sort()).toEqual(types);
+      for (const text of Object.values(DEFAULT_SUMMARIES[language])) {
+        expect(text.trim().length).toBeGreaterThan(0);
+        expect(text).not.toMatch(/[\u2013\u2014\u2026\u2018\u2019\u201a\u201c\u201d\u201e\u00a0\u202f\u00ab\u00bb]/);
+      }
+    }
+    const summaryOf = (language: 'pt' | 'fr' | 'de') =>
+      only(mapToolCalls([call('delete_meeting', { meeting_ref: ref('marketing'), summary: '', confidence: 80 })], ctx({ language })).actions)
+        .summary;
+    expect(summaryOf('pt')).toBe('Excluir uma reunião');
+    expect(summaryOf('fr')).toBe('Supprimer une réunion');
+    expect(summaryOf('de')).toBe('Besprechung löschen');
+  });
+
+  it('keeps a new meeting in en/es whatever the UI language (M12: meetings stay en/es)', () => {
+    for (const [language, expected] of [['pt', 'en'], ['fr', 'en'], ['de', 'en'], ['es', 'es'], ['en', 'en']] as const) {
+      const action = only(mapToolCalls([call('create_meeting', createArgs)], ctx({ language })).actions);
+      expect(action.type === 'create_meeting' && action.meeting.language).toBe(expected);
+    }
   });
 
   it('generates unique random action ids by default', () => {

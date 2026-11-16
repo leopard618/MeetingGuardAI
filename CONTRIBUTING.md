@@ -126,7 +126,12 @@ what was tested on a real phone:
 
 ## Product text
 
-- English and Spanish for every user-facing string, in `src/i18n/`.
+- English, Spanish, Portuguese (Brazil, code `pt`), French and German for every user-facing
+  string, in `src/i18n/` (and the server texts that follow the user's language). The exception:
+  Sven's executive assistant (matters: `functions/src/matters`, `src/screens/matters`,
+  `src/services/matters` and the `matters` namespace) stays English and Spanish, and the reading
+  of notetaker recaps stays English and Spanish. The iOS permission prompts live in
+  `src/i18n/native/<lang>.json`.
 - Plain punctuation in product text: no em dashes, en dashes, ellipsis characters or curly
   quotes. The same applies to admin and assistant output.
 

@@ -1,0 +1,118 @@
+{
+  "todo": {
+    "untitledTask": "(Sans titre)"
+  },
+  "add": "Nouvelle tâche",
+  "addA11y": "Créer une tâche",
+  "list": {
+    "refreshFailed": "Impossible de synchroniser vos tâches",
+    "loading": "Chargement de vos tâches...",
+    "count_one": "{{count}} tâche",
+    "count_other": "{{count}} tâches"
+  },
+  "search": {
+    "placeholder": "Rechercher des tâches",
+    "clear": "Effacer la recherche"
+  },
+  "filters": {
+    "label": "Filtrer les tâches",
+    "withCount": "{{label}} ({{count}})",
+    "open": "À faire",
+    "today": "Aujourd'hui",
+    "overdue": "En retard",
+    "done": "Terminées",
+    "all": "Toutes"
+  },
+  "empty": {
+    "title": "Aucune tâche pour l'instant",
+    "body": "Suivez ce qui doit être fait : en tâche autonome ou liée à une réunion. Vous pouvez aussi simplement le dire à l'assistant.",
+    "action": "Ajouter votre première tâche"
+  },
+  "noMatches": {
+    "title": "Aucune tâche correspondante",
+    "body": "Rien ne correspond à la recherche ou au filtre actuel.",
+    "action": "Effacer les filtres"
+  },
+  "loadError": {
+    "title": "Impossible de charger les tâches"
+  },
+  "toast": {
+    "saved": "Tâche enregistrée",
+    "deleted": "Tâche supprimée",
+    "completed": "Tâche terminée",
+    "reopened": "Tâche rouverte"
+  },
+  "delete": {
+    "title": "Supprimer \"{{title}}\" ?",
+    "message": "La tâche est supprimée de tous vos appareils.",
+    "confirm": "Supprimer"
+  },
+  "card": {
+    "open": "Ouvrir la tâche {{title}}",
+    "complete": "Marquer {{title}} comme terminée",
+    "reopen": "Rouvrir {{title}}",
+    "delete": "Supprimer {{title}}",
+    "dueOn": "Échéance : {{date}}",
+    "dueAt": "Échéance : {{date}} à {{time}}",
+    "completed": "Terminée le {{when}}",
+    "meeting": "Ouvrir la réunion {{title}}",
+    "meetingUnavailable": "La réunion liée n'existe plus"
+  },
+  "editor": {
+    "newTitle": "Nouvelle tâche",
+    "editTitle": "Modifier la tâche",
+    "save": "Enregistrer",
+    "close": "Fermer",
+    "titleLabel": "Titre",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Que faut-il faire exactement ?",
+    "dueSection": "Échéance",
+    "noDueDate": "Aucune échéance",
+    "dueAt": "{{date}} à {{time}}",
+    "pickDate": "Choisir une date",
+    "changeDate": "Changer la date",
+    "pickTime": "Ajouter une heure",
+    "changeTime": "Changer l'heure",
+    "clearDue": "Effacer",
+    "pickerDone": "OK",
+    "reminder": "Rappel",
+    "reminderNeedsTime": "Ajoutez une heure d'échéance pour définir un rappel.",
+    "reminderNone": "Aucun",
+    "reminderAtDue": "À l'heure d'échéance",
+    "reminderMinutes": "{{count}} min avant",
+    "reminderDayBefore": "1 jour avant",
+    "people": "Personnes",
+    "meeting": "Réunion liée",
+    "meetingNone": "Non liée à une réunion",
+    "linkMeeting": "Lier une réunion",
+    "changeMeeting": "Changer de réunion",
+    "unlinkMeeting": "Délier",
+    "unlinkA11y": "Supprimer le lien avec la réunion",
+    "todoSection": "Microsoft To Do",
+    "todoListDefault": "{{name}} (liste par défaut)",
+    "todoNoList": "Aucune liste choisie",
+    "todoOtherList": "Une autre liste",
+    "todoLoading": "Chargement des listes...",
+    "todoListsFailed": "Impossible de charger les listes.",
+    "todoChangeList": "Changer de liste",
+    "todoHint": "Synchronisé avec To Do : titre, notes, date d'échéance, rappel, statut terminé. Reste uniquement dans Meeting Guard : une heure d'échéance sans rappel, les personnes et la réunion liée.",
+    "gtasksSection": "Google Tasks",
+    "gtasksListDefault": "{{name}} (liste par défaut)",
+    "gtasksNoList": "Aucune liste choisie",
+    "gtasksOtherList": "Une autre liste",
+    "gtasksLoading": "Chargement des listes...",
+    "gtasksListsFailed": "Impossible de charger les listes.",
+    "gtasksChangeList": "Changer de liste",
+    "gtasksHint": "Synchronisé avec Google Tasks : titre, notes, date d'échéance, statut terminé. Reste uniquement dans Meeting Guard : l'heure d'échéance, le rappel, les personnes et la réunion liée.",
+    "delete": "Supprimer la tâche",
+    "discardTitle": "Abandonner les modifications ?",
+    "discardMessage": "Vos modifications n'ont pas été enregistrées.",
+    "keepEditing": "Continuer à modifier",
+    "discard": "Abandonner"
+  },
+  "errors": {
+    "titleRequired": "Donnez un titre à la tâche.",
+    "titleTooLong": "Le titre peut contenir au maximum {{max}} caractères.",
+    "descriptionTooLong": "La description peut contenir au maximum {{max}} caractères."
+  }
+}

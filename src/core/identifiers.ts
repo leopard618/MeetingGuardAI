@@ -55,7 +55,7 @@ export const firestorePaths = {
 
 /** Device-wide keys (not tied to a user). */
 export const GLOBAL_STORAGE_KEYS = {
-  /** Persisted UI language ("en" | "es"); read before sign-in. Owner: i18n. */
+  /** Persisted UI language ("en" | "es" | "pt" | "fr" | "de"); read before sign-in. Owner: i18n. */
   language: 'mg:language',
   /** Theme mode ("system" | "light" | "dark"). Owner: i18n-nav (ThemeContext). */
   theme: 'mg:theme',

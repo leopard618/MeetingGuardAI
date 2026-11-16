@@ -12,7 +12,7 @@ import { parseExtraction } from '../../src/summaries/commitmentsModel';
 import { summaryDocPath } from '../../src/summaries/model';
 import { firebaseWorkerAuthUsers, handleSummaryWhatsApp, type SummaryWhatsAppDeps, type WorkerAuthUser } from '../../src/summaries/whatsappCommitments';
 import { uidTagOf, type SummaryOffer, type SummaryWhatsAppResponse } from '../../src/summaries/whatsappProtocol';
-import type { SummaryCommitmentsResponse } from '../../src/shared/aiContract';
+import type { AppLanguage, SummaryCommitmentsResponse } from '../../src/shared/aiContract';
 import { proposal } from './commitmentsFixtures';
 import {
   MEETING_TITLE,
@@ -67,11 +67,11 @@ async function ask(deps: SummaryWhatsAppDeps, body: unknown): Promise<SummaryWha
   return answer.body as SummaryWhatsAppResponse;
 }
 
-function offerRequest(language: 'en' | 'es' = 'en') {
+function offerRequest(language: AppLanguage = 'en') {
   return { op: 'offer', phoneE164: PHONE, language };
 }
 
-function replyRequest(offer: SummaryOffer, selection: unknown, language: 'en' | 'es' = 'en') {
+function replyRequest(offer: SummaryOffer, selection: unknown, language: AppLanguage = 'en') {
   return { op: 'reply', phoneE164: PHONE, language, offer, selection };
 }
 
@@ -281,6 +281,36 @@ describe('the offer', () => {
     expect(response.text).toContain('Responde TODOS para agregar');
     expect(response.text).toContain('Responde IA para que Meeting Guard AI lea toda la minuta');
   });
+
+  it('M12: speaks PT (pt-BR), FR and DE, and a request in those languages is no bad request', async () => {
+    // Accented letters are written as escapes so this file stays ASCII.
+    const expected: Record<'pt' | 'fr' | 'de', string[]> = {
+      pt: [
+        `As tarefas do resumo do seu assistente de anota\u00e7\u00f5es sobre "${MEETING_TITLE}" (16 out), exatamente como est\u00e3o escritas.`,
+        'Responda TODAS para adicionar',
+        'Responda IA para o Meeting Guard AI ler todo o resumo',
+      ],
+      fr: [
+        `Les t\u00e2ches du compte rendu de votre assistant de prise de notes sur "${MEETING_TITLE}" (16 oct.), exactement telles qu'\u00e9crites.`,
+        'pondez TOUTES pour ajouter',
+        'pondez IA pour que Meeting Guard AI lise tout le compte rendu',
+      ],
+      de: [
+        `Die Aufgaben aus dem Protokoll Ihres Notizassistenten zu "${MEETING_TITLE}" (16. Okt.), genau wie geschrieben.`,
+        'Antworten Sie ALLE, um die ',
+        'Antworten Sie KI, damit Meeting Guard AI das ganze Protokoll liest',
+      ],
+    };
+    for (const language of ['pt', 'fr', 'de'] as const) {
+      const { h, deps } = setup();
+      seedSummary(h.db, SUMMARY_A);
+      const response = await ask(deps, offerRequest(language));
+      expect(response.outcome).toBe('offered');
+      for (const part of expected[language]) expect([language, response.text.includes(part) ? part : response.text]).toEqual([language, part]);
+      expect(response.text.length).toBeLessThanOrEqual(MAX_TEXT_CHARS);
+      expect(response.buttons?.items.map((item) => item.title.length <= 20)).toEqual([true, true]);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -311,6 +341,20 @@ describe('replies', () => {
     const again = await ask(deps, replyRequest(offer, { kind: 'all' }));
     expect(again.text).toBe(`Already in your tasks: ${offer.marked.join(', ')}.`);
     expect(tasksOf(h)).toHaveLength(offer.marked.length);
+  });
+
+  it('M12: a reply in DE adds through decide with a German result and a German origin line on the task', async () => {
+    const { h, deps } = setup();
+    seedSummary(h.db, SUMMARY_A);
+    const offer = offerOf(await ask(deps, offerRequest('de')));
+    const response = await ask(deps, replyRequest(offer, { kind: 'numbers', numbers: [1] }, 'de'));
+    expect(response.outcome).toBe('decided');
+    expect(response.text).toMatch(/^1 Aufgabe hinzugef\u00fcgt: Bish: Provide APK access\/files to Urpayroll\. Ihr Telefon stellt die Erinnerung /);
+    const tasks = tasksOf(h);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.description).toBe(`Aus den Aufgaben im Protokoll Ihres Notizassistenten zu ${MEETING_TITLE} (16. Okt. 2026). Von Ihnen hinzugef\u00fcgt.`);
+    const again = await ask(deps, replyRequest(offer, { kind: 'numbers', numbers: [1, 99] }, 'fr'));
+    expect(again.text).toBe('D\u00e9j\u00e0 dans vos t\u00e2ches: 1.\nPas dans la liste: 99.');
   });
 
   it('numbers add only those, DROP removes, NONE drops every open line shown, unknown numbers are named', async () => {
@@ -449,6 +493,23 @@ describe('the reply AI', () => {
       'Your free AI actions are used. A subscription unlocks AI; the action items as written stay free. You can still reply with numbers from the list above.',
     );
     expect(h.llmFactory).not.toHaveBeenCalled();
+  });
+
+  it('M12: the allowance wording in PT, FR and DE', async () => {
+    const texts: Record<'pt' | 'fr' | 'de', string> = {
+      pt: 'Suas a\u00e7\u00f5es de IA gr\u00e1tis acabaram. Uma assinatura libera a IA; as tarefas como est\u00e3o escritas continuam gr\u00e1tis. Voc\u00ea ainda pode responder com n\u00fameros da lista acima.',
+      fr: "Vos actions IA gratuites sont \u00e9puis\u00e9es. Un abonnement d\u00e9bloque l'IA; les t\u00e2ches telles qu'\u00e9crites restent gratuites. Vous pouvez toujours r\u00e9pondre avec des num\u00e9ros de la liste ci-dessus.",
+      de: 'Ihre kostenlosen KI-Aktionen sind aufgebraucht. Ein Abonnement schaltet die KI frei; die Aufgaben, wie sie geschrieben sind, bleiben kostenlos. Sie k\u00f6nnen weiterhin mit Nummern aus der Liste oben antworten.',
+    };
+    for (const language of ['pt', 'fr', 'de'] as const) {
+      const { h, deps } = setup({ steps });
+      seedSummary(h.db, SUMMARY_A);
+      h.quota.roots.set(UID, { introStartedAt: '2026-10-01T00:00:00.000Z', introUsed: 10 });
+      const offer = offerOf(await ask(deps, offerRequest(language)));
+      const response = await ask(deps, replyRequest(offer, { kind: 'ai' }, language));
+      expect(response.outcome).toBe('quota_exceeded');
+      expect(response.text).toBe(texts[language]);
+    }
   });
 
   it('an AI answer with nothing usable keeps the items as written pickable, and the offer takes no AI any more', async () => {

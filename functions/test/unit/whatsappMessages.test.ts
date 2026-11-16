@@ -3,7 +3,9 @@
  * product rule, and the WhatsApp interactive-message limits.
  */
 import { MAX_BUTTON_TITLE_CHARS, MAX_INTERACTIVE_BODY_CHARS } from '../../src/whatsapp/send';
-import { BOT_STRINGS, bilingual, botStrings, formatConfirmPrompt, formatMeetingSummary } from '../../src/whatsapp/messages';
+import { APP_LANGUAGES } from '../../src/shared/aiContract';
+import { BOT_STRINGS, SUMMARY_BOT_STRINGS, bilingual, botStrings, formatConfirmPrompt, formatMeetingSummary, summaryBotStrings } from '../../src/whatsapp/messages';
+import { isSummaryTrigger } from '../../src/whatsapp/summaryRoute';
 
 // Built from code points so this file itself contains none of the banned characters
 // (same list as src/i18n/__tests__/noTypographicChars.test.ts).
@@ -51,6 +53,52 @@ describe('bot strings', () => {
     const text = bilingual('linkPrompt');
     expect(text).toContain(BOT_STRINGS.en.linkPrompt);
     expect(text).toContain(BOT_STRINGS.es.linkPrompt);
+  });
+});
+
+describe('suggested-tasks strings (M11; M12 adds PT, FR and DE)', () => {
+  // M12 also bans the German low quotes and the no-break spaces French spacing would bring.
+  const M12_BANNED = new RegExp(`[${[...BANNED_CODES, 0x201e, 0x201a, 0xa0, 0x202f].map((code) => String.fromCodePoint(code)).join('')}]`);
+
+  it('cover every app language with identical key sets; the assistant frame stays EN and ES', () => {
+    expect(Object.keys(SUMMARY_BOT_STRINGS).sort()).toEqual([...APP_LANGUAGES].sort());
+    for (const language of APP_LANGUAGES) expect(Object.keys(SUMMARY_BOT_STRINGS[language]).sort()).toEqual(Object.keys(SUMMARY_BOT_STRINGS.en).sort());
+    expect(Object.keys(BOT_STRINGS).sort()).toEqual(['en', 'es']);
+  });
+
+  it('contain no typographic characters or no-break spaces, and fit one interactive body', () => {
+    const all: string[] = [];
+    flatten(SUMMARY_BOT_STRINGS, all);
+    expect(all.length).toBe(APP_LANGUAGES.length * 6);
+    for (const text of all) {
+      expect(text).not.toMatch(M12_BANNED);
+      expect(text.length).toBeLessThanOrEqual(MAX_INTERACTIVE_BODY_CHARS);
+      expect(text).not.toMatch(/ [:;?!]/);
+    }
+  });
+
+  it('name the trigger word of their own language, and that word asks for the list', () => {
+    const trigger: Record<string, string> = { en: 'commitments', es: 'compromisos', pt: 'compromissos', fr: 'engagements', de: 'Zusagen' };
+    for (const language of APP_LANGUAGES) {
+      const word = trigger[language] ?? '';
+      expect(isSummaryTrigger(word)).toBe(true);
+      for (const key of ['stillPreparing', 'replyTimeout', 'expired'] as const) {
+        expect([language, key, SUMMARY_BOT_STRINGS[language][key].includes(word)]).toEqual([language, key, true]);
+      }
+    }
+  });
+
+  it('PT, FR and DE texts (pt-BR "voce", French "vous", German "Sie")', () => {
+    const ch = (code: number): string => String.fromCodePoint(code);
+    expect(SUMMARY_BOT_STRINGS.pt.nothingMarked).toBe(`Nada est${ch(0xe1)} marcado. Responda com os n${ch(0xfa)}meros que voc${ch(0xea)} quer.`);
+    expect(SUMMARY_BOT_STRINGS.fr.closed).toBe(`Ferm${ch(0xe9)}. Rien n'a ${ch(0xe9)}t${ch(0xe9)} modifi${ch(0xe9)}.`);
+    expect(SUMMARY_BOT_STRINGS.de.expired).toBe('Diese Liste ist abgelaufen. Schreiben Sie Zusagen f\u00fcr eine neue Liste.');
+  });
+
+  it('read English for an unknown language', () => {
+    expect(summaryBotStrings('it')).toBe(SUMMARY_BOT_STRINGS.en);
+    expect(summaryBotStrings('toString')).toBe(SUMMARY_BOT_STRINGS.en);
+    expect(summaryBotStrings('de')).toBe(SUMMARY_BOT_STRINGS.de);
   });
 });
 

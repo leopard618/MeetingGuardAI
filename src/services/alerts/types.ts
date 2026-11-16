@@ -20,9 +20,9 @@ import type {
   Unsubscribe,
 } from '../../core/contracts';
 import type { AndroidChannelId, NotificationKind } from '../../core/identifiers';
-import type { AlertIntensity, AlertSoundType, Language, Meeting, Preferences } from '../../core/types';
+import type { AlertIntensity, AlertSoundType, AppLanguage, Language, Meeting, Preferences } from '../../core/types';
 
-export type { AlertIntensity, AlertSoundType, Language, Meeting, NotificationKind, Preferences };
+export type { AlertIntensity, AlertSoundType, AppLanguage, Language, Meeting, NotificationKind, Preferences };
 
 // ---------------------------------------------------------------------------------------------
 // Notification payload + render output
@@ -156,8 +156,8 @@ export interface MeetingSummary {
 export interface AlertTextDeps {
   t: TranslateFn;
   formatTime(value: string, options: FormatOptions): string;
-  /** UI language (notification text). */
-  language: Language;
+  /** UI language (notification text; M12: en, es, pt, fr, de). */
+  language: AppLanguage;
   /** Device time zone (times are shown in the user's current zone). */
   timeZone: string;
   use24Hour: boolean | null;
@@ -294,7 +294,8 @@ export interface AlertDataPort {
 
 export interface AlertI18nPort {
   t: TranslateFn;
-  getLanguage(): Language;
+  /** UI language. */
+  getLanguage(): AppLanguage;
   formatTime(value: string, options: FormatOptions): string;
 }
 

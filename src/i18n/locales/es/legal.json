@@ -30,7 +30,8 @@
           "Uso del asistente de IA: cuántas acciones de IA haces, cuándo empezaron tus acciones gratis y cuándo se renueva tu plan de pago, para aplicar las acciones incluidas en tu plan.",
           "Suscripciones: si compras Pro o Premium, App Store o Google Play gestionan el pago y nunca recibimos los datos de tu tarjeta ni de tu banco. RevenueCat, que gestiona las suscripciones en nuestro nombre, envía a nuestro servidor un registro de cada evento de la suscripción, como una compra, una renovación, un cambio de plan, un problema de cobro, una cancelación o un vencimiento (el plan, la tienda, el producto, el precio y la moneda, las fechas y, en una cancelación o un vencimiento, su motivo), para que sepamos qué plan tienes y cuándo se renueva o termina.",
           "Informes de fallos y errores, y mediciones de rendimiento de una parte de las sesiones de la app, cuando están activados en tu versión de la app: modelo del dispositivo, sistema operativo, versión de la app, datos técnicos del error y cuánto tardan las pantallas y las peticiones de red. Los diseñamos para que no incluyan tus reuniones, notas ni mensajes, y las direcciones de correo se eliminan de los informes de errores antes del envío.",
-          "WhatsApp: si vinculas tu número de WhatsApp, guardamos ese número de teléfono, tu nombre de perfil de WhatsApp, la fecha en que lo vinculaste y el estado de la conversación: los últimos 10 mensajes del chat, tuyos y del asistente, y cualquier propuesta pendiente de tu confirmación (consulta \"Asistente de WhatsApp\")."
+          "WhatsApp: si vinculas tu número de WhatsApp, guardamos ese número de teléfono, tu nombre de perfil de WhatsApp, la fecha en que lo vinculaste y el estado de la conversación: los últimos 10 mensajes del chat, tuyos y del asistente, y cualquier propuesta pendiente de tu confirmación (consulta \"Asistente de WhatsApp\").",
+          "Minutas de reuniones: si las activas, guardamos tu dirección privada de minutas, los buzones que indicas, las minutas que llegan a esa dirección y las tareas sugeridas a partir de ellas (consulta \"Minutas de reuniones por correo\")."
         ]
       },
       "device": {
@@ -54,6 +55,7 @@
           "Prestarte el servicio: mantener tus reuniones, tareas y notas al día en tus dispositivos, programar tus avisos y recordatorios y mostrar tu agenda.",
           "Sincronizar los calendarios y las listas de tareas que conectes.",
           "Responder a tus consultas al asistente de IA, en la app o por WhatsApp, y aplicar las acciones de IA incluidas en tu plan.",
+          "Archivar en tus reuniones las minutas que nos envías y, cuando lo pides, sugerir tareas a partir de ellas.",
           "Gestionar tu suscripción, si compras una.",
           "Mantener el servicio seguro, evitar abusos y corregir errores."
         ],
@@ -116,6 +118,26 @@
           "El asistente solo propone cambios: no se crea, cambia, borra ni comparte nada hasta que lo confirmas. Las respuestas pueden contener errores, así que revísalas antes de confirmar. Te pedimos que no envíes información sensible, como datos de salud, al asistente."
         ]
       },
+      "summaries": {
+        "title": "Minutas de reuniones por correo",
+        "body": [
+          "Las minutas de reuniones son opcionales y puede que todavía no estén disponibles para tu cuenta. Meeting Guard AI no se une a tus reuniones, no las graba y no las escucha. Si activas las minutas, en Minutas de reuniones de Ajustes, obtienes una dirección de correo privada e indicas los buzones donde llegan los correos de tu asistente de notas. Después, la minuta que tu asistente de notas ya te envía por correo se reenvía a esa dirección privada, a mano o con una regla de tu buzón. Meeting Guard AI comprueba que cada correo es auténtico y archiva la minuta en la reunión que corresponde, o la guarda en tu bandeja de minutas hasta que la archives.",
+          "Nuestro proveedor de correo, Postmark, recibe primero cada correo, lo trata en Estados Unidos y conserva su copia durante {{summaryProviderDays}} días. Postmark entrega el correo a nuestro servidor (Google Cloud Functions), que guarda la minuta en tu cuenta de Meeting Guard AI (Google Firebase): su texto, su asunto, las direcciones de correo que contiene, la fecha, el dominio del remitente y la reunión en la que está archivada. Solo tú puedes ver tus minutas en la app; los demás usuarios de Meeting Guard AI no pueden acceder a ellas.",
+          "Google Cloud cifra las minutas en tránsito y en reposo. Además, Meeting Guard AI cifra el texto de cada minuta, su asunto y las direcciones de correo que contiene con una clave propia, guardada en Google Secret Manager. Tu dirección privada, los buzones que indicas y datos como la fecha, el dominio del remitente y la reunión en la que está archivada no tienen esta capa adicional. No es cifrado de extremo a extremo: las personas con acceso administrativo a nuestros sistemas podrían técnicamente descifrarlas.",
+          "Una minuta que tu asistente de notas no firmó, que se modificó después de enviarse o que no se envió a uno de tus propios buzones se rechaza, y Meeting Guard AI no guarda su contenido; Postmark sigue conservando su copia durante {{summaryProviderDays}} días. Una minuta real enviada directamente a tu dirección privada espera en tu bandeja de minutas hasta que des tu visto bueno.",
+          "El texto de una minuta solo se envía a OpenAI cuando pides sugerencias de tareas con IA, en la app o respondiendo IA en WhatsApp. Entonces nuestro servidor envía a OpenAI el texto de la minuta, con el título de la reunión en la que está archivada y la fecha, pero nunca su asunto ni tus otras reuniones y tareas, en las condiciones que se describen en \"Asistente de IA (OpenAI)\". Las primeras sugerencias con IA de una minuta usan 1 acción de IA; las acciones tal como están escritas pueden verse sin IA. Las sugerencias se guardan con la minuta y se cifran de la misma forma. Nada se convierte en tarea hasta que lo aceptas. Una tarea que añades es una tarea normal: su título y las personas de la tarea no se cifran con nuestra clave adicional, su recordatorio muestra el título en la pantalla de bloqueo y, si la sincronización con Microsoft To Do o Google Tasks está activada, se copia allí.",
+          "Si vinculaste WhatsApp, puedes pedir allí las tareas sugeridas de tu minuta más reciente. Solo se envían a tu teléfono, a través de Meta, las tareas sugeridas y las frases de las que salen, nunca la minuta completa, y se quedan en tu chat, en las vistas previas de las notificaciones y en tus copias de seguridad de WhatsApp hasta que las elimines allí."
+        ],
+        "items": [
+          "Minutas archivadas en una reunión o guardadas sin reunión: 12 meses desde que llegan; después se eliminan.",
+          "Minutas que esperan en la bandeja: 60 días desde que llegan, o 60 días desde que devuelves una a la bandeja, lo que ocurra más tarde.",
+          "Correos rechazados: solo un recuento diario, el motivo y el dominio del remitente cuando está verificado, durante 30 días; nunca su contenido.",
+          "Las tareas sugeridas forman parte de su minuta y se eliminan con ella. Las tareas que añades son tuyas: se quedan hasta que las eliminas, también después de eliminar la minuta o de desconectar.",
+          "Puedes eliminar cualquier minuta, o todas, cuando quieras. Salen de nuestra base de datos activa en el acto y de nuestras copias de seguridad en un plazo de 21 días. La copia de Postmark caduca a los {{summaryProviderDays}} días de llegar el correo. El correo original se queda en tu propio buzón.",
+          "Cuando desconectas las minutas en la app, tu dirección privada deja de funcionar en el acto y eliges si conservar o eliminar las minutas ya recibidas. Cuando eliminas tu cuenta, se eliminan con ella tu dirección privada, los buzones que indicaste y todas tus minutas.",
+          "Las copias fuera de nuestra base de datos, como un recordatorio en la pantalla de bloqueo, tu chat de WhatsApp o una tarea copiada a Microsoft To Do o Google Tasks, no se ven afectadas cuando eliminas una minuta o desconectas: elimínalas allí."
+        ]
+      },
       "notifications": {
         "title": "Notificaciones",
         "body": [
@@ -129,7 +151,8 @@
         ],
         "items": [
           "Google (Firebase Authentication, Cloud Firestore y Cloud Functions), que aloja tu cuenta y tus datos y ejecuta el código de nuestro servidor.",
-          "OpenAI, que procesa tus consultas al asistente de IA.",
+          "OpenAI, que procesa tus consultas al asistente de IA y, cuando las pides, las tareas sugeridas de una minuta.",
+          "Postmark, nuestro proveedor de correo, cuando activas las minutas de reuniones: recibe los correos enviados a tu dirección privada de minutas, los trata en Estados Unidos y conserva su copia durante {{summaryProviderDays}} días.",
           "Microsoft, cuando inicias sesión con Microsoft o conectas Outlook o To Do.",
           "Apple, cuando inicias sesión con Apple.",
           "El servicio de reconocimiento de voz de tu teléfono (Apple en un iPhone y, normalmente, Google en Android), cuando usas la entrada por voz: puede recibir el audio para convertirlo en texto.",
@@ -143,7 +166,7 @@
           "Las autoridades, cuando la ley lo exige, o una empresa que se haga cargo del servicio, que deberá respetar esta política."
         ],
         "note": [
-          "Nuestros proveedores de servicios (Google Cloud y Firebase, OpenAI, RevenueCat, Sentry, Expo, Zoom y, para los mensajes de WhatsApp, Meta) solo pueden usar tu información para prestarnos su servicio y deben protegerla al menos como describe esta política. Cuando inicias sesión con Google, Apple o Microsoft, conectas uno de sus servicios o usas el reconocimiento de voz de tu teléfono, esa empresa aplica además sus propios términos y su política de privacidad."
+          "Nuestros proveedores de servicios (Google Cloud y Firebase, OpenAI, Postmark, RevenueCat, Sentry, Expo, Zoom y, para los mensajes de WhatsApp, Meta) solo pueden usar tu información para prestarnos su servicio y deben protegerla al menos como describe esta política. Cuando inicias sesión con Google, Apple o Microsoft, conectas uno de sus servicios o usas el reconocimiento de voz de tu teléfono, esa empresa aplica además sus propios términos y su política de privacidad."
         ]
       },
       "transfers": {
@@ -158,11 +181,12 @@
           "Guardamos tu información mientras tu cuenta exista."
         ],
         "items": [
-          "Puedes eliminar tu cuenta en cualquier momento desde la app: Ajustes → Cuenta → Eliminar cuenta. Así se borran para siempre de nuestros servidores tu cuenta, reuniones, tareas, notas, preferencias, registros de uso del asistente, estado de suscripción, vínculo de WhatsApp y registro de inicio de sesión con Microsoft, se cierra tu sesión y se retira el acceso de la app a tu cuenta de Google o a tu cuenta de Apple. Eliminar tu cuenta no cancela una suscripción comprada en App Store o Google Play: cancélala allí.",
+          "Puedes eliminar tu cuenta en cualquier momento desde la app: Ajustes → Cuenta → Eliminar cuenta. Así se borran para siempre de nuestros servidores tu cuenta, reuniones, tareas, notas, preferencias, minutas de reuniones y dirección privada de minutas, registros de uso del asistente, estado de suscripción, vínculo de WhatsApp y registro de inicio de sesión con Microsoft, se cierra tu sesión y se retira el acceso de la app a tu cuenta de Google o a tu cuenta de Apple. Eliminar tu cuenta no cancela una suscripción comprada en App Store o Google Play: cancélala allí.",
           "Si ya no puedes iniciar sesión, escribe a {{email}} desde el correo de tu cuenta y pídenos que la eliminemos.",
           "Cuando borras una reunión, se conserva hasta 60 días un registro mínimo sin su contenido (identificadores y hora) para que el borrado llegue a tus otros dispositivos y calendarios; después nuestro servidor lo elimina automáticamente.",
           "Los eventos que la app añadió a Google Calendar, a Outlook o al calendario de tu teléfono, y las tareas que añadió a Google Tasks o a Microsoft To Do, siguen allí hasta que los borres.",
           "Las reuniones de Zoom que la app creó para ti (con su título, su hora y su enlace) no se borran automáticamente cuando eliminas tu cuenta: se quedan en nuestra cuenta de Zoom hasta que nos pidas que las borremos en {{email}}.",
+          "Las minutas de reuniones se conservan 12 meses cuando están archivadas en una reunión o guardadas sin reunión, y 60 días mientras esperan en tu bandeja de minutas; Postmark conserva su copia de cada correo durante {{summaryProviderDays}} días (consulta \"Minutas de reuniones por correo\").",
           "El vínculo de WhatsApp (tu número de teléfono y tu nombre de perfil de WhatsApp) se conserva hasta que lo desvincules o elimines tu cuenta. El estado de la conversación deja de usarse tras 15 minutos sin mensajes y se borra cuando pasan 30 días sin mensajes.",
           "Si compraste una suscripción, los registros de sus eventos en la tienda (compras, renovaciones, cambios de plan, cancelaciones y vencimiento, con tu identificador de usuario anónimo, el plan, la tienda, el producto, el precio y la moneda y las fechas) se conservan en nuestros servidores después de que elimines tu cuenta, como parte de nuestros registros de ingresos.",
           "RevenueCat conserva su propio registro de tu identificador de usuario anónimo, y de tus compras si las hiciste, después de que elimines tu cuenta.",
@@ -187,13 +211,13 @@
           "Acceder a tus datos personales y obtener una copia.",
           "Corregir datos inexactos. Puedes editar tus reuniones, tareas, notas y ajustes en la app.",
           "Borrar tus datos (consulta el apartado anterior).",
-          "Oponerte a algunos tratamientos o limitarlos, y retirar tu consentimiento en cualquier momento, por ejemplo desconectando Google Calendar, Google Tasks, Outlook o Microsoft To Do, desvinculando WhatsApp, desactivando el acceso al calendario o dejando de usar el asistente de IA.",
+          "Oponerte a algunos tratamientos o limitarlos, y retirar tu consentimiento en cualquier momento, por ejemplo desconectando Google Calendar, Google Tasks, Outlook o Microsoft To Do, desvinculando WhatsApp, desconectando las minutas de reuniones, desactivando el acceso al calendario o dejando de usar el asistente de IA.",
           "Recibir tus datos en un formato portable.",
           "Presentar una reclamación ante la autoridad de protección de datos de tu país."
         ],
         "note": [
           "Para ejercer estos derechos, escribe a {{email}}. Te responderemos en el plazo que marca la ley.",
-          "Tratamos tus datos para prestarte el servicio que pediste (ejecución de un contrato), con tu consentimiento (conexión de calendarios y tareas, WhatsApp y asistente de IA) y por nuestro interés legítimo (seguridad y corrección de errores)."
+          "Tratamos tus datos para prestarte el servicio que pediste (ejecución de un contrato), con tu consentimiento (conexión de calendarios y tareas, WhatsApp, minutas de reuniones y asistente de IA) y por nuestro interés legítimo (seguridad y corrección de errores)."
         ]
       },
       "children": {

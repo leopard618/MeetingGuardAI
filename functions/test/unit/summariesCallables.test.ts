@@ -473,7 +473,15 @@ describe('summaryStatus', () => {
       lastRefused: { reason: 'sender_not_verified', at: '2026-11-12T07:00:00.000Z', senderDomain: null },
       refusedToday: null,
       addressCreatedAt: NOW.toISOString(),
+      notetakers: [],
     });
+  });
+
+  it('lists the accepted notetakers from SUMMARIES_SENDERS for an allowed caller only', async () => {
+    const h = harness({ senders: 'no-reply@fathom.video, bad' });
+    expect((await handleSummaryStatus(verifiedAuth(), {}, h.deps)).notetakers).toEqual([{ name: 'Fathom', sender: 'no-reply@fathom.video' }]);
+    const outsider = harness({ senders: 'no-reply@fathom.video', pilotUids: 'someoneElse' });
+    expect((await handleSummaryStatus(verifiedAuth(), {}, outsider.deps)).notetakers).toBeUndefined();
   });
 
   it('M11: addressCreatedAt is the current address document\'s creation time (B8)', async () => {

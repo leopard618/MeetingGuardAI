@@ -22,6 +22,7 @@ import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
 import type { MatterConfirmResponse, MatterDraftResponse, MatterSendOutcome } from '../../core/aiContract';
 import { errorMessageKey, toAppError, type AppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
+import { toBaseLanguage } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { matterService } from '../../services/matters';
 import { spacing, useAppTheme } from '../../theme';
@@ -76,7 +77,7 @@ export function MattersScreen(): ReactElement {
 
   const prepare = (): Promise<void> =>
     run('prepare', async () => {
-      const next = await matterService.draft({ text: request, source: 'text', language, timeZone: getDeviceTimeZone() });
+      const next = await matterService.draft({ text: request, source: 'text', language: toBaseLanguage(language), timeZone: getDeviceTimeZone() }); // M12: the executive assistant stays en/es
       setDraft(next);
       setAnswer('');
     });

@@ -53,7 +53,7 @@ import {
   type ParsedNotificationId,
 } from '../../core/identifiers';
 import type { Logger } from '../../core/logger';
-import { DEFAULT_PREFERENCES, DEFAULT_SNOOZE_MINUTES, effectiveAlertIntensity, type PreferenceKey } from '../../core/types';
+import { DEFAULT_PREFERENCES, DEFAULT_SNOOZE_MINUTES, effectiveAlertIntensity, toBaseLanguage, type PreferenceKey } from '../../core/types';
 import {
   CHANNEL_VIBRATION,
   FOREGROUND_SWEEP_DELAY_MS,
@@ -588,7 +588,8 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
         occurrence?.durationMinutes ??
         (preferPayload ? (payload?.durationMinutes ?? meeting?.durationMinutes) : (meeting?.durationMinutes ?? payload?.durationMinutes)) ??
         60,
-      language: meeting?.language ?? payload?.language ?? i18n.getLanguage(),
+      // Meeting language (en/es); the UI language is only the last resort (M12: mapped to en/es).
+      language: meeting?.language ?? payload?.language ?? toBaseLanguage(i18n.getLanguage()),
       joinUrl: meeting ? meetingJoinUrl(meeting) : null,
       locationText: meeting ? safeLocationText(meeting) : null,
       prefs: presentationPrefs(prefs),

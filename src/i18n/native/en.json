@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "NSCalendarsUsageDescription": "Meeting Guard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.",
+    "NSCalendarsFullAccessUsageDescription": "Meeting Guard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.",
+    "NSPhotoLibraryUsageDescription": "Meeting Guard AI lets you attach photos from your library to a meeting.",
+    "NSCameraUsageDescription": "Meeting Guard AI lets you take a photo and attach it to a meeting.",
+    "NSMicrophoneUsageDescription": "Meeting Guard AI uses the microphone so you can speak to the assistant instead of typing.",
+    "NSSpeechRecognitionUsageDescription": "Meeting Guard AI uses speech recognition to turn what you say into text for the assistant. You always see the text before anything happens."
+  }
+}

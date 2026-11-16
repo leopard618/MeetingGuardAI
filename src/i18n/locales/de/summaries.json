@@ -1,0 +1,676 @@
+{
+  "row": {
+    "title": "Besprechungsprotokolle",
+    "subtitle": "Die Protokolle Ihres Notizassistenten, abgelegt unter Ihren Besprechungen",
+    "waiting_one": "{{count}} wartet auf eine Besprechung",
+    "waiting_other": "{{count}} warten auf eine Besprechung"
+  },
+  "common": {
+    "productLine": "Meeting Guard AI nimmt nicht an Ihren Besprechungen teil, zeichnet sie nicht auf und hört nicht mit.",
+    "productLineMore": "Es legt das Protokoll, das Ihnen Ihr eigener Notizassistent ohnehin per E-Mail schickt, unter der richtigen Besprechung ab.",
+    "notAttended": "Meeting Guard AI hat an dieser Besprechung nicht teilgenommen. Dieser Text stammt von Ihrem Notizassistenten.",
+    "otherRecorder": "Ein Protokoll eines Notizassistenten kann von einer Besprechung stammen, die jemand anderes aufgezeichnet hat.",
+    "unknownSender": "ein unbekannter Absender",
+    "untitled": "Protokoll ohne Titel",
+    "received": "Empfangen am {{time}}",
+    "summaryDate": "Datum im Protokoll: {{date}}",
+    "noSummaryDate": "Kein Datum im Protokoll",
+    "loading": "Protokolle werden geladen...",
+    "retry": "Erneut versuchen",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "copyFailed": "Kopieren nicht möglich. Halten Sie stattdessen den Text gedrückt, um ihn zu kopieren.",
+    "origin": {
+      "vendor": "Von Ihrem Notizassistenten ({{domain}}) verfasst, empfangen am {{time}}. Signatur geprüft.",
+      "vendorNoDomain": "Von Ihrem Notizassistenten verfasst, empfangen am {{time}}. Signatur geprüft.",
+      "forwarded": "Weitergeleitet von {{address}}. Die Signatur des Notizassistenten selbst konnte nicht geprüft werden.",
+      "forwardedNoAddress": "Von einem Ihrer Postfächer weitergeleitet. Die Signatur des Notizassistenten selbst konnte nicht geprüft werden."
+    },
+    "chip": {
+      "vendor_verified": "Von Ihrem Notizassistenten",
+      "user_forwarded": "Weitergeleitet"
+    },
+    "status": {
+      "matched": "Unter einer Besprechung abgelegt",
+      "inbox": "Wartet auf eine Besprechung",
+      "kept": "Ohne Besprechung behalten",
+      "refused": "Abgelehnt"
+    },
+    "method": {
+      "auto": "Automatisch nach Titel und Uhrzeit abgelegt",
+      "user": "Von Ihnen abgelegt"
+    },
+    "inboxReason": {
+      "old_summary": "Es kam lange nach dem Verfassen an, oder sein Sendezeitpunkt konnte nicht geprüft werden. Daher wurde es nicht automatisch abgelegt.",
+      "not_addressed_to_you": "Es war nicht an eines Ihrer Postfächer adressiert, zum Beispiel weil es direkt an Ihre private Adresse gesendet wurde. Prüfen Sie, ob es Ihres ist, bevor Sie es ablegen.",
+      "user_forwarded": "Sie haben es von Hand weitergeleitet. Wählen Sie die Besprechung, zu der es gehört.",
+      "needs_confirmation": "Eine Besprechung scheint zu passen. Bestätigen Sie sie, bevor das Protokoll abgelegt wird.",
+      "ambiguous": "Zwei Besprechungen ähneln sich. Wählen Sie die richtige.",
+      "no_candidate": "Um diese Zeit wurde keine Besprechung gefunden. Die Besprechung ist eventuell in einem Kalender, der nicht verbunden ist.",
+      "weak": "Keine Besprechung passte gut genug zu Titel und Uhrzeit.",
+      "no_date": "Das Protokoll hat kein Datum, daher konnte seine Besprechung nicht gesucht werden."
+    },
+    "refusedReason": {
+      "too_large": {
+        "title": "Zu groß",
+        "body": "Die E-Mail hat die Größenbeschränkung überschritten.",
+        "action": "Bitten Sie Ihren Notizassistenten um eine kürzere Protokoll-E-Mail ohne Anhänge."
+      },
+      "malformed": {
+        "title": "Fehlerhafte E-Mail",
+        "body": "Ihre Header waren fehlerhaft oder doppelt vorhanden, daher konnte sie nicht geprüft werden.",
+        "action": "Senden Sie das Protokoll erneut. Wenn das wiederholt passiert, ist die E-Mail eventuell kein echtes Protokoll."
+      },
+      "could_not_verify_after_forwarding": {
+        "title": "Signatur unterwegs verloren",
+        "body": "Ihr E-Mail-Dienst hat die E-Mail beim Weitergeben verändert, daher passte die Signatur des Notizassistenten nicht mehr.",
+        "action": "Verwenden Sie eine Umleitungsregel statt Weiterleiten (in Outlook: Umleiten an). Siehe die Einrichtungsschritte."
+      },
+      "changed_after_sending": {
+        "title": "Nach dem Senden geändert",
+        "body": "Die Signatur des Notizassistenten ist vorhanden, passt aber nicht mehr: Der Text wurde nach dem Senden geändert.",
+        "action": "Wenn Sie diese E-Mail nicht erwartet haben, müssen Sie nichts tun. Wenn es Ihr Protokoll war, prüfen Sie Ihre Weiterleitungsregel und senden Sie es erneut."
+      },
+      "sender_not_verified": {
+        "title": "Absender nicht bestätigt",
+        "body": "Sie gibt an, von Ihrem Notizassistenten oder aus einem Ihrer Postfächer zu stammen, aber keine gültige Signatur belegt das.",
+        "action": "Wenn es Ihre war, signiert Ihr E-Mail-Dienst gesendete E-Mails eventuell nicht. Richten Sie eine Umleitungsregel ein, damit stattdessen die E-Mail des Notizassistenten selbst ankommt."
+      },
+      "not_from_your_notetaker": {
+        "title": "Nicht von Ihrem Notizassistenten",
+        "body": "Sie stammt von keinem Notizassistenten, den wir akzeptieren, oder jemand anderes hat sie weitergeleitet.",
+        "action": "Wenn Sie solche E-Mails weiterhin erhalten, fordern Sie eine neue Adresse an."
+      },
+      "unreadable": {
+        "title": "Kein lesbarer Text",
+        "body": "Die E-Mail war echt, enthielt aber keinen lesbaren Text mehr.",
+        "action": "Leiten Sie sie erneut weiter, mit dem Protokoll im Text der E-Mail, nicht als Anhang."
+      }
+    },
+    "refusedFrom": "Von {{domain}}",
+    "refusedFromUnknown": "Von einem unbekannten Absender",
+    "refusedNotStored": "Abgelehnte E-Mails werden von Meeting Guard AI nicht gespeichert. Nur der Grund, der Tag, eine Anzahl und eine bestätigte Absenderdomain werden 30 Tage lang aufbewahrt.",
+    "delete": {
+      "action": "Löschen",
+      "title": "Dieses Protokoll löschen?",
+      "body": "Es wird sofort aus unserer Live-Datenbank entfernt und innerhalb von 21 Tagen aus unseren Backups. Die Kopie bei unserem E-Mail-Anbieter verfällt nach {{providerDays}} Tagen. Die ursprüngliche E-Mail bleibt in Ihrem eigenen Postfach.",
+      "confirm": "Löschen",
+      "done": "Protokoll gelöscht"
+    },
+    "privacy": {
+      "title": "Datenschutz",
+      "encrypted": "Bei der Übertragung und im Ruhezustand durch Google Cloud verschlüsselt. Zusätzlich verschlüsselt Meeting Guard AI den Text, den Betreff und die enthaltenen E-Mail-Adressen jedes Protokolls mit einem eigenen Schlüssel, der in Google Secret Manager liegt. Ihre private Adresse, die von Ihnen angegebenen Postfächer und Angaben wie das Datum, die Domain des Absenders und die Besprechung, unter der es abgelegt ist, erhalten diese zusätzliche Schicht nicht. Dies ist keine Ende-zu-Ende-Verschlüsselung: Personen mit Administratorzugriff auf unsere Systeme könnten die Daten technisch entschlüsseln. Unser E-Mail-Anbieter, Postmark, empfängt jede E-Mail zuerst und bewahrt sie {{providerDays}} Tage lang auf.",
+      "yoursOnly": "Nur Sie sehen Ihre Protokolle in der App; andere Nutzer von Meeting Guard AI haben keinen Zugriff darauf.",
+      "deletable": "Sie können jedes Protokoll oder alle jederzeit löschen. Sie werden sofort aus unserer Live-Datenbank entfernt und innerhalb von 21 Tagen aus unseren Backups. Die Kopie bei unserem E-Mail-Anbieter verfällt nach {{providerDays}} Tagen. Die ursprüngliche E-Mail bleibt in Ihrem eigenen Postfach.",
+      "refused": "Ein Protokoll, das Ihr Notizassistent nicht signiert hat, das nach dem Senden geändert wurde oder das nicht an eines Ihrer eigenen Postfächer gesendet wurde, wird abgelehnt, und Meeting Guard AI bewahrt seinen Inhalt nicht auf. Ein echtes Protokoll, das direkt an Ihre private Adresse gesendet wurde, wartet in Ihrem Posteingang auf Ihre Freigabe."
+    },
+    "unavailable": {
+      "title": "Noch nicht verfügbar",
+      "body": "Besprechungsprotokolle sind für Ihr Konto noch nicht verfügbar."
+    }
+  },
+  "errors": {
+    "unauthenticated": "Melden Sie sich erneut mit einer bestätigten E-Mail-Adresse an, um Besprechungsprotokolle zu nutzen.",
+    "not_enabled": "Besprechungsprotokolle sind noch nicht verfügbar.",
+    "not_allowed": "Besprechungsprotokolle sind für Ihr Konto noch nicht verfügbar.",
+    "not_ready": "Ihre private Adresse ist noch nicht bereit. Versuchen Sie es später erneut.",
+    "invalid_request": "Das hat nicht funktioniert. Prüfen Sie Ihre Eingabe und versuchen Sie es erneut.",
+    "not_found": "Dieses Protokoll ist nicht mehr vorhanden. Es wurde eventuell gelöscht.",
+    "invalid_meeting": "Diese Besprechung ist nicht mehr verfügbar. Wählen Sie eine andere.",
+    "rate_limited": "Sie haben heute zu viele neue Adressen angefordert. Versuchen Sie es morgen erneut.",
+    "upstream_error": "Bei uns ist etwas schiefgelaufen. Versuchen Sie es später erneut.",
+    "generic": "Etwas ist schiefgelaufen. Versuchen Sie es erneut."
+  },
+  "connect": {
+    "intro": "Senden Sie das Protokoll, das Ihr Notizassistent ohnehin schreibt, an Ihre private Adresse. Meeting Guard AI legt es unter der zugehörigen Besprechung ab.",
+    "notReady": "Protokolle per E-Mail werden noch eingerichtet. Schauen Sie bald wieder vorbei.",
+    "create": "Meine private Adresse erstellen",
+    "createHint": "Sie erhalten eine Adresse, die nur Sie kennen. Die Protokolle Ihres Notizassistenten gelangen über eine E-Mail-Regel dorthin.",
+    "created": "Ihre private Adresse ist bereit",
+    "openInbox": "Protokoll-Posteingang öffnen",
+    "address": {
+      "title": "Ihre private Adresse",
+      "hint": "Behalten Sie diese Adresse für sich. Fügen Sie sie nie als Besprechungsgast oder zu einer Verteilerliste hinzu.",
+      "copy": "Kopieren",
+      "copied": "Adresse kopiert",
+      "share": "Teilen",
+      "shareMessage": "Meine Meeting Guard AI-Adresse für Besprechungsprotokolle: {{address}}",
+      "regenerate": "Neue Adresse anfordern",
+      "regenerateTitle": "Neue Adresse anfordern?",
+      "regenerateBody": "Ihre aktuelle Adresse funktioniert sofort nicht mehr, und Meeting Guard AI speichert keine E-Mails mehr, die an sie gesendet werden. Passen Sie danach Ihre Weiterleitungsregel an; Gmail bittet Sie, die neue Adresse erneut zu bestätigen.",
+      "regenerateConfirm": "Neue Adresse anfordern",
+      "regenerated": "Ihre neue Adresse ist bereit. Passen Sie Ihre Weiterleitungsregel an.",
+      "capped": "Ihre Adresse hat heute viel Spam erhalten, daher wird weiterer Spam nicht mehr gezählt. Fordern Sie eine neue Adresse an, um ihn zu stoppen."
+    },
+    "mailboxes": {
+      "title": "Wo Ihre Protokolle ankommen",
+      "hint": "Die Postfächer, an die Ihr Notizassistent seine Protokolle sendet. Ein Protokoll wird nur dann automatisch abgelegt, wenn es an eines davon gesendet wurde.",
+      "empty": "Noch keine Postfächer. Fügen Sie das Postfach hinzu, an das Ihr Notizassistent seine Protokolle sendet.",
+      "add": "Postfach hinzufügen",
+      "label": "E-Mail-Adresse",
+      "placeholder": "name@firma.de",
+      "remove": "{{address}} entfernen",
+      "save": "Speichern",
+      "saved": "Postfächer gespeichert",
+      "invalid": "Geben Sie eine E-Mail-Adresse ein, zum Beispiel name@firma.de.",
+      "duplicate": "Dieses Postfach ist bereits in der Liste.",
+      "maxReached": "Sie können bis zu {{max}} Postfächer angeben.",
+      "reserved": "Ihre private Adresse kann keines Ihrer Postfächer sein. Geben Sie das Postfach ein, an das Ihr Notizassistent seine Protokolle sendet.",
+      "unsaved": "Noch nicht gespeichert. Tippen Sie auf Speichern, um Ihre Änderungen zu behalten."
+    },
+    "gmail": {
+      "title": "Gmail-Bestätigungscode",
+      "body": "Gmail bittet um Bestätigung der Weiterleitung von {{address}}. Fügen Sie diesen Code auf der Seite mit den Gmail-Weiterleitungseinstellungen ein und klicken Sie dann auf Bestätigen.",
+      "code": "Code: {{code}}",
+      "copy": "Code kopieren",
+      "copied": "Code kopiert",
+      "open": "Gmail-Einstellungen öffnen",
+      "dismiss": "Ausblenden",
+      "received": "Empfangen am {{time}}",
+      "otherTitle": "Jemand anderes möchte hierher weiterleiten",
+      "otherBody": "{{address}} ist keines Ihrer Postfächer. Die Anfrage kam von jemand anderem; ignorieren Sie sie.",
+      "ignore": "Ignorieren"
+    },
+    "notetakers": {
+      "title": "Notizassistenten mit automatischer Ablage",
+      "hint": "Verwenden Sie in Ihrer E-Mail-Regel die unten stehende Absenderadresse Ihres Notizassistenten. Seine Protokolle werden geprüft und unter ihrer Besprechung abgelegt.",
+      "item": "{{name}}: {{sender}}",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "copyLabel": "Absenderadresse von {{name}} kopieren",
+      "none": "Noch kein Notizassistent mit automatischer Ablage.",
+      "other": "Ein anderer Notizassistent oder keiner? Leiten Sie ein Protokoll von Hand an Ihre private Adresse weiter. Es wartet in Ihrem Posteingang und lässt sich mit einem Tippen ablegen."
+    },
+    "setup": {
+      "title": "Weiterleitung einrichten",
+      "tabs": {
+        "gmail": "Gmail",
+        "outlook": "Outlook und Microsoft 365",
+        "other": "Andere"
+      },
+      "browserHint": "Nehmen Sie diese Einstellung in einem Webbrowser vor. In den Smartphone-Apps lässt sich keine Weiterleitung einrichten.",
+      "gmail": {
+        "steps": {
+          "step1": "Öffnen Sie die Gmail-Einstellungen, Weiterleitung und POP/IMAP, und klicken Sie auf Weiterleitungsadresse hinzufügen. Fügen Sie Ihre private Adresse ein und klicken Sie dann auf Weiter und Fortfahren.",
+          "step2": "Gmail sendet einen Bestätigungscode an Ihre private Adresse. Er erscheint innerhalb einer Minute auf diesem Bildschirm. Fügen Sie ihn auf derselben Gmail-Seite ein und klicken Sie auf Bestätigen.",
+          "step3": "Lassen Sie die Weiterleitung aller E-Mails deaktiviert.",
+          "step4": "Öffnen Sie Filter und blockierte Adressen und klicken Sie auf Neuen Filter erstellen. Geben Sie unter Von die Absenderadresse Ihres Notizassistenten ein und klicken Sie auf Filter erstellen.",
+          "step5": "Wählen Sie Weiterleiten an, wählen Sie Ihre private Adresse aus und klicken Sie auf Filter erstellen."
+        },
+        "openForwarding": "Weiterleitungseinstellungen öffnen",
+        "openFilters": "Filtereinstellungen öffnen",
+        "workspace": "Google Workspace: Wenn die Weiterleitung ausgegraut ist, muss Ihr Administrator die automatische Weiterleitung zuerst erlauben."
+      },
+      "outlook": {
+        "steps": {
+          "step1": "Öffnen Sie Outlook im Web, Einstellungen, E-Mail, Regeln, und klicken Sie auf Neue Regel hinzufügen.",
+          "step2": "Bedingung: Von, die Absenderadresse Ihres Notizassistenten. Aktion: Umleiten an, Ihre private Adresse. Speichern Sie die Regel.",
+          "step3": "Verwenden Sie Umleiten, nicht Weiterleiten. Beim Umleiten bleibt der Notizassistent der Absender, sodass seine Signatur geprüft werden kann. Weiterleiten wird nicht unterstützt."
+        },
+        "openRules": "Outlook-Regeln öffnen",
+        "company": "Firmenpostfach: Microsoft 365 blockiert die automatische Weiterleitung an externe Adressen standardmäßig. Wenn nichts ankommt, teilen Sie die Schritte mit Ihrem Administrator."
+      },
+      "other": {
+        "steps": {
+          "step1": "Erstellen Sie in Ihrem E-Mail-Dienst eine Regel für E-Mails von der Absenderadresse Ihres Notizassistenten, die sie an Ihre private Adresse weiterschickt.",
+          "step2": "Wählen Sie Umleiten (oder Bounce), wenn Ihr E-Mail-Dienst das anbietet. Dabei bleibt die Signatur des Notizassistenten erhalten.",
+          "step3": "Sie können auch ein einzelnes Protokoll von Hand aus einem Ihrer Postfächer weiterleiten. Es wartet in Ihrem Protokoll-Posteingang und lässt sich mit einem Tippen ablegen."
+        }
+      },
+      "admin": {
+        "title": "Schritte für Ihren Administrator",
+        "hint": "Teilen Sie diese Schritte mit der Person, die die E-Mail Ihres Unternehmens verwaltet.",
+        "share": "Schritte teilen",
+        "mailboxFallback": "mein Postfach",
+        "microsoft": "Ich nutze Meeting Guard AI, um meine Besprechungsprotokolle zu empfangen. Eine E-Mail-Regel für {{mailbox}} leitet nur die Protokoll-E-Mails meines Notizassistenten an {{address}} um. Microsoft 365 blockiert die automatische Weiterleitung an externe Adressen standardmäßig. So erlauben Sie sie nur für dieses eine Postfach:\n1. Erstellen Sie im Microsoft Defender-Portal (https://security.microsoft.com/antispam) eine ausgehende Antispamrichtlinie, die nur für {{mailbox}} gilt, und setzen Sie Regeln für automatische Weiterleitung auf Ein - Weiterleitung ist aktiviert.\n2. Prüfen Sie im Exchange Admin Center (https://admin.exchange.microsoft.com/#/remotedomains), ob die Standard-Remotedomäne die automatische Weiterleitung erlaubt.\nEs werden keine anderen E-Mails weitergeleitet.",
+        "google": "Ich nutze Meeting Guard AI, um meine Besprechungsprotokolle zu empfangen. Ein Gmail-Filter für {{mailbox}} leitet nur die Protokoll-E-Mails meines Notizassistenten an {{address}} weiter. Die Weiterleitung ist in meinen Gmail-Einstellungen ausgegraut. Bitte erlauben Sie die automatische Weiterleitung für mein Konto in der Google Admin-Konsole (https://admin.google.com) unter Apps, Google Workspace, Gmail, Endnutzerzugriff.\nEs werden keine anderen E-Mails weitergeleitet."
+      }
+    },
+    "activity": {
+      "title": "Aktivität",
+      "lastReceived": "Letztes Protokoll empfangen am {{time}}",
+      "nothingYet": "Noch nichts empfangen.",
+      "waiting": "Warten auf Ihr erstes Protokoll. Dieser Bildschirm prüft alle paar Sekunden, solange er geöffnet ist.",
+      "lastRefused": "Zuletzt abgelehnt am {{time}}: {{reason}}",
+      "refusedToday_one": "{{count}} E-Mail heute abgelehnt",
+      "refusedToday_other": "{{count}} E-Mails heute abgelehnt"
+    },
+    "microsoftHint": {
+      "title": "Noch nichts angekommen",
+      "body": "In den letzten 24 Stunden ist kein Protokoll angekommen. Wenn Sie ein Firmenpostfach von Microsoft 365 nutzen, blockiert Microsoft eventuell die Umleitung. Teilen Sie die Schritte mit Ihrem Administrator.",
+      "action": "Schritte für Ihren Administrator"
+    },
+    "checks": {
+      "title": "Was wir prüfen",
+      "signature": "Das Protokoll trägt die eigene digitale Signatur Ihres Notizassistenten, und nichts darin wurde nach dem Senden geändert.",
+      "sender": "Es stammt von einem Notizassistenten-Absender, den wir akzeptieren.",
+      "mailbox": "Es wurde an eines der oben angegebenen Postfächer gesendet.",
+      "fresh": "Es ist aktuell: in den letzten zwei Wochen verfasst.",
+      "match": "Es wird nur dann automatisch abgelegt, wenn sein Titel und seine Uhrzeit beide zu einer Ihrer Besprechungen passen. Sonst wartet es in Ihrem Protokoll-Posteingang.",
+      "refused": "Ein Protokoll, das die ersten beiden Prüfungen besteht, aber nicht die anderen, oder eines, das Sie von Hand aus einem angegebenen Postfach weiterleiten, wartet in Ihrem Protokoll-Posteingang auf Ihre Freigabe. Alles andere wird abgelehnt, und Meeting Guard AI speichert seinen Inhalt nicht."
+    },
+    "disconnect": {
+      "action": "Trennen",
+      "title": "Keine Protokolle mehr empfangen",
+      "body": "Ihre private Adresse funktioniert sofort nicht mehr. Die bereits vorhandenen Protokolle:",
+      "keep": "Behalten",
+      "delete": "Löschen",
+      "tasksStay": "Aufgaben, die Sie aus Protokollen hinzugefügt haben, bleiben in Ihren Aufgaben.",
+      "cancel": "Abbrechen",
+      "deleteTitle": "Alle Ihre Protokolle löschen?",
+      "deleteBody": "Sie werden sofort aus unserer Live-Datenbank entfernt und innerhalb von 21 Tagen aus unseren Backups. Die Kopie bei unserem E-Mail-Anbieter verfällt nach {{providerDays}} Tagen. Die ursprünglichen E-Mails bleiben in Ihrem eigenen Postfach. Aufgaben, die Sie aus Protokollen hinzugefügt haben, bleiben in Ihren Aufgaben.",
+      "deleteConfirm": "Trennen und löschen",
+      "doneKept": "Getrennt. Ihre Protokolle bleiben erhalten.",
+      "doneDeleted": "Getrennt. Ihre Protokolle wurden gelöscht.",
+      "disconnected": "Nicht verbunden. Meeting Guard AI speichert keine E-Mails mehr, die an Ihre alte Adresse gesendet werden, aber unser E-Mail-Anbieter bewahrt seine Kopie {{providerDays}} Tage lang auf. Entfernen Sie die E-Mail-Regel, die an diese Adresse weiterleitet.",
+      "reconnect": "Meine private Adresse neu erstellen",
+      "reconnectHint": "Eine neue Adresse zählt zu den neuen Adressen, die Sie pro Tag anfordern können."
+    },
+    "retention": {
+      "title": "Wie lange wir Protokolle aufbewahren",
+      "filed": "Protokolle, die unter einer Besprechung abgelegt oder behalten wurden: 12 Monate nach Eingang, dann werden sie gelöscht.",
+      "inbox": "Protokolle, die im Posteingang warten: 60 Tage nach Eingang oder 60 Tage, nachdem Sie eines in den Posteingang zurückverschoben haben, je nachdem, was später ist.",
+      "refused": "Abgelehnte E-Mails: nur eine tägliche Anzahl, der Grund und eine bestätigte Absenderdomain, 30 Tage lang; nie ihr Inhalt.",
+      "suggestions": "Vorgeschlagene Aufgaben gehören zu ihrem Protokoll und werden mit ihm gelöscht.",
+      "tasks": "Aufgaben, die Sie hinzufügen, gehören Ihnen: Sie bleiben, bis Sie sie löschen, auch nachdem Sie das Protokoll gelöscht oder die Verbindung getrennt haben. Ihr Titel und die genannten Personen werden aus dem Vorschlag übernommen und haben nicht die zusätzliche Verschlüsselung des Protokolls.",
+      "deleting": "Löschen: sofort aus unserer Live-Datenbank, aus Backups innerhalb von 21 Tagen; die Kopie unseres E-Mail-Anbieters nach {{providerDays}} Tagen; das Original bleibt in Ihrem Postfach.",
+      "openai": "Wenn Sie Vorschläge anfordern, wird der Text des Protokolls über unseren Server an OpenAI gesendet.",
+      "copies": "Kopien außerhalb unserer Datenbank: Die Erinnerung einer Aufgabe zeigt wie bei jeder Aufgabe deren Titel auf Ihrem Sperrbildschirm; auf WhatsApp bleiben die Liste und die darin zitierten Sätze in Ihrem Chat, in den Benachrichtigungsvorschauen und in Ihren WhatsApp-Backups, bis Sie sie dort löschen; eine Synchronisierung mit To Do oder Google Tasks kopiert die Aufgabe. Das Löschen des Protokolls oder das Trennen der Verbindung erreicht diese Kopien nicht."
+    }
+  },
+  "inbox": {
+    "waiting": {
+      "title": "Wartet auf eine Besprechung",
+      "empty": "Nichts wartet. Ein Protokoll, das nicht automatisch abgelegt werden kann, erscheint hier."
+    },
+    "recent": {
+      "title": "Kürzlich abgelegt",
+      "empty": "Noch keine Protokolle abgelegt.",
+      "filedUnder": "Abgelegt unter {{title}}",
+      "kept": "Ohne Besprechung behalten"
+    },
+    "refused": {
+      "title": "Abgelehnt",
+      "show": "Abgelehnte anzeigen",
+      "hide": "Abgelehnte ausblenden",
+      "row_one": "{{count}} abgelehnt am {{day}}",
+      "row_other": "{{count}} abgelehnt am {{day}}",
+      "empty": "In den letzten 30 Tagen wurde nichts abgelehnt."
+    },
+    "fileUnder": "Ablegen unter {{title}}",
+    "fileUnderA11y": "Ablegen unter {{title}}, {{time}}",
+    "choose": "Besprechung wählen",
+    "keep": "Ohne Besprechung behalten",
+    "kept": "Ohne Besprechung behalten",
+    "filed": "Abgelegt unter {{title}}",
+    "noSuggestions": "Keine Vorschläge, da dieses Protokoll nicht an Sie adressiert war. Wenn es Ihres ist, wählen Sie seine Besprechung selbst.",
+    "pullToRefresh": "Nach unten ziehen, um erneut nach passenden Besprechungen zu suchen.",
+    "more": "Nur die neuesten {{count}} werden angezeigt.",
+    "openSetup": "Adresse und Einrichtung",
+    "empty": {
+      "title": "Noch keine Protokolle",
+      "body": "Wenn das Protokoll Ihres Notizassistenten an Ihrer privaten Adresse ankommt, wird es unter seiner Besprechung abgelegt oder wartet hier.",
+      "action": "Weiterleitung einrichten"
+    }
+  },
+  "attach": {
+    "title": "Besprechung wählen",
+    "moveTitle": "Zu einer anderen Besprechung verschieben",
+    "previousDay": "Vorheriger Tag",
+    "nextDay": "Nächster Tag",
+    "summaryDay": "Tag des Protokolls",
+    "noMeetings": "Keine Besprechungen an diesem Tag. Versuchen Sie einen anderen Tag.",
+    "loading": "Besprechungen werden geladen...",
+    "allDay": "Ganztägig",
+    "cancelled": "Abgesagt",
+    "occurrence": "Ein Termin einer Serie",
+    "file": "Hier ablegen",
+    "filed": "Abgelegt unter {{title}}",
+    "moved": "Verschoben zu {{title}}",
+    "current": "Derzeit hier abgelegt",
+    "cancel": "Abbrechen"
+  },
+  "view": {
+    "loading": "Protokoll wird geladen...",
+    "notFound": "Dieses Protokoll ist nicht mehr vorhanden.",
+    "match": {
+      "auto": "Abgelegt unter {{title}}, {{time}}. Automatisch nach Titel und Uhrzeit zugeordnet.",
+      "user": "Abgelegt unter {{title}}, {{time}}. Von Ihnen abgelegt.",
+      "inbox": "Noch nicht abgelegt: wartet auf eine Besprechung.",
+      "kept": "Ohne Besprechung behalten."
+    },
+    "tldrHeading": "Die eigene Kurzfassung Ihres Notizassistenten",
+    "tldrNote": "Der Notizassistent hat diesen Überblick selbst verfasst. Gleichen Sie ihn mit den Details unten ab.",
+    "textHeading": "Text",
+    "owner": "Verantwortlich: {{owner}}",
+    "due": "Fällig: {{due}}",
+    "checkbox": {
+      "done": "Erledigt",
+      "open": "Offen"
+    },
+    "flag": {
+      "possible_instruction": "Liest sich wie eine Anweisung. Wird nur als reiner Text angezeigt.",
+      "has_link": "Enthält einen Link, als reiner Text angezeigt.",
+      "truncated": "Gekürzt, weil es zu lang war."
+    },
+    "truncated": "Dieses Protokoll wurde gekürzt, weil es sehr lang war.",
+    "linksPlain": "Links werden als reiner Text angezeigt. Kopieren Sie einen, um ihn in Ihrem Browser zu öffnen.",
+    "subject": "Betreff: {{subject}}",
+    "from": "Von: {{address}}",
+    "copyText": "Text kopieren",
+    "copied": "Text kopiert",
+    "notThisMeeting": "Nicht diese Besprechung",
+    "notThisMeetingTitle": "Nicht diese Besprechung?",
+    "notThisMeetingBody": "Das Protokoll kommt zurück in Ihren Protokoll-Posteingang, und diese Besprechung wird dafür nicht mehr vorgeschlagen.",
+    "notThisMeetingConfirm": "Zurück in den Posteingang",
+    "detached": "Zurück in Ihren Protokoll-Posteingang verschoben",
+    "move": "Verschieben",
+    "choose": "Besprechung wählen",
+    "keep": "Ohne Besprechung behalten",
+    "notFoundBody": "Es wurde eventuell gelöscht, hier oder auf einem anderen Gerät. Die ursprüngliche E-Mail bleibt in Ihrem eigenen Postfach.",
+    "emailHeading": "E-Mail-Details",
+    "trust": {
+      "notBound": "Es war nicht an eines der von Ihnen angegebenen Postfächer adressiert. Prüfen Sie, ob es Ihnen gehört.",
+      "notFresh": "Es kam lange nach dem Verfassen an, oder sein Sendezeitpunkt konnte nicht geprüft werden."
+    },
+    "review": "Zusagen prüfen",
+    "reviewCount": "Zusagen prüfen ({{count}})",
+    "retentionLink": "Wie lange wir Protokolle aufbewahren",
+    "keptUntil": "Dieses Protokoll wird bis {{date}} aufbewahrt.",
+    "truncatedHint": "Beim Eingang wurde nur der erste Teil gespeichert. Die ursprüngliche E-Mail bleibt in Ihrem eigenen Postfach."
+  },
+  "meeting": {
+    "title_one": "Protokoll des Notizassistenten",
+    "title_other": "Protokolle des Notizassistenten",
+    "received": "Empfangen am {{time}}",
+    "occurrence": "Für die Besprechung am {{date}}",
+    "open": "Protokoll {{title}} öffnen"
+  },
+  "commitments": {
+    "title": "Vorgeschlagene Aufgaben",
+    "entry": {
+      "review": "Zusagen prüfen",
+      "reviewCount": "Zusagen prüfen ({{count}})",
+      "reviewA11y": "Die Zusagen in diesem Protokoll prüfen",
+      "added_one": "{{count}} zu Ihren Aufgaben hinzugefügt",
+      "added_other": "{{count}} zu Ihren Aufgaben hinzugefügt",
+      "empty": "Keine Zusagen gefunden",
+      "stale": "Das Protokoll hat sich geändert: Vorschläge neu erstellen (kostenlos)",
+      "preparing": "Wird vorbereitet"
+    },
+    "header": {
+      "count_one": "{{count}} Vorschlag",
+      "count_other": "{{count}} Vorschläge",
+      "open_one": "{{count}} noch zu prüfen",
+      "open_other": "{{count}} noch zu prüfen",
+      "added_one": "{{count}} in Ihren Aufgaben",
+      "added_other": "{{count}} in Ihren Aufgaben"
+    },
+    "mode": {
+      "ai": "Von KI vorgeschlagen",
+      "as_written": "Wie geschrieben",
+      "switchToAi": "Aufgaben mit KI vorschlagen",
+      "switchToAsWritten": "Aufgabenpunkte wie geschrieben anzeigen",
+      "aiCost": "Verbraucht 1 KI-Aktion, nur beim ersten Mal.",
+      "asWrittenFree": "Kostenlos. Es wird keine KI verwendet."
+    },
+    "notice": {
+      "title": "Bevor Meeting Guard AI dieses Protokoll liest",
+      "body": "Um Aufgaben vorzuschlagen, sendet Meeting Guard AI den Text dieses Protokolls über unseren Server an OpenAI. OpenAI verwendet ihn standardmäßig nicht zum Trainieren seiner Modelle und kann ihn für begrenzte Zeit aufbewahren, um Missbrauch zu prüfen. Nichts wird zur Aufgabe, bevor Sie es annehmen.",
+      "continue": "Weiter",
+      "asWritten": "Aufgabenpunkte wie geschrieben anzeigen"
+    },
+    "start": {
+      "title": "Dieses Protokoll in Aufgaben umwandeln",
+      "body": "Meeting Guard AI kann das Protokoll Ihres Notizassistenten lesen und die darin genannten Aufgaben vorschlagen, jeweils mit dem Satz, aus dem sie stammen. Nichts wird zur Aufgabe, bevor Sie es annehmen.",
+      "ai": "Aufgaben mit KI vorschlagen",
+      "asWritten": "Aufgabenpunkte wie geschrieben anzeigen",
+      "costs": "Wie geschrieben: kostenlos, ohne KI. Mit KI: 1 KI-Aktion, nur beim ersten Mal."
+    },
+    "loading": {
+      "get": "Vorgeschlagene Aufgaben werden geladen...",
+      "ai": "Das Protokoll Ihres Notizassistenten wird gelesen. Das verbraucht 1 KI-Aktion, nur beim ersten Mal.",
+      "asWritten": "Aufgabenpunkte werden gelesen..."
+    },
+    "preparing": {
+      "title": "Wird vorbereitet",
+      "body": "Die vorgeschlagenen Aufgaben für dieses Protokoll werden vorbereitet. Das kann ein bis zwei Minuten dauern; sie erscheinen hier, sobald sie fertig sind.",
+      "slow": "Das dauert länger als üblich. Versuchen Sie es gleich noch einmal."
+    },
+    "empty": {
+      "title": "Keine Zusagen gefunden.",
+      "ai": "Meeting Guard AI hat in diesem Protokoll keine Zusagen gefunden.",
+      "asWritten": "Dieses Protokoll enthält keine Aufgabenpunkte.",
+      "tryAsWritten": "Aufgabenpunkte wie geschrieben anzeigen",
+      "tryAi": "Aufgaben mit KI vorschlagen"
+    },
+    "stale": {
+      "title": "Dieses Protokoll hat sich geändert",
+      "body": "Dieses Protokoll hat sich geändert. Erstellen Sie die Vorschläge neu.",
+      "free": "Das Neuerstellen ist kostenlos.",
+      "action": "Neu erstellen",
+      "readOnly": "Dies ist die Liste von vor der Änderung. Erstellen Sie sie neu, um Aufgaben hinzuzufügen oder zu ändern."
+    },
+    "quota": {
+      "title": "KI-Kontingent aufgebraucht",
+      "body": "Ihr KI-Kontingent ist aufgebraucht. Die Aufgabenpunkte wie geschrieben sind weiterhin kostenlos.",
+      "resets": "Ihr Kontingent erneuert sich: {{time}}.",
+      "plans": "Tarife ansehen",
+      "asWritten": "Aufgabenpunkte wie geschrieben anzeigen"
+    },
+    "origin": {
+      "suggested": {
+        "meeting": "Vorgeschlagen aus dem Protokoll Ihres Notizassistenten zu {{meeting}}, {{date}}.",
+        "meetingNoDate": "Vorgeschlagen aus dem Protokoll Ihres Notizassistenten zu {{meeting}}.",
+        "kept": "Vorgeschlagen aus dem Protokoll Ihres Notizassistenten vom {{date}} (nicht unter einer Besprechung abgelegt).",
+        "keptNoDate": "Vorgeschlagen aus dem Protokoll Ihres Notizassistenten (nicht unter einer Besprechung abgelegt).",
+        "forwarded": "Vorgeschlagen aus einem Protokoll, weitergeleitet von {{address}}.",
+        "forwardedNoAddress": "Vorgeschlagen aus einem Protokoll, das von einem Ihrer Postfächer weitergeleitet wurde.",
+        "notAddressed": "Vorgeschlagen aus einem Protokoll eines Notizassistenten, das nicht an eines Ihrer Postfächer gesendet wurde."
+      },
+      "asWritten": {
+        "meeting": "Aus dem Protokoll Ihres Notizassistenten zu {{meeting}}, {{date}}.",
+        "meetingNoDate": "Aus dem Protokoll Ihres Notizassistenten zu {{meeting}}.",
+        "kept": "Aus dem Protokoll Ihres Notizassistenten vom {{date}} (nicht unter einer Besprechung abgelegt).",
+        "keptNoDate": "Aus dem Protokoll Ihres Notizassistenten (nicht unter einer Besprechung abgelegt).",
+        "forwarded": "Aus einem Protokoll, weitergeleitet von {{address}}.",
+        "forwardedNoAddress": "Aus einem Protokoll, das von einem Ihrer Postfächer weitergeleitet wurde.",
+        "notAddressed": "Aus einem Protokoll eines Notizassistenten, das nicht an eines Ihrer Postfächer gesendet wurde."
+      },
+      "notAttended": "Meeting Guard AI hat an dieser Besprechung nicht teilgenommen.",
+      "aiWritten": "Von KI aus dem Text Ihres Notizassistenten verfasst. Prüfen Sie Namen, Daten und Bedeutung, bevor Sie sie hinzufügen.",
+      "asWrittenLine": "Die Aufgabenpunkte genau so, wie Ihr Notizassistent sie geschrieben hat."
+    },
+    "banner": {
+      "old_summary": "Wir konnten nicht bestätigen, wann dieses Protokoll gesendet wurde, daher ist nichts für Sie vorausgewählt.",
+      "not_addressed_to_you": "Dieses Protokoll wurde nicht an eines Ihrer Postfächer gesendet. Es kann die Besprechung einer anderen Person betreffen, wählen Sie daher jeden Punkt selbst aus.",
+      "forwarded": "Dieses Protokoll wurde von {{address}} weitergeleitet, und die Signatur des Notizassistenten konnte nicht geprüft werden, daher ist nichts für Sie vorausgewählt.",
+      "forwardedNoAddress": "Dieses Protokoll wurde von einem Ihrer Postfächer weitergeleitet, und die Signatur des Notizassistenten konnte nicht geprüft werden, daher ist nichts für Sie vorausgewählt.",
+      "possible_instruction": "Ein Teil dieses Protokolls liest sich wie Anweisungen an eine Software. Nichts ist für Sie vorausgewählt; lesen Sie jeden Punkt.",
+      "truncated": "Von einem langen Protokoll wurde nur der erste Teil gelesen.",
+      "meetingChanged": "Seit diese Vorschläge erstellt wurden, wurde es unter einer anderen Besprechung abgelegt. Bereits hinzugefügte Aufgaben bleiben mit der Besprechung verknüpft, unter der sie hinzugefügt wurden."
+    },
+    "reminder": {
+      "title": "Erinnerung für Punkte ohne Datum",
+      "choice": {
+        "tomorrow": "Morgen um {{time}}",
+        "dayAfter": "Übermorgen um {{time}}",
+        "nextMonday": "Nächsten Montag um {{time}}",
+        "pick": "Datum und Uhrzeit wählen",
+        "picked": "{{date}} um {{time}}",
+        "none": "Keine Erinnerung"
+      },
+      "yourChoice": "Ihre Wahl. Das Protokoll nennt kein Datum.",
+      "pastPick": "Dieser Zeitpunkt ist bereits vorbei. Wählen Sie einen späteren.",
+      "group": {
+        "tomorrow_one": "{{count}} Erinnerung morgen um {{time}}",
+        "tomorrow_other": "{{count}} Erinnerungen morgen um {{time}}",
+        "dayAfter_one": "{{count}} Erinnerung übermorgen um {{time}}",
+        "dayAfter_other": "{{count}} Erinnerungen übermorgen um {{time}}",
+        "nextMonday_one": "{{count}} Erinnerung nächsten Montag um {{time}}",
+        "nextMonday_other": "{{count}} Erinnerungen nächsten Montag um {{time}}",
+        "picked_one": "{{count}} Erinnerung am {{date}} um {{time}}",
+        "picked_other": "{{count}} Erinnerungen am {{date}} um {{time}}",
+        "none_one": "{{count}} Punkt ohne Erinnerung",
+        "none_other": "{{count}} Punkte ohne Erinnerung"
+      },
+      "groupHint": "Erinnerungen für dieselbe Uhrzeit kommen zusammen an."
+    },
+    "card": {
+      "selectA11y": "Auswählen: {{title}}",
+      "fromSummary": "Aus dem Protokoll:",
+      "section": "Abschnitt: {{heading}}",
+      "edit": "Bearbeiten",
+      "drop": "Verwerfen",
+      "dropped": "Verworfen",
+      "restore": "Wiederherstellen",
+      "inTasks": "In Ihren Aufgaben",
+      "openTask": "Aufgabe öffnen",
+      "undo": "Rückgängig",
+      "removedFromTasks": "Aus Ihren Aufgaben entfernt",
+      "addAgain": "Erneut hinzufügen",
+      "alreadyAdded": "Bereits hinzugefügt",
+      "via": {
+        "app": "In der App hinzugefügt",
+        "whatsapp": "Auf WhatsApp hinzugefügt"
+      },
+      "edited": "Von Ihnen bearbeitet",
+      "readOnly": "Erstellen Sie die Vorschläge neu, um diesen Punkt zu ändern."
+    },
+    "dropped": {
+      "title_one": "{{count}} verworfen",
+      "title_other": "{{count}} verworfen",
+      "show": "Verworfene anzeigen",
+      "hide": "Verworfene ausblenden"
+    },
+    "owner": {
+      "you": "Sie",
+      "guess": "Sie? (im Protokoll steht: {{name}})",
+      "named": "Verantwortlich laut Protokoll: {{name}}",
+      "none": "Niemand als verantwortlich genannt",
+      "title": "{{name}}: {{what}}",
+      "followUp": "Eine Nachbereitung für Sie: Der Aufgabentitel beginnt mit {{name}}."
+    },
+    "due": {
+      "date": "Fällig am {{date}}",
+      "dateTime": "Fällig am {{date}} um {{time}}",
+      "says": "Im Protokoll steht: {{quote}}",
+      "withQuote": "Fällig am {{date}} (im Protokoll steht: {{quote}})",
+      "overdue": "Überfällig: Im Protokoll steht {{date}}",
+      "overdueQuote": "Überfällig (im Protokoll steht: {{quote}}). Keine Erinnerung, bis Sie eine wählen.",
+      "noReminderUntilPick": "Keine Erinnerung, bis Sie eine wählen.",
+      "meetingTime": "{{time}} Besprechungszeit ({{zone}})",
+      "noDate": "Ihre Wahl. Das Protokoll nennt kein Datum.",
+      "noDateReminder": "Kein Datum im Protokoll. Erinnerung: {{when}}, Ihre Wahl.",
+      "reminderChip": "Erinnerung {{when}}, Ihre Wahl",
+      "noReminder": "Keine Erinnerung"
+    },
+    "chip": {
+      "overdue": "Überfällig",
+      "payment_like": "Zahlung oder Code",
+      "possible_instruction": "Liest sich wie eine Anweisung",
+      "suggested": "Vorschlag des Notizassistenten",
+      "checklist": "Checkliste",
+      "similar_added": "Vielleicht schon hinzugefügt",
+      "owner_guess": "Verantwortlichen prüfen",
+      "has_link": "Enthält einen Link",
+      "truncated": "Gekürzt",
+      "lowConfidence": "Bitte prüfen"
+    },
+    "reason": {
+      "suggested": "Von Ihrem Notizassistenten vorgeschlagen, nicht in der Besprechung gesagt.",
+      "checklist": "Teil einer Checkliste.",
+      "payment_like": "Bitte prüfen: Es geht um eine Zahlung oder einen Code.",
+      "similar_added": "Ähnelt einer Aufgabe, die Sie bereits hinzugefügt haben.",
+      "possible_instruction": "Liest sich wie eine Anweisung an eine Software. Lesen Sie es, bevor Sie es hinzufügen.",
+      "owner_guess": "Nur Ihr Vorname stimmt mit dem Verantwortlichen überein. Prüfen Sie, ob Sie gemeint sind.",
+      "lowConfidence": "Meeting Guard AI ist nicht sicher, ob dies eine Zusage ist.",
+      "has_link": "Der Link bleibt im Protokoll als reiner Text und wird nicht in den Aufgabentitel übernommen.",
+      "truncated": "Dieser Punkt wurde gekürzt, weil er zu lang war."
+    },
+    "footer": {
+      "acceptAll": "Alle annehmen ({{count}})",
+      "acceptSelected_one": "{{count}} ausgewählte hinzufügen",
+      "acceptSelected_other": "{{count}} ausgewählte hinzufügen",
+      "selectAll": "Alle auswählen",
+      "clearSelection": "Auswahl aufheben",
+      "nothingSelected": "Wählen Sie die Aufgaben aus, die Sie hinzufügen möchten.",
+      "offline": "Stellen Sie eine Internetverbindung her, um diese Aufgaben hinzuzufügen.",
+      "adding": "Aufgaben werden hinzugefügt..."
+    },
+    "result": {
+      "added_one": "{{count}} Aufgabe hinzugefügt. Die Erinnerung ist auf diesem Telefon eingestellt.",
+      "added_other": "{{count}} Aufgaben hinzugefügt. Die Erinnerungen sind auf diesem Telefon eingestellt.",
+      "addedNoReminder_one": "{{count}} Aufgabe hinzugefügt.",
+      "addedNoReminder_other": "{{count}} Aufgaben hinzugefügt.",
+      "addedSomeReminders_one": "{{count}} Aufgabe hinzugefügt. Die Erinnerung ist auf diesem Telefon eingestellt.",
+      "addedSomeReminders_other": "{{count}} Aufgaben hinzugefügt. Für die mit Erinnerung ist sie auf diesem Telefon eingestellt.",
+      "alreadyAdded_one": "{{count}} war bereits in Ihren Aufgaben.",
+      "alreadyAdded_other": "{{count}} waren bereits in Ihren Aufgaben.",
+      "notOpen_one": "{{count}} wurde bereits bearbeitet, hier oder auf einem anderen Gerät.",
+      "notOpen_other": "{{count}} wurden bereits bearbeitet, hier oder auf einem anderen Gerät.",
+      "dropped": "Verworfen",
+      "restored": "Wiederhergestellt",
+      "removed": "Aus Ihren Aufgaben entfernt",
+      "changed": "Diese Aufgabe wurde nach dem Hinzufügen geändert und daher nicht entfernt. Öffnen Sie sie, um sie zu ändern oder zu löschen.",
+      "stale": "Diese Vorschläge wurden auf einem anderen Gerät geändert. Prüfen Sie sie und versuchen Sie es erneut."
+    },
+    "edit": {
+      "title": "Aufgabe bearbeiten",
+      "titleLabel": "Titel",
+      "titleRequired": "Geben Sie einen Titel ein.",
+      "titleTooLong": "Verwenden Sie höchstens {{max}} Zeichen.",
+      "owner": "Wessen Aufgabe ist das?",
+      "ownerYou": "Meine",
+      "ownerNamed": "{{name}}, wie im Protokoll",
+      "ownerOther": "Jemand anderes",
+      "ownerOtherLabel": "Name der Person",
+      "ownerOtherRequired": "Geben Sie den Namen der Person ein.",
+      "ownerNobody": "Niemand Bestimmtes",
+      "ownerHint": "Eine Aufgabe für jemand anderen ist eine Nachbereitung für Sie: Der Titel beginnt mit dem Namen der Person.",
+      "due": "Fälligkeitsdatum",
+      "dueTime": "Uhrzeit",
+      "pickDate": "Datum wählen",
+      "pickTime": "Uhrzeit wählen",
+      "clearDate": "Kein Fälligkeitsdatum",
+      "clearTime": "Keine Uhrzeit",
+      "reminder": "Erinnerung",
+      "timeNeedsDate": "Wählen Sie ein Datum, bevor Sie eine Uhrzeit wählen.",
+      "reminderNeedsTime": "Eine Erinnerung braucht eine Fälligkeitsuhrzeit.",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "discardTitle": "Änderungen verwerfen?",
+      "discardBody": "Ihre Änderungen an dieser Aufgabe gehen verloren.",
+      "discard": "Verwerfen",
+      "keepEditing": "Weiter bearbeiten"
+    },
+    "leave": {
+      "title": "Verlassen, ohne hinzuzufügen?",
+      "body": "Ihre Änderungen gibt es nur auf diesem Bildschirm, sie gehen verloren.",
+      "leave": "Verlassen",
+      "stay": "Bleiben"
+    },
+    "keep": {
+      "until": "Dieses Protokoll wird bis {{date}} aufbewahrt. Aufgaben, die Sie hinzufügen, bleiben, bis Sie sie löschen.",
+      "rules": "Wie lange wir Protokolle aufbewahren",
+      "deleteKeepTasks": "Protokoll löschen, Aufgaben behalten",
+      "deleteTitle": "Protokoll löschen und Ihre Aufgaben behalten?",
+      "deleteBody": "Das Protokoll und seine Vorschläge werden sofort aus unserer Live-Datenbank entfernt und innerhalb von 21 Tagen aus unseren Backups. Die Kopie bei unserem E-Mail-Anbieter verfällt nach {{providerDays}} Tagen. Die Aufgaben, die Sie hinzugefügt haben, bleiben in Ihren Aufgaben.",
+      "deleteConfirm": "Protokoll löschen",
+      "deleted": "Protokoll gelöscht. Ihre Aufgaben bleiben erhalten."
+    },
+    "errors": {
+      "quota_exceeded": "Ihr KI-Kontingent ist aufgebraucht. Die Aufgabenpunkte wie geschrieben sind weiterhin kostenlos.",
+      "stale": "Diese Vorschläge wurden auf einem anderen Gerät geändert. Prüfen Sie sie und versuchen Sie es erneut.",
+      "upstream_error": "Vorgeschlagene Aufgaben sind gerade nicht verfügbar. Versuchen Sie es erneut oder zeigen Sie die Aufgabenpunkte wie geschrieben an.",
+      "not_found": "Dieses Protokoll ist nicht mehr vorhanden. Es wurde eventuell gelöscht oder in den Posteingang zurückverschoben.",
+      "invalid_request": "Das hat nicht funktioniert. Prüfen Sie die Aufgabe und versuchen Sie es erneut.",
+      "offline": "Sie sind offline. Stellen Sie eine Internetverbindung her und versuchen Sie es erneut.",
+      "timeout": "Das hat zu lange gedauert. Versuchen Sie es erneut.",
+      "decideUnconfirmed": "Meeting Guard AI konnte diese Änderung nicht bestätigen, eventuell wurde sie trotzdem gespeichert. Prüfen Sie die Liste, bevor Sie es erneut versuchen; ein erneuter Versuch fügt dieselbe Aufgabe nie doppelt hinzu.",
+      "notFiled": "Dieses Protokoll wartet auf eine Besprechung. Legen Sie es zuerst ab oder behalten Sie es, und prüfen Sie dann seine Zusagen.",
+      "generic": "Etwas ist schiefgelaufen. Versuchen Sie es erneut.",
+      "retry": "Erneut versuchen"
+    }
+  }
+}

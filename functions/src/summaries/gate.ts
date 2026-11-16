@@ -9,7 +9,9 @@
  * - The pilot list (SUMMARIES_PILOT_UIDS) is a comma list of Firebase uids. Entries are trimmed;
  *   empty entries and anything that is not a plain uid of 1 to 128 characters of [A-Za-z0-9_-]
  *   (auto ids are 28 alphanumerics, Microsoft sign-in uids are "ms_" plus a lowercase GUID) are
- *   dropped, so a typo can never widen the pilot. Matching is exact and case-sensitive.
+ *   dropped, so a typo can never widen the pilot. Matching is exact and case-sensitive. The one
+ *   exception is an entry of exactly "*": every user with a plain uid (the launch setting, as
+ *   MATTERS_ALLOWED_UIDS). Only that exact entry opens it; "**", "*u1" or "u*" are dropped.
  * - summariesServiceAccountAtLoad: the dedicated runtime service account of the functions that
  *   bind SUMMARIES_DATA_KEY (design section 7, finding 13): summaryInbound (inboundFunction.ts)
  *   and summaryRead (readFunction.ts) both import it from here.
@@ -25,6 +27,9 @@
  *
  * Pure: no Firebase imports. Never log the list itself; counts only. Never log the account.
  */
+
+/** The pilot list entry that opens summaries to every user. */
+export const EVERYONE_ENTRY = '*';
 
 /** A uid the pilot list accepts (the admin callables' uid shape). */
 export const PILOT_UID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -56,6 +61,8 @@ export function summariesServiceAccountAtLoad(): string | null {
 
 export interface PilotList {
   uids: ReadonlySet<string>;
+  /** An entry of exactly "*": every user. */
+  everyone: boolean;
   /** Non-empty entries that were dropped because they are not a plain uid (for a setup log). */
   invalid: number;
 }
@@ -64,25 +71,28 @@ export interface PilotList {
 export function parsePilotList(raw: string): PilotList {
   const uids = new Set<string>();
   let invalid = 0;
-  if (typeof raw !== 'string') return { uids, invalid };
+  let everyone = false;
+  if (typeof raw !== 'string') return { uids, everyone, invalid };
   for (const entry of raw.split(',')) {
     const uid = entry.trim();
     if (uid.length === 0) continue;
-    if (PILOT_UID_PATTERN.test(uid)) uids.add(uid);
+    if (uid === EVERYONE_ENTRY) everyone = true;
+    else if (PILOT_UID_PATTERN.test(uid)) uids.add(uid);
     else invalid += 1;
   }
-  return { uids, invalid };
+  return { uids, everyone, invalid };
 }
 
-/** The pilot uids of SUMMARIES_PILOT_UIDS (empty set = nobody). */
+/** The pilot uids of SUMMARIES_PILOT_UIDS (empty set = nobody; a "*" entry is not in it, see isPilotUid). */
 export function parsePilotUids(raw: string): ReadonlySet<string> {
   return parsePilotList(raw).uids;
 }
 
-/** True when `uid` is exactly one of the pilot uids. */
+/** True when `uid` is a plain uid and the list holds "*" or exactly that uid. */
 export function isPilotUid(uid: string, raw: string): boolean {
   if (typeof uid !== 'string' || !PILOT_UID_PATTERN.test(uid)) return false;
-  return parsePilotUids(raw).has(uid);
+  const list = parsePilotList(raw);
+  return list.everyone || list.uids.has(uid);
 }
 
 // ---------------------------------------------------------------------------------------------

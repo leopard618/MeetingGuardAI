@@ -1,20 +1,21 @@
 /**
- * App-wide translation key check (all namespaces, both languages).
+ * App-wide translation key check (all namespaces, every app language; the en/es-only namespaces,
+ * I18N_EN_ES_ONLY_NAMESPACES, only in en and es, since pt/fr/de fall back to English there).
  *
  * Scans every non-test source file for namespace-qualified key literals ('home:greeting',
  * `insights:tabs.${tab}`) and fails when:
- * - a static key is missing in English or Spanish (plural families `_one` / `_other` count);
- * - the static part of a dynamic key (`ns:a.b.${x}`) is not an object in both languages;
+ * - a static key is missing in a language (plural families `_one` / `_other` count);
+ * - the static part of a dynamic key (`ns:a.b.${x}`) is not an object in every language;
  * - `t()` is called with an unqualified key (no namespace).
- * Key parity between EN and ES (keys present in one language only) is checked per namespace in
+ * Key parity against English (keys present in one language only) is checked per namespace in
  * resources.test.ts.
  */
 import fs from 'fs';
 import path from 'path';
 
-import { I18N_NAMESPACE_LIST, type I18nNamespace } from '../../core/contracts';
+import { I18N_EN_ES_ONLY_NAMESPACES, I18N_NAMESPACE_LIST, type I18nNamespace } from '../../core/contracts';
 import type { AppEventName } from '../../core/events';
-import type { Language } from '../../core/types';
+import { APP_LANGUAGES, type AppLanguage } from '../../core/types';
 import { RESOURCES } from '../resources';
 
 const REPO = path.join(__dirname, '..', '..', '..');
@@ -32,8 +33,18 @@ const EVENT_NAMES = {
   'language:changed': true,
 } satisfies Record<AppEventName, true>;
 
-const LANGUAGES: readonly Language[] = ['en', 'es'];
+const LANGUAGES: readonly AppLanguage[] = APP_LANGUAGES;
 const NAMESPACES: ReadonlySet<string> = new Set(I18N_NAMESPACE_LIST);
+const EN_ES_ONLY: ReadonlySet<string> = new Set(I18N_EN_ES_ONLY_NAMESPACES);
+
+/** false for an en/es-only namespace in pt/fr/de: i18next falls back to English there by design. */
+function carries(language: AppLanguage, namespace: I18nNamespace): boolean {
+  return language === 'en' || language === 'es' || !EN_ES_ONLY.has(namespace);
+}
+
+function treeOf(language: AppLanguage, namespace: I18nNamespace): unknown {
+  return (RESOURCES[language] as Partial<Record<I18nNamespace, unknown>>)[namespace];
+}
 
 function sourceFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -61,8 +72,8 @@ function isLeaf(value: unknown): boolean {
   return typeof value === 'string' || (Array.isArray(value) && value.length > 0);
 }
 
-function defined(language: Language, namespace: I18nNamespace, key: string): boolean {
-  const tree = RESOURCES[language][namespace];
+function defined(language: AppLanguage, namespace: I18nNamespace, key: string): boolean {
+  const tree = treeOf(language, namespace);
   if (isLeaf(lookup(tree, key))) return true;
   // Plural family, or an object read whole with returnObjects (legal sections).
   return (isLeaf(lookup(tree, `${key}_one`)) && isLeaf(lookup(tree, `${key}_other`))) || isObject(lookup(tree, key));
@@ -123,14 +134,14 @@ describe('translation keys used by the app', () => {
 
   it.each(LANGUAGES)('defines every static key in "%s"', (language) => {
     const missing = uses
-      .filter((use) => !use.dynamic && !defined(language, use.namespace, use.key))
+      .filter((use) => !use.dynamic && carries(language, use.namespace) && !defined(language, use.namespace, use.key))
       .map((use) => `${use.file}: ${use.namespace}:${use.key}`);
     expect([...new Set(missing)]).toEqual([]);
   });
 
   it.each(LANGUAGES)('defines the object behind every dynamic key in "%s"', (language) => {
     const missing = uses
-      .filter((use) => use.dynamic && !isObject(lookup(RESOURCES[language][use.namespace], use.key)))
+      .filter((use) => use.dynamic && carries(language, use.namespace) && !isObject(lookup(treeOf(language, use.namespace), use.key)))
       .map((use) => `${use.file}: ${use.namespace}:${use.key}.*`);
     expect([...new Set(missing)]).toEqual([]);
   });

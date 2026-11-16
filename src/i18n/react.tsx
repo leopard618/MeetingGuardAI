@@ -9,7 +9,7 @@ import { AppState } from 'react-native';
 import type { TranslateFn, UseLanguageResult } from '../core/contracts';
 import { toAppError } from '../core/errors';
 import { createLogger } from '../core/logger';
-import type { Language } from '../core/types';
+import type { AppLanguage } from '../core/types';
 import { normalizeLanguage } from './detect';
 import { FALLBACK_LANGUAGE, SUPPORTED_LANGUAGES, i18n, initI18n, setLanguage, syncDeviceLanguage } from './i18n';
 
@@ -51,8 +51,8 @@ export function useT(): TranslateFn {
 /** Current language + a setter for explicit user choices (source 'user'). */
 export function useLanguage(): UseLanguageResult {
   const { i18n: instance } = useTranslation();
-  const language: Language = normalizeLanguage(instance.resolvedLanguage ?? instance.language) ?? FALLBACK_LANGUAGE;
-  const change = useCallback((next: Language) => setLanguage(next, { source: 'user' }), []);
+  const language: AppLanguage = normalizeLanguage(instance.resolvedLanguage ?? instance.language) ?? FALLBACK_LANGUAGE;
+  const change = useCallback((next: AppLanguage) => setLanguage(next, { source: 'user' }), []);
   return useMemo(
     () => ({ language, setLanguage: change, supportedLanguages: SUPPORTED_LANGUAGES }),
     [language, change],

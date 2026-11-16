@@ -5,6 +5,7 @@
 import type {
   AiAction,
   AiMeetingDraft,
+  AppLanguage,
   AssistantResponse,
   AssistantUsage,
   BulkUpdateAction,
@@ -16,14 +17,23 @@ import type {
 } from '../../../core/aiContract';
 import type { TranslateFn } from '../../../core/contracts';
 import { buildMeeting, type Meeting, type MeetingCreateInput } from '../../../core/types';
+import deAi from '../../../i18n/locales/de/ai.json';
 import enAi from '../../../i18n/locales/en/ai.json';
 import esAi from '../../../i18n/locales/es/ai.json';
+import frAi from '../../../i18n/locales/fr/ai.json';
+import ptAi from '../../../i18n/locales/pt/ai.json';
 import type { KeyValueStorage } from '../executedStore';
 import type { AssistantFormatter } from '../types';
 
 type Json = { [key: string]: Json } | string;
 
-const RESOURCES: Record<'en' | 'es', Json> = { en: enAi as Json, es: esAi as Json };
+const RESOURCES: Record<AppLanguage, Json> = {
+  en: enAi as Json,
+  es: esAi as Json,
+  pt: ptAi as Json,
+  fr: frAi as Json,
+  de: deAi as Json,
+};
 
 function lookup(table: Json, path: string): string | undefined {
   let node: Json | undefined = table;
@@ -38,7 +48,7 @@ function lookup(table: Json, path: string): string | undefined {
  * Minimal i18next stand-in for the "ai" namespace: plural suffixes (_one/_other) and {{var}}
  * interpolation. Keys of other namespaces resolve to the key itself.
  */
-export function createTranslator(language: 'en' | 'es' = 'en'): TranslateFn & { missing: string[] } {
+export function createTranslator(language: AppLanguage = 'en'): TranslateFn & { missing: string[] } {
   const missing: string[] = [];
   const t = ((key: string, options?: Record<string, unknown>): string => {
     const [ns, path] = key.includes(':') ? (key.split(':', 2) as [string, string]) : ['', key];
@@ -60,7 +70,7 @@ export function createTranslator(language: 'en' | 'es' = 'en'): TranslateFn & { 
 }
 
 /** Deterministic formatter (UTC ISO based) for assertions. */
-export function createTestFormatter(options: { language?: 'en' | 'es'; timeZone?: string; t?: TranslateFn } = {}): AssistantFormatter {
+export function createTestFormatter(options: { language?: AppLanguage; timeZone?: string; t?: TranslateFn } = {}): AssistantFormatter {
   const language = options.language ?? 'en';
   return {
     t: options.t ?? createTranslator(language),

@@ -1,0 +1,676 @@
+{
+  "row": {
+    "title": "Resumos de reuniões",
+    "subtitle": "Os resumos do seu assistente de anotações, arquivados nas suas reuniões",
+    "waiting_one": "{{count}} aguardando uma reunião",
+    "waiting_other": "{{count}} aguardando uma reunião"
+  },
+  "common": {
+    "productLine": "O Meeting Guard AI não entra, não grava e não escuta as suas reuniões.",
+    "productLineMore": "Ele arquiva na reunião certa o resumo que o seu próprio assistente de anotações já envia para você por e-mail.",
+    "notAttended": "O Meeting Guard AI não participou desta reunião. Este texto vem do seu assistente de anotações.",
+    "otherRecorder": "Um resumo do assistente de anotações pode vir de uma reunião gravada por outra pessoa.",
+    "unknownSender": "um remetente desconhecido",
+    "untitled": "Resumo sem título",
+    "received": "Recebido {{time}}",
+    "summaryDate": "Data no resumo: {{date}}",
+    "noSummaryDate": "Sem data no resumo",
+    "loading": "Carregando resumos...",
+    "retry": "Tentar novamente",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "copyFailed": "Não foi possível copiar. Mantenha o texto pressionado para copiá-lo.",
+    "origin": {
+      "vendor": "Escrito pelo seu assistente de anotações ({{domain}}), recebido {{time}}. Assinatura verificada.",
+      "vendorNoDomain": "Escrito pelo seu assistente de anotações, recebido {{time}}. Assinatura verificada.",
+      "forwarded": "Encaminhado de {{address}}. Não foi possível verificar a assinatura do próprio assistente de anotações.",
+      "forwardedNoAddress": "Encaminhado de uma das suas caixas de e-mail. Não foi possível verificar a assinatura do próprio assistente de anotações."
+    },
+    "chip": {
+      "vendor_verified": "Do seu assistente de anotações",
+      "user_forwarded": "Encaminhado"
+    },
+    "status": {
+      "matched": "Arquivado em uma reunião",
+      "inbox": "Aguardando uma reunião",
+      "kept": "Mantido sem reunião",
+      "refused": "Recusado"
+    },
+    "method": {
+      "auto": "Arquivado automaticamente por título e horário",
+      "user": "Arquivado por você"
+    },
+    "inboxReason": {
+      "old_summary": "Ele chegou muito depois de ser escrito, ou não foi possível verificar o horário de envio, por isso não foi arquivado automaticamente.",
+      "not_addressed_to_you": "Ele não foi enviado para uma das suas caixas de e-mail, por exemplo porque foi enviado direto para o seu endereço privado. Confira se ele é seu antes de arquivá-lo.",
+      "user_forwarded": "Você o encaminhou manualmente. Escolha a reunião a que ele pertence.",
+      "needs_confirmation": "Uma reunião parece certa. Confirme-a antes de o resumo ser arquivado.",
+      "ambiguous": "Duas reuniões são parecidas. Escolha a certa.",
+      "no_candidate": "Nenhuma reunião encontrada perto desse horário. A reunião pode estar em um calendário que não está conectado.",
+      "weak": "Nenhuma reunião correspondeu ao título e ao horário com precisão suficiente.",
+      "no_date": "O resumo não tem data, por isso não foi possível procurar a reunião dele."
+    },
+    "refusedReason": {
+      "too_large": {
+        "title": "Grande demais",
+        "body": "O e-mail ultrapassou o limite de tamanho.",
+        "action": "Peça ao seu assistente de anotações um e-mail de resumo mais curto, sem anexos."
+      },
+      "malformed": {
+        "title": "E-mail corrompido",
+        "body": "Os cabeçalhos estavam corrompidos ou repetidos, por isso não foi possível verificá-lo.",
+        "action": "Envie o resumo novamente. Se isso continuar acontecendo, o e-mail pode não ser um resumo real."
+      },
+      "could_not_verify_after_forwarding": {
+        "title": "Assinatura perdida no caminho",
+        "body": "O seu serviço de e-mail alterou o e-mail ao repassá-lo, por isso a assinatura do assistente de anotações deixou de corresponder.",
+        "action": "Use uma regra de Redirecionar em vez de Encaminhar (no Outlook: Redirecionar para). Veja os passos de configuração."
+      },
+      "changed_after_sending": {
+        "title": "Alterado depois do envio",
+        "body": "A assinatura do assistente de anotações está presente, mas não corresponde mais: o texto foi alterado depois de ser enviado.",
+        "action": "Se você não esperava este e-mail, não há nada a fazer. Se era o seu resumo, confira a sua regra de encaminhamento e envie-o novamente."
+      },
+      "sender_not_verified": {
+        "title": "Remetente não verificado",
+        "body": "Ele diz vir do seu assistente de anotações ou de uma das suas caixas de e-mail, mas nenhuma assinatura válida confirma isso.",
+        "action": "Se era seu, talvez o seu serviço de e-mail não assine as mensagens que envia. Configure uma regra de Redirecionar para que chegue o e-mail do próprio assistente de anotações."
+      },
+      "not_from_your_notetaker": {
+        "title": "Não é do seu assistente de anotações",
+        "body": "Ele não vem de um assistente de anotações que aceitamos, ou outra pessoa o encaminhou.",
+        "action": "Se você continuar recebendo estes e-mails, gere um novo endereço."
+      },
+      "unreadable": {
+        "title": "Sem texto legível",
+        "body": "O e-mail era autêntico, mas não restou nenhum texto legível nele.",
+        "action": "Encaminhe-o novamente com o resumo no corpo do e-mail, não como anexo."
+      }
+    },
+    "refusedFrom": "De {{domain}}",
+    "refusedFromUnknown": "De um remetente desconhecido",
+    "refusedNotStored": "O Meeting Guard AI não armazena e-mails recusados. Apenas o motivo, o dia, uma contagem e um domínio de remetente verificado são mantidos, por 30 dias.",
+    "delete": {
+      "action": "Excluir",
+      "title": "Excluir este resumo?",
+      "body": "Ele sai do nosso banco de dados ativo imediatamente e dos nossos backups em até 21 dias. A cópia no nosso provedor de e-mail expira após {{providerDays}} dias. O e-mail original continua na sua própria caixa de e-mail.",
+      "confirm": "Excluir",
+      "done": "Resumo excluído"
+    },
+    "privacy": {
+      "title": "Privacidade",
+      "encrypted": "Criptografado em trânsito e em repouso pelo Google Cloud. Além disso, o Meeting Guard AI criptografa o texto, o assunto e os endereços de e-mail de cada resumo com uma chave própria, guardada no Google Secret Manager. O seu endereço privado, as caixas de e-mail que você informa e dados como a data, o domínio do remetente e a reunião em que ele está arquivado não recebem essa camada extra. Isto não é criptografia de ponta a ponta: pessoas com acesso administrativo aos nossos sistemas poderiam tecnicamente descriptografá-lo. O nosso provedor de e-mail, Postmark, recebe cada e-mail primeiro e o mantém por {{providerDays}} dias.",
+      "yoursOnly": "Só você vê os seus resumos no app; outros usuários do Meeting Guard AI não têm acesso a eles.",
+      "deletable": "Você pode excluir qualquer resumo, ou todos, a qualquer momento. Eles saem do nosso banco de dados ativo imediatamente e dos nossos backups em até 21 dias. A cópia no nosso provedor de e-mail expira após {{providerDays}} dias. O e-mail original continua na sua própria caixa de e-mail.",
+      "refused": "Um resumo que o seu assistente de anotações não assinou, que foi alterado depois de enviado ou que não foi enviado para uma das suas próprias caixas de e-mail é recusado, e o Meeting Guard AI não guarda o conteúdo dele. Um resumo real enviado direto para o seu endereço privado aguarda a sua confirmação na sua caixa de entrada."
+    },
+    "unavailable": {
+      "title": "Ainda não disponível",
+      "body": "Os resumos de reuniões ainda não estão disponíveis para a sua conta."
+    }
+  },
+  "errors": {
+    "unauthenticated": "Entre novamente com um endereço de e-mail verificado para usar os resumos de reuniões.",
+    "not_enabled": "Os resumos de reuniões ainda não estão disponíveis.",
+    "not_allowed": "Os resumos de reuniões ainda não estão disponíveis para a sua conta.",
+    "not_ready": "O seu endereço privado ainda não está pronto. Tente novamente mais tarde.",
+    "invalid_request": "Não funcionou. Confira o que você digitou e tente novamente.",
+    "not_found": "Este resumo não está mais aqui. Ele pode ter sido excluído.",
+    "invalid_meeting": "Essa reunião não está mais disponível. Escolha outra.",
+    "rate_limited": "Você pediu novos endereços demais hoje. Tente novamente amanhã.",
+    "upstream_error": "Algo deu errado do nosso lado. Tente novamente mais tarde.",
+    "generic": "Algo deu errado. Tente novamente."
+  },
+  "connect": {
+    "intro": "Envie para o seu endereço privado o resumo que o seu assistente de anotações já escreve. O Meeting Guard AI o arquiva na reunião a que ele pertence.",
+    "notReady": "Os resumos por e-mail ainda estão sendo configurados. Volte em breve.",
+    "create": "Criar meu endereço privado",
+    "createHint": "Você recebe um endereço que só você conhece. Os resumos do seu assistente de anotações chegam a ele por uma regra de e-mail.",
+    "created": "O seu endereço privado está pronto",
+    "openInbox": "Abrir a caixa de entrada de resumos",
+    "address": {
+      "title": "O seu endereço privado",
+      "hint": "Guarde este endereço só para você. Nunca o adicione como convidado de uma reunião nem a uma lista de compartilhamento.",
+      "copy": "Copiar",
+      "copied": "Endereço copiado",
+      "share": "Compartilhar",
+      "shareMessage": "Meu endereço do Meeting Guard AI para resumos de reuniões: {{address}}",
+      "regenerate": "Gerar um novo endereço",
+      "regenerateTitle": "Gerar um novo endereço?",
+      "regenerateBody": "O seu endereço atual para de funcionar imediatamente, e o Meeting Guard AI deixa de armazenar e-mails enviados a ele. Depois, atualize a sua regra de encaminhamento; o Gmail vai pedir que você confirme o novo endereço novamente.",
+      "regenerateConfirm": "Gerar um novo endereço",
+      "regenerated": "O seu novo endereço está pronto. Atualize a sua regra de encaminhamento.",
+      "capped": "O seu endereço recebeu muito lixo hoje, por isso o lixo adicional não é mais contado. Gere um novo endereço para impedir isso."
+    },
+    "mailboxes": {
+      "title": "Onde os seus resumos chegam",
+      "hint": "As caixas de e-mail para as quais o seu assistente de anotações envia os resumos. Um resumo só é arquivado sozinho quando foi enviado para uma delas.",
+      "empty": "Nenhuma caixa de e-mail ainda. Adicione aquela para a qual o seu assistente de anotações envia os resumos.",
+      "add": "Adicionar uma caixa de e-mail",
+      "label": "Endereço de e-mail",
+      "placeholder": "nome@empresa.com",
+      "remove": "Remover {{address}}",
+      "save": "Salvar",
+      "saved": "Caixas de e-mail salvas",
+      "invalid": "Digite um endereço de e-mail, como nome@empresa.com.",
+      "duplicate": "Esta caixa de e-mail já está na lista.",
+      "maxReached": "Você pode informar até {{max}} caixas de e-mail.",
+      "reserved": "O seu endereço privado não pode ser uma das suas caixas de e-mail. Digite a caixa de e-mail para a qual o seu assistente de anotações envia os resumos.",
+      "unsaved": "Ainda não salvo. Toque em Salvar para manter as suas alterações."
+    },
+    "gmail": {
+      "title": "Código de confirmação do Gmail",
+      "body": "O Gmail pediu para confirmar o encaminhamento de {{address}}. Cole este código na página de configurações de encaminhamento do Gmail e clique em Verificar.",
+      "code": "Código: {{code}}",
+      "copy": "Copiar código",
+      "copied": "Código copiado",
+      "open": "Abrir as configurações do Gmail",
+      "dismiss": "Dispensar",
+      "received": "Recebido {{time}}",
+      "otherTitle": "Outra pessoa pediu para encaminhar para cá",
+      "otherBody": "{{address}} não é uma das suas caixas de e-mail. Outra pessoa fez o pedido; ignore-o.",
+      "ignore": "Ignorar"
+    },
+    "notetakers": {
+      "title": "Assistentes de anotações que arquivam sozinhos",
+      "hint": "Na sua regra de e-mail, use o endereço de remetente do seu assistente de anotações abaixo. Os resumos dele são verificados e arquivados na reunião correspondente.",
+      "item": "{{name}}: {{sender}}",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "copyLabel": "Copiar o endereço de remetente de {{name}}",
+      "none": "Nenhum assistente de anotações arquiva sozinho ainda.",
+      "other": "Outro assistente de anotações, ou nenhum? Encaminhe um resumo manualmente para o seu endereço privado. Ele aguarda na sua caixa de entrada, e um toque o arquiva."
+    },
+    "setup": {
+      "title": "Configurar o encaminhamento",
+      "tabs": {
+        "gmail": "Gmail",
+        "outlook": "Outlook e Microsoft 365",
+        "other": "Outro"
+      },
+      "browserHint": "Faça isso em um navegador. Os apps para celular não permitem configurar o encaminhamento.",
+      "gmail": {
+        "steps": {
+          "step1": "Abra as configurações do Gmail, Encaminhamento e POP/IMAP, e clique em Adicionar um endereço de encaminhamento. Cole o seu endereço privado e clique em Próxima e em Continuar.",
+          "step2": "O Gmail envia um código de confirmação para o seu endereço privado. Ele aparece nesta tela em até um minuto. Cole-o na mesma página do Gmail e clique em Verificar.",
+          "step3": "Deixe desativado o encaminhamento de todos os seus e-mails.",
+          "step4": "Abra Filtros e endereços bloqueados e clique em Criar um novo filtro. Em De, digite o endereço de remetente do seu assistente de anotações e clique em Criar filtro.",
+          "step5": "Escolha Encaminhar para, selecione o seu endereço privado e clique em Criar filtro."
+        },
+        "openForwarding": "Abrir as configurações de encaminhamento",
+        "openFilters": "Abrir as configurações de filtros",
+        "workspace": "Google Workspace: se o encaminhamento estiver desativado em cinza, o seu administrador precisa permitir o encaminhamento automático primeiro."
+      },
+      "outlook": {
+        "steps": {
+          "step1": "Abra o Outlook na Web, Configurações, Email, Regras, e clique em Adicionar nova regra.",
+          "step2": "Condição: De, o endereço de remetente do seu assistente de anotações. Ação: Redirecionar para, o seu endereço privado. Salve a regra.",
+          "step3": "Use Redirecionar, não Encaminhar. Redirecionar mantém o assistente de anotações como remetente, para que a assinatura dele possa ser verificada. Encaminhar não é compatível."
+        },
+        "openRules": "Abrir as regras do Outlook",
+        "company": "Caixa de e-mail da empresa: o Microsoft 365 bloqueia por padrão o encaminhamento automático para endereços externos. Se nada chegar, compartilhe os passos com o seu administrador."
+      },
+      "other": {
+        "steps": {
+          "step1": "No seu serviço de e-mail, crie uma regra para os e-mails do endereço de remetente do seu assistente de anotações que os repasse para o seu endereço privado.",
+          "step2": "Escolha Redirecionar (ou Devolver) se o seu serviço de e-mail oferecer essa opção. Ela mantém intacta a assinatura do assistente de anotações.",
+          "step3": "Você também pode encaminhar um resumo manualmente de uma das suas caixas de e-mail. Ele aguarda na sua caixa de entrada de resumos e é arquivado com um toque."
+        }
+      },
+      "admin": {
+        "title": "Passos para o seu administrador",
+        "hint": "Compartilhe estes passos com quem gerencia o e-mail da sua empresa.",
+        "share": "Compartilhar os passos",
+        "mailboxFallback": "minha caixa de e-mail",
+        "microsoft": "Uso o Meeting Guard AI para receber os resumos das minhas reuniões. Uma regra de e-mail em {{mailbox}} redireciona apenas os e-mails de resumo do meu assistente de anotações para {{address}}. Por padrão, o Microsoft 365 bloqueia o encaminhamento automático para endereços externos. Para permiti-lo apenas para esta caixa de e-mail:\n1. No portal do Microsoft Defender (https://security.microsoft.com/antispam), crie uma política antispam de saída que se aplique apenas a {{mailbox}}, com Regras de encaminhamento automático definidas como Ativado - O encaminhamento está habilitado.\n2. No Centro de administração do Exchange (https://admin.exchange.microsoft.com/#/remotedomains), confirme que o domínio remoto Default permite o encaminhamento automático.\nNenhum outro e-mail é encaminhado.",
+        "google": "Uso o Meeting Guard AI para receber os resumos das minhas reuniões. Um filtro do Gmail em {{mailbox}} encaminha apenas os e-mails de resumo do meu assistente de anotações para {{address}}. O encaminhamento está desativado em cinza nas minhas configurações do Gmail. Permita o encaminhamento automático para a minha conta no Google Admin Console (https://admin.google.com), em Apps, Google Workspace, Gmail, Acesso do usuário final.\nNenhum outro e-mail é encaminhado."
+      }
+    },
+    "activity": {
+      "title": "Atividade",
+      "lastReceived": "Último resumo recebido {{time}}",
+      "nothingYet": "Nada recebido ainda.",
+      "waiting": "Aguardando o seu primeiro resumo. Esta tela verifica a cada poucos segundos enquanto está aberta.",
+      "lastRefused": "Última recusa {{time}}: {{reason}}",
+      "refusedToday_one": "E-mails recusados hoje: {{count}}",
+      "refusedToday_other": "{{count}} e-mails recusados hoje"
+    },
+    "microsoftHint": {
+      "title": "Nada chegou ainda",
+      "body": "Nenhum resumo chegou em 24 horas. Se você usa uma caixa de e-mail corporativa do Microsoft 365, a Microsoft pode estar bloqueando o redirecionamento. Compartilhe os passos com o seu administrador.",
+      "action": "Passos para o seu administrador"
+    },
+    "checks": {
+      "title": "O que verificamos",
+      "signature": "O resumo traz a assinatura digital do próprio assistente de anotações, e nada nele foi alterado depois do envio.",
+      "sender": "Ele vem de um remetente de assistente de anotações que aceitamos.",
+      "mailbox": "Ele foi enviado para uma das caixas de e-mail que você informou acima.",
+      "fresh": "Ele é recente: escrito nas últimas duas semanas.",
+      "match": "Ele só é arquivado sozinho quando o título e o horário correspondem a uma das suas reuniões. Caso contrário, aguarda na sua caixa de entrada de resumos.",
+      "refused": "Um resumo que passa nas duas primeiras verificações mas não nas outras, ou que você encaminha manualmente de uma caixa de e-mail informada, aguarda a sua confirmação na sua caixa de entrada de resumos. Todo o resto é recusado, e o Meeting Guard AI não armazena o conteúdo."
+    },
+    "disconnect": {
+      "action": "Desconectar",
+      "title": "Parar de receber resumos",
+      "body": "O seu endereço privado para de funcionar imediatamente. Os resumos que já estão aqui:",
+      "keep": "Mantê-los",
+      "delete": "Excluí-los",
+      "tasksStay": "As tarefas que você adicionou a partir de resumos continuam nas suas tarefas.",
+      "cancel": "Cancelar",
+      "deleteTitle": "Excluir todos os seus resumos?",
+      "deleteBody": "Eles saem do nosso banco de dados ativo imediatamente e dos nossos backups em até 21 dias. A cópia no nosso provedor de e-mail expira após {{providerDays}} dias. Os e-mails originais continuam na sua própria caixa de e-mail. As tarefas que você adicionou a partir de resumos continuam nas suas tarefas.",
+      "deleteConfirm": "Desconectar e excluir",
+      "doneKept": "Desconectado. Os seus resumos foram mantidos.",
+      "doneDeleted": "Desconectado. Os seus resumos foram excluídos.",
+      "disconnected": "Não conectado. O Meeting Guard AI não armazena mais os e-mails enviados ao seu endereço antigo, mas o nosso provedor de e-mail mantém a cópia dele por {{providerDays}} dias. Remova a regra de e-mail que encaminha para esse endereço.",
+      "reconnect": "Criar meu endereço privado novamente",
+      "reconnectHint": "Um novo endereço conta no limite de novos endereços que você pode gerar em um dia."
+    },
+    "retention": {
+      "title": "Por quanto tempo guardamos os resumos",
+      "filed": "Resumos arquivados em uma reunião ou mantidos: 12 meses após a chegada, depois são excluídos.",
+      "inbox": "Resumos aguardando na caixa de entrada: 60 dias após a chegada, ou 60 dias depois que você devolver um à caixa de entrada, o que for mais tarde.",
+      "refused": "E-mails recusados: apenas uma contagem diária, o motivo e um domínio de remetente verificado, por 30 dias; nunca o conteúdo.",
+      "suggestions": "As tarefas sugeridas fazem parte do resumo delas e são excluídas com ele.",
+      "tasks": "As tarefas que você adiciona são suas: continuam até você excluí-las, mesmo depois de você excluir o resumo ou desconectar. O título e as pessoas delas são copiados da sugestão e não têm a criptografia extra do resumo.",
+      "deleting": "Exclusão: imediata do nosso banco de dados ativo, dos backups em até 21 dias; a cópia do nosso provedor de e-mail após {{providerDays}} dias; o original continua na sua caixa de e-mail.",
+      "openai": "Quando você pede sugestões, o texto do resumo é enviado à OpenAI pelo nosso servidor.",
+      "copies": "Cópias fora do nosso banco de dados: o lembrete de uma tarefa mostra o título dela na tela de bloqueio, como qualquer tarefa; no WhatsApp, a lista e as frases que ela cita ficam na sua conversa, nas prévias de notificação e nos seus backups do WhatsApp até você excluí-las lá; uma sincronização com o To Do ou o Google Tasks copia a tarefa. Excluir o resumo ou desconectar não afeta essas cópias."
+    }
+  },
+  "inbox": {
+    "waiting": {
+      "title": "Aguardando uma reunião",
+      "empty": "Nada aguardando. Um resumo que não pode ser arquivado sozinho aparece aqui."
+    },
+    "recent": {
+      "title": "Arquivados recentemente",
+      "empty": "Nenhum resumo arquivado ainda.",
+      "filedUnder": "Arquivado em {{title}}",
+      "kept": "Mantido sem reunião"
+    },
+    "refused": {
+      "title": "Recusados",
+      "show": "Mostrar recusados",
+      "hide": "Ocultar recusados",
+      "row_one": "Recusados em {{day}}: {{count}}",
+      "row_other": "{{count}} recusados em {{day}}",
+      "empty": "Nada recusado nos últimos 30 dias."
+    },
+    "fileUnder": "Arquivar em {{title}}",
+    "fileUnderA11y": "Arquivar em {{title}}, {{time}}",
+    "choose": "Escolher uma reunião",
+    "keep": "Manter sem reunião",
+    "kept": "Mantido sem reunião",
+    "filed": "Arquivado em {{title}}",
+    "noSuggestions": "Sem sugestões, porque este resumo não foi enviado para você. Se ele for seu, escolha a reunião você mesmo.",
+    "pullToRefresh": "Puxe para baixo para procurar reuniões correspondentes novamente.",
+    "more": "Apenas os {{count}} mais recentes são mostrados.",
+    "openSetup": "Endereço e configuração",
+    "empty": {
+      "title": "Nenhum resumo ainda",
+      "body": "Quando o resumo do seu assistente de anotações chegar ao seu endereço privado, ele será arquivado na reunião correspondente ou aguardará aqui.",
+      "action": "Configurar o encaminhamento"
+    }
+  },
+  "attach": {
+    "title": "Escolher uma reunião",
+    "moveTitle": "Mover para outra reunião",
+    "previousDay": "Dia anterior",
+    "nextDay": "Próximo dia",
+    "summaryDay": "Dia do resumo",
+    "noMeetings": "Nenhuma reunião nesse dia. Tente outro dia.",
+    "loading": "Carregando reuniões...",
+    "allDay": "Dia inteiro",
+    "cancelled": "Cancelada",
+    "occurrence": "Uma reunião de uma série",
+    "file": "Arquivar aqui",
+    "filed": "Arquivado em {{title}}",
+    "moved": "Movido para {{title}}",
+    "current": "Arquivado aqui agora",
+    "cancel": "Cancelar"
+  },
+  "view": {
+    "loading": "Carregando o resumo...",
+    "notFound": "Este resumo não está mais aqui.",
+    "match": {
+      "auto": "Arquivado em {{title}}, {{time}}. Correspondência automática por título e horário.",
+      "user": "Arquivado em {{title}}, {{time}}. Arquivado por você.",
+      "inbox": "Ainda não arquivado: aguardando uma reunião.",
+      "kept": "Mantido sem reunião."
+    },
+    "tldrHeading": "O resumo do próprio assistente de anotações",
+    "tldrNote": "O assistente de anotações escreveu esta visão geral. Confira-a com os detalhes abaixo.",
+    "textHeading": "Texto",
+    "owner": "Responsável: {{owner}}",
+    "due": "Prazo: {{due}}",
+    "checkbox": {
+      "done": "Concluído",
+      "open": "Pendente"
+    },
+    "flag": {
+      "possible_instruction": "Parece uma instrução. É mostrado apenas como texto simples.",
+      "has_link": "Contém um link, mostrado como texto simples.",
+      "truncated": "Cortado porque era longo demais."
+    },
+    "truncated": "Este resumo foi cortado porque era muito longo.",
+    "linksPlain": "Os links são mostrados como texto simples. Copie um para abri-lo no navegador.",
+    "subject": "Assunto: {{subject}}",
+    "from": "De: {{address}}",
+    "copyText": "Copiar texto",
+    "copied": "Texto copiado",
+    "notThisMeeting": "Não é esta reunião",
+    "notThisMeetingTitle": "Não é esta reunião?",
+    "notThisMeetingBody": "O resumo volta para a sua caixa de entrada de resumos, e esta reunião não será sugerida para ele novamente.",
+    "notThisMeetingConfirm": "Voltar à caixa de entrada",
+    "detached": "Devolvido à sua caixa de entrada de resumos",
+    "move": "Mover",
+    "choose": "Escolher uma reunião",
+    "keep": "Manter sem reunião",
+    "notFoundBody": "Ele pode ter sido excluído, aqui ou em outro dispositivo. O e-mail original continua na sua própria caixa de e-mail.",
+    "emailHeading": "Detalhes do e-mail",
+    "trust": {
+      "notBound": "Ele não foi enviado para uma das caixas de e-mail que você informou. Confira se ele pertence a você.",
+      "notFresh": "Ele chegou muito depois de ser escrito, ou não foi possível verificar o horário de envio."
+    },
+    "review": "Revisar compromissos",
+    "reviewCount": "Revisar compromissos ({{count}})",
+    "retentionLink": "Por quanto tempo guardamos os resumos",
+    "keptUntil": "Este resumo será guardado até {{date}}.",
+    "truncatedHint": "Apenas a primeira parte foi guardada quando ele chegou. O e-mail original continua na sua própria caixa de e-mail."
+  },
+  "meeting": {
+    "title_one": "Resumo do assistente de anotações",
+    "title_other": "Resumos do assistente de anotações",
+    "received": "Recebido {{time}}",
+    "occurrence": "Para a reunião de {{date}}",
+    "open": "Abrir o resumo {{title}}"
+  },
+  "commitments": {
+    "title": "Tarefas sugeridas",
+    "entry": {
+      "review": "Revisar compromissos",
+      "reviewCount": "Revisar compromissos ({{count}})",
+      "reviewA11y": "Revisar os compromissos deste resumo",
+      "added_one": "Adicionados às suas tarefas: {{count}}",
+      "added_other": "{{count}} adicionados às suas tarefas",
+      "empty": "Nenhum compromisso encontrado",
+      "stale": "O resumo mudou: prepare as sugestões novamente (grátis)",
+      "preparing": "Em preparação"
+    },
+    "header": {
+      "count_one": "Sugestões: {{count}}",
+      "count_other": "{{count}} sugestões",
+      "open_one": "{{count}} a revisar",
+      "open_other": "{{count}} a revisar",
+      "added_one": "{{count}} nas suas tarefas",
+      "added_other": "{{count}} nas suas tarefas"
+    },
+    "mode": {
+      "ai": "Sugerido por IA",
+      "as_written": "Como escrito",
+      "switchToAi": "Sugerir tarefas com IA",
+      "switchToAsWritten": "Mostrar os itens de ação como escritos",
+      "aiCost": "Usa 1 ação de IA, apenas na primeira vez.",
+      "asWrittenFree": "Grátis. Nenhuma IA é usada."
+    },
+    "notice": {
+      "title": "Antes de o Meeting Guard AI ler este resumo",
+      "body": "Para sugerir tarefas, o Meeting Guard AI envia o texto deste resumo à OpenAI pelo nosso servidor. Por padrão, a OpenAI não o usa para treinar os modelos dela e pode guardá-lo por um tempo limitado para verificar abusos. Nada vira tarefa até você aceitar.",
+      "continue": "Continuar",
+      "asWritten": "Mostrar os itens de ação como escritos"
+    },
+    "start": {
+      "title": "Transformar este resumo em tarefas",
+      "body": "O Meeting Guard AI pode ler o resumo do seu assistente de anotações e sugerir as tarefas que ele menciona, cada uma com a frase de onde veio. Nada vira tarefa até você aceitar.",
+      "ai": "Sugerir tarefas com IA",
+      "asWritten": "Mostrar os itens de ação como escritos",
+      "costs": "Como escrito: grátis, nenhuma IA é usada. Com IA: 1 ação de IA, apenas na primeira vez."
+    },
+    "loading": {
+      "get": "Carregando as tarefas sugeridas...",
+      "ai": "Lendo o resumo do seu assistente de anotações. Isso usa 1 ação de IA, apenas na primeira vez.",
+      "asWritten": "Lendo os itens de ação..."
+    },
+    "preparing": {
+      "title": "Em preparação",
+      "body": "As tarefas sugeridas para este resumo estão sendo preparadas. Isso pode levar um ou dois minutos; elas aparecem aqui quando estiverem prontas.",
+      "slow": "Isso está demorando mais do que o normal. Tente novamente daqui a pouco."
+    },
+    "empty": {
+      "title": "Nenhum compromisso encontrado.",
+      "ai": "O Meeting Guard AI não encontrou compromissos neste resumo.",
+      "asWritten": "Este resumo não tem itens de ação para listar.",
+      "tryAsWritten": "Mostrar os itens de ação como escritos",
+      "tryAi": "Sugerir tarefas com IA"
+    },
+    "stale": {
+      "title": "Este resumo mudou",
+      "body": "Este resumo mudou. Prepare as sugestões novamente.",
+      "free": "Prepará-las novamente é grátis.",
+      "action": "Preparar novamente",
+      "readOnly": "Esta é a lista de antes da mudança. Prepare-a novamente para adicionar ou alterar tarefas."
+    },
+    "quota": {
+      "title": "Cota de IA esgotada",
+      "body": "A sua cota de IA acabou. Os itens de ação como escritos continuam grátis.",
+      "resets": "A sua cota é renovada: {{time}}.",
+      "plans": "Ver planos",
+      "asWritten": "Mostrar os itens de ação como escritos"
+    },
+    "origin": {
+      "suggested": {
+        "meeting": "Sugerido a partir do resumo do seu assistente de anotações de {{meeting}}, {{date}}.",
+        "meetingNoDate": "Sugerido a partir do resumo do seu assistente de anotações de {{meeting}}.",
+        "kept": "Sugerido a partir do resumo do seu assistente de anotações de {{date}} (não arquivado em uma reunião).",
+        "keptNoDate": "Sugerido a partir do resumo do seu assistente de anotações (não arquivado em uma reunião).",
+        "forwarded": "Sugerido a partir de um resumo encaminhado de {{address}}.",
+        "forwardedNoAddress": "Sugerido a partir de um resumo encaminhado de uma das suas caixas de e-mail.",
+        "notAddressed": "Sugerido a partir de um resumo do assistente de anotações que não foi enviado para uma das suas caixas de e-mail."
+      },
+      "asWritten": {
+        "meeting": "Do resumo do seu assistente de anotações de {{meeting}}, {{date}}.",
+        "meetingNoDate": "Do resumo do seu assistente de anotações de {{meeting}}.",
+        "kept": "Do resumo do seu assistente de anotações de {{date}} (não arquivado em uma reunião).",
+        "keptNoDate": "Do resumo do seu assistente de anotações (não arquivado em uma reunião).",
+        "forwarded": "De um resumo encaminhado de {{address}}.",
+        "forwardedNoAddress": "De um resumo encaminhado de uma das suas caixas de e-mail.",
+        "notAddressed": "De um resumo do assistente de anotações que não foi enviado para uma das suas caixas de e-mail."
+      },
+      "notAttended": "O Meeting Guard AI não participou desta reunião.",
+      "aiWritten": "Escrito por IA a partir do texto do seu assistente de anotações. Confira nomes, datas e sentido antes de adicioná-las.",
+      "asWrittenLine": "Os itens de ação exatamente como o seu assistente de anotações os escreveu."
+    },
+    "banner": {
+      "old_summary": "Não conseguimos confirmar quando este resumo foi enviado, por isso nada foi selecionado para você.",
+      "not_addressed_to_you": "Este resumo não foi enviado para uma das suas caixas de e-mail. Ele pode ser sobre a reunião de outra pessoa, então escolha cada item você mesmo.",
+      "forwarded": "Este resumo foi encaminhado de {{address}} e não foi possível verificar a assinatura do assistente de anotações, por isso nada foi selecionado para você.",
+      "forwardedNoAddress": "Este resumo foi encaminhado de uma das suas caixas de e-mail e não foi possível verificar a assinatura do assistente de anotações, por isso nada foi selecionado para você.",
+      "possible_instruction": "Parte deste resumo parece conter instruções para software. Nada foi selecionado para você; leia cada item.",
+      "truncated": "Apenas a primeira parte de um resumo longo foi lida.",
+      "meetingChanged": "Arquivado em outra reunião depois que estas sugestões foram preparadas. As tarefas que você já adicionou continuam vinculadas à reunião em que foram adicionadas."
+    },
+    "reminder": {
+      "title": "Lembrete para itens sem data",
+      "choice": {
+        "tomorrow": "Amanhã às {{time}}",
+        "dayAfter": "Depois de amanhã às {{time}}",
+        "nextMonday": "Próxima segunda-feira às {{time}}",
+        "pick": "Escolher data e hora",
+        "picked": "{{date}} às {{time}}",
+        "none": "Sem lembrete"
+      },
+      "yourChoice": "Escolha sua. O resumo não traz data.",
+      "pastPick": "Esse horário já passou. Escolha um mais tarde.",
+      "group": {
+        "tomorrow_one": "Lembretes amanhã às {{time}}: {{count}}",
+        "tomorrow_other": "{{count}} lembretes amanhã às {{time}}",
+        "dayAfter_one": "Lembretes depois de amanhã às {{time}}: {{count}}",
+        "dayAfter_other": "{{count}} lembretes depois de amanhã às {{time}}",
+        "nextMonday_one": "Lembretes na próxima segunda-feira às {{time}}: {{count}}",
+        "nextMonday_other": "{{count}} lembretes na próxima segunda-feira às {{time}}",
+        "picked_one": "Lembretes em {{date}} às {{time}}: {{count}}",
+        "picked_other": "{{count}} lembretes em {{date}} às {{time}}",
+        "none_one": "Itens sem lembrete: {{count}}",
+        "none_other": "{{count}} itens sem lembrete"
+      },
+      "groupHint": "Lembretes definidos para o mesmo horário chegam juntos."
+    },
+    "card": {
+      "selectA11y": "Selecionar: {{title}}",
+      "fromSummary": "Do resumo:",
+      "section": "Seção: {{heading}}",
+      "edit": "Editar",
+      "drop": "Descartar",
+      "dropped": "Descartado",
+      "restore": "Restaurar",
+      "inTasks": "Nas suas tarefas",
+      "openTask": "Abrir tarefa",
+      "undo": "Desfazer",
+      "removedFromTasks": "Removido das suas tarefas",
+      "addAgain": "Adicionar novamente",
+      "alreadyAdded": "Já adicionado",
+      "via": {
+        "app": "Adicionado no app",
+        "whatsapp": "Adicionado no WhatsApp"
+      },
+      "edited": "Editado por você",
+      "readOnly": "Prepare as sugestões novamente para alterar esta."
+    },
+    "dropped": {
+      "title_one": "Descartados: {{count}}",
+      "title_other": "{{count}} descartados",
+      "show": "Mostrar descartados",
+      "hide": "Ocultar descartados"
+    },
+    "owner": {
+      "you": "Você",
+      "guess": "Você? (o resumo diz: {{name}})",
+      "named": "Responsável no resumo: {{name}}",
+      "none": "Nenhum responsável indicado",
+      "title": "{{name}}: {{what}}",
+      "followUp": "Um acompanhamento para você: o título da tarefa começa com {{name}}."
+    },
+    "due": {
+      "date": "Prazo {{date}}",
+      "dateTime": "Prazo {{date}} às {{time}}",
+      "says": "O resumo diz: {{quote}}",
+      "withQuote": "Prazo {{date}} (o resumo diz: {{quote}})",
+      "overdue": "Atrasada: o resumo diz {{date}}",
+      "overdueQuote": "Atrasada (o resumo diz: {{quote}}). Sem lembrete até você escolher um.",
+      "noReminderUntilPick": "Sem lembrete até você escolher um.",
+      "meetingTime": "{{time}} no horário da reunião ({{zone}})",
+      "noDate": "Escolha sua. O resumo não traz data.",
+      "noDateReminder": "Sem data no resumo. Lembrete: {{when}}, escolha sua.",
+      "reminderChip": "Lembrete {{when}}, escolha sua",
+      "noReminder": "Sem lembrete"
+    },
+    "chip": {
+      "overdue": "Atrasada",
+      "payment_like": "Pagamento ou código",
+      "possible_instruction": "Parece uma instrução",
+      "suggested": "Sugestão do assistente de anotações",
+      "checklist": "Checklist",
+      "similar_added": "Talvez já adicionada",
+      "owner_guess": "Confira o responsável",
+      "has_link": "Tem um link",
+      "truncated": "Cortado",
+      "lowConfidence": "Confira este item"
+    },
+    "reason": {
+      "suggested": "Sugerido pelo seu assistente de anotações, não dito na reunião.",
+      "checklist": "Parte de uma checklist.",
+      "payment_like": "Confira este item: ele menciona um pagamento ou um código.",
+      "similar_added": "Parece uma tarefa que você já adicionou.",
+      "possible_instruction": "Parece uma instrução para software. Leia antes de adicionar.",
+      "owner_guess": "Apenas o seu primeiro nome corresponde ao responsável. Confira se é você.",
+      "lowConfidence": "O Meeting Guard AI não tem certeza de que isto é um compromisso.",
+      "has_link": "O link dele continua como texto simples no resumo e não é adicionado ao título da tarefa.",
+      "truncated": "Este item foi cortado porque era longo demais."
+    },
+    "footer": {
+      "acceptAll": "Aceitar todos ({{count}})",
+      "acceptSelected_one": "Adicionar selecionados ({{count}})",
+      "acceptSelected_other": "Adicionar {{count}} selecionados",
+      "selectAll": "Selecionar todos",
+      "clearSelection": "Limpar seleção",
+      "nothingSelected": "Selecione as tarefas que você quer adicionar.",
+      "offline": "Conecte-se à internet para adicionar estas tarefas.",
+      "adding": "Adicionando tarefas..."
+    },
+    "result": {
+      "added_one": "Tarefas adicionadas: {{count}}. O lembrete foi configurado neste celular.",
+      "added_other": "{{count}} tarefas adicionadas. Os lembretes foram configurados neste celular.",
+      "addedNoReminder_one": "Tarefas adicionadas: {{count}}.",
+      "addedNoReminder_other": "{{count}} tarefas adicionadas.",
+      "addedSomeReminders_one": "Tarefas adicionadas: {{count}}. O lembrete foi configurado neste celular.",
+      "addedSomeReminders_other": "{{count}} tarefas adicionadas. As que têm lembrete estão com ele configurado neste celular.",
+      "alreadyAdded_one": "Já estavam nas suas tarefas: {{count}}.",
+      "alreadyAdded_other": "{{count}} já estavam nas suas tarefas.",
+      "notOpen_one": "Já tratados, aqui ou em outro dispositivo: {{count}}.",
+      "notOpen_other": "{{count}} já foram tratados, aqui ou em outro dispositivo.",
+      "dropped": "Descartado",
+      "restored": "Restaurado",
+      "removed": "Removido das suas tarefas",
+      "changed": "Esta tarefa foi alterada depois de adicionada, por isso não foi removida. Abra-a para alterá-la ou excluí-la.",
+      "stale": "Estas sugestões mudaram em outro dispositivo. Confira-as e tente novamente."
+    },
+    "edit": {
+      "title": "Editar tarefa",
+      "titleLabel": "Título",
+      "titleRequired": "Digite um título.",
+      "titleTooLong": "Use no máximo {{max}} caracteres.",
+      "owner": "De quem é a tarefa?",
+      "ownerYou": "Minha",
+      "ownerNamed": "{{name}}, como no resumo",
+      "ownerOther": "Outra pessoa",
+      "ownerOtherLabel": "Nome da pessoa",
+      "ownerOtherRequired": "Digite o nome da pessoa.",
+      "ownerNobody": "Ninguém em especial",
+      "ownerHint": "Uma tarefa de outra pessoa é um acompanhamento para você: o título começa com o nome dela.",
+      "due": "Prazo",
+      "dueTime": "Hora",
+      "pickDate": "Escolher uma data",
+      "pickTime": "Escolher um horário",
+      "clearDate": "Sem prazo",
+      "clearTime": "Sem horário",
+      "reminder": "Lembrete",
+      "timeNeedsDate": "Escolha uma data antes de escolher um horário.",
+      "reminderNeedsTime": "Um lembrete precisa de um horário de prazo.",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "discardTitle": "Descartar as suas alterações?",
+      "discardBody": "As suas alterações nesta tarefa serão perdidas.",
+      "discard": "Descartar",
+      "keepEditing": "Continuar editando"
+    },
+    "leave": {
+      "title": "Sair sem adicionar?",
+      "body": "As suas edições estão só nesta tela e serão perdidas.",
+      "leave": "Sair",
+      "stay": "Ficar"
+    },
+    "keep": {
+      "until": "Este resumo será guardado até {{date}}. As tarefas que você adicionar continuam até você excluí-las.",
+      "rules": "Por quanto tempo guardamos os resumos",
+      "deleteKeepTasks": "Excluir o resumo, manter minhas tarefas",
+      "deleteTitle": "Excluir o resumo e manter as suas tarefas?",
+      "deleteBody": "O resumo e as sugestões dele saem do nosso banco de dados ativo imediatamente e dos nossos backups em até 21 dias. A cópia no nosso provedor de e-mail expira após {{providerDays}} dias. As tarefas que você adicionou continuam nas suas tarefas.",
+      "deleteConfirm": "Excluir o resumo",
+      "deleted": "Resumo excluído. As suas tarefas foram mantidas."
+    },
+    "errors": {
+      "quota_exceeded": "A sua cota de IA acabou. Os itens de ação como escritos continuam grátis.",
+      "stale": "Estas sugestões mudaram em outro dispositivo. Confira-as e tente novamente.",
+      "upstream_error": "As tarefas sugeridas não estão disponíveis agora. Tente novamente ou mostre os itens de ação como escritos.",
+      "not_found": "Este resumo não está mais aqui. Ele pode ter sido excluído ou devolvido à caixa de entrada.",
+      "invalid_request": "Não funcionou. Confira a tarefa e tente novamente.",
+      "offline": "Você está offline. Conecte-se à internet e tente novamente.",
+      "timeout": "Isso demorou demais. Tente novamente.",
+      "decideUnconfirmed": "O Meeting Guard AI não conseguiu confirmar esta alteração, e ela pode ter sido salva. Confira a lista antes de tentar novamente; tentar de novo nunca adiciona a mesma tarefa duas vezes.",
+      "notFiled": "Este resumo está aguardando uma reunião. Arquive-o ou mantenha-o primeiro e depois revise os compromissos dele.",
+      "generic": "Algo deu errado. Tente novamente.",
+      "retry": "Tentar novamente"
+    }
+  }
+}

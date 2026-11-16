@@ -449,7 +449,10 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
   }
 
   const prefs = await deps.store.getPreferences(uid);
+  // en/es: the assistant's frame (BOT_STRINGS, confirm/cancel, lists) stays en/es.
   const language = prefs.language;
+  // M12: the app language as set (en/es/pt/fr/de), only for the suggested-tasks texts.
+  const uiLanguage = prefs.uiLanguage;
   const timezone = isValidTimeZone(prefs.timezone) ? prefs.timezone : 'UTC';
 
   // Button taps (counters are already persisted; the claim tx owns the pending fields).
@@ -464,7 +467,7 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
     }
     // M11: the suggested-tasks buttons (wa_sum_all / wa_sum_none), pilot users only.
     if (deps.summaries !== undefined) {
-      const routed = { message, session, uid, language, batchStartedMs: batch?.startedMs ?? null };
+      const routed = { message, session, uid, language: uiLanguage, batchStartedMs: batch?.startedMs ?? null };
       if (await routeSummaryButton(routed, { summaries: deps.summaries, sender: deps.sender, now: deps.now })) return;
     }
     return; // unknown button id: ignore
@@ -497,7 +500,7 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
   // M11: "commitments" and the replies to a live suggested-tasks offer, pilot users only. It runs
   // before the bridge and never touches session.turns (docs/v2/M11-DESIGN.md section 4.1 step 7).
   if (deps.summaries !== undefined) {
-    const routed = { message, session, uid, language, batchStartedMs: batch?.startedMs ?? null };
+    const routed = { message, session, uid, language: uiLanguage, batchStartedMs: batch?.startedMs ?? null };
     if (await routeSummaryText(routed, { summaries: deps.summaries, sender: deps.sender, now: deps.now })) return;
   }
 

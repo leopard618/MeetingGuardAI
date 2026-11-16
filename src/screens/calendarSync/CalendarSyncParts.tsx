@@ -8,7 +8,7 @@ import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import type { DeviceCalendarInfo, ProviderStatus, TranslateFn } from '../../core/contracts';
-import type { Language } from '../../core/types';
+import type { AppLanguage } from '../../core/types';
 // Tokens directly (not the src/theme barrel): the sync screen's tests mock ThemeContext.
 import { componentMetrics, pressedDimOpacity, radii, spacing, typography } from '../../theme/tokens';
 import { formatRelative } from '../../utils/format';
@@ -77,7 +77,7 @@ export function SyncLine({
   provider: ProviderStatus;
   palette: CalendarPalette;
   t: TranslateFn;
-  language: Language;
+  language: AppLanguage;
   now: Date;
   testID?: string;
 }): ReactElement {

@@ -1,0 +1,24 @@
+{
+  "title": "Comment souhaitez-vous la créer ?",
+  "subtitle": "Choisissez une option. Vous pourrez modifier la réunion ensuite.",
+  "comingSoon": "Bientôt disponible",
+  "methods": {
+    "manual": {
+      "title": "Remplir un formulaire",
+      "description": "Saisissez vous-même le titre, la date et l'heure, le lieu, la visioconférence, les participants et les rappels.",
+      "hint": "Ouvre le formulaire de réunion"
+    },
+    "ai": {
+      "title": "Demander à l'assistant IA",
+      "description": "Écrivez-la avec vos propres mots, par exemple \"Déjeuner avec Ana demain à 14h\". Vous vérifiez tout avant le moindre enregistrement. Chaque message utilise l'une de vos requêtes IA quotidiennes.",
+      "hint": "Ouvre l'assistant IA"
+    },
+    "whatsapp": {
+      "title": "WhatsApp",
+      "description": "La création de réunions par message WhatsApp n'est pas encore disponible.",
+      "hint": "Pas encore disponible",
+      "readyDescription": "Envoyez au bot un message comme \"Déjeuner avec Ana demain à 14h\". Vous confirmez avant le moindre enregistrement.",
+      "readyHint": "Ouvre la configuration de WhatsApp"
+    }
+  }
+}

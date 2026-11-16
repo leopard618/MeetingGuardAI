@@ -171,6 +171,16 @@
       "otherBody": "{{address}} no es uno de tus buzones. Lo pidió otra persona; ignóralo.",
       "ignore": "Ignorar"
     },
+    "notetakers": {
+      "title": "Asistentes de notas que se archivan solos",
+      "hint": "En tu regla de correo, usa la dirección de remitente de tu asistente de notas que aparece abajo. Sus minutas se verifican y se archivan en su reunión.",
+      "item": "{{name}}: {{sender}}",
+      "copy": "Copiar",
+      "copied": "Copiada",
+      "copyLabel": "Copiar la dirección de remitente de {{name}}",
+      "none": "Todavía ningún asistente de notas se archiva solo.",
+      "other": "¿Otro asistente de notas, o ninguno? Reenvía una minuta a tu dirección privada a mano. Espera en tu bandeja y la archivas con un toque."
+    },
     "setup": {
       "title": "Configurar el reenvío",
       "tabs": {

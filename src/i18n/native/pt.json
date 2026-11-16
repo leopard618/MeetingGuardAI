@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "NSCalendarsUsageDescription": "O Meeting Guard AI usa seu calendário para mostrar, criar e atualizar suas reuniões e para agendar os alertas de reuniões.",
+    "NSCalendarsFullAccessUsageDescription": "O Meeting Guard AI usa seu calendário para mostrar, criar e atualizar suas reuniões e para agendar os alertas de reuniões.",
+    "NSPhotoLibraryUsageDescription": "O Meeting Guard AI permite que você anexe a uma reunião fotos da sua biblioteca.",
+    "NSCameraUsageDescription": "O Meeting Guard AI permite que você tire uma foto e a anexe a uma reunião.",
+    "NSMicrophoneUsageDescription": "O Meeting Guard AI usa o microfone para que você possa falar com o assistente em vez de digitar.",
+    "NSSpeechRecognitionUsageDescription": "O Meeting Guard AI usa o reconhecimento de fala para transformar o que você diz em texto para o assistente. Você sempre vê o texto antes de qualquer ação."
+  }
+}

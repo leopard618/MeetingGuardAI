@@ -25,6 +25,7 @@ import type { ComponentType, ReactNode } from 'react';
 import type {
   AiAction,
   AiActionType,
+  AppLanguage,
   AssistantRequest,
   AssistantResponse,
   AssistantUsage,
@@ -1387,7 +1388,10 @@ export interface WidgetFeeder {
 // I18N + FORMAT + NAVIGATION  (src/i18n, src/utils/format.ts, src/navigation)
 // =============================================================================================
 
-/** Namespaces; each area owns src/i18n/locales/{en,es}/<ns>.json. */
+/**
+ * Namespaces; each area owns src/i18n/locales/{en,es,pt,fr,de}/<ns>.json (the en/es-only ones,
+ * I18N_EN_ES_ONLY_NAMESPACES, exist only in en and es).
+ */
 export const I18N_NAMESPACE_LIST = [
   'common',
   'navigation',
@@ -1419,8 +1423,16 @@ export const I18N_NAMESPACE_LIST = [
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
 /**
+ * M12: namespaces deliberately kept in English and Spanish only (the executive assistant). They
+ * have no pt/fr/de files; those languages fall back to English (fallbackLng).
+ */
+export const I18N_EN_ES_ONLY_NAMESPACES = ['matters'] as const satisfies readonly I18nNamespace[];
+export type I18nEnEsOnlyNamespace = (typeof I18N_EN_ES_ONLY_NAMESPACES)[number];
+
+/**
  * Translate. KEYS ARE ALWAYS NAMESPACE-QUALIFIED: t('alerts:max.title', { minutes: 5 }).
- * src/i18n/__tests__/keysUsed.test.ts fails on unqualified keys and on keys missing in EN or ES.
+ * src/i18n/__tests__/keysUsed.test.ts fails on unqualified keys and on keys missing in any
+ * language (en/es-only namespaces are checked in en and es only).
  */
 export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
@@ -1429,22 +1441,22 @@ export interface I18nApi {
   initI18n(): Promise<void>;
   /** Usable outside React (headless notification text). */
   t: TranslateFn;
-  getLanguage(): Language;
+  getLanguage(): AppLanguage;
   /** Changes language instantly, persists GLOBAL_STORAGE_KEYS.language, emits language:changed. */
-  setLanguage(language: Language, options?: { source?: 'user' | 'preferences' | 'device' }): Promise<void>;
+  setLanguage(language: AppLanguage, options?: { source?: 'user' | 'preferences' | 'device' }): Promise<void>;
 }
 
 export interface UseLanguageResult {
-  language: Language;
-  setLanguage(language: Language): Promise<void>;
-  supportedLanguages: readonly Language[];
+  language: AppLanguage;
+  setLanguage(language: AppLanguage): Promise<void>;
+  supportedLanguages: readonly AppLanguage[];
 }
 
 export type DateValue = Date | string | number;
 
 export interface FormatOptions {
   /** Default: current UI language. */
-  language?: Language;
+  language?: AppLanguage;
   /** Default: device zone. */
   timeZone?: string;
   /** null/undefined = locale/device default (Preferences.use24HourClock). */
@@ -1464,8 +1476,8 @@ export interface FormatApi {
     meeting: Pick<Meeting, 'startAt' | 'durationMinutes' | 'allDay' | 'date'>,
     options?: FormatOptions & { now?: Date },
   ): string;
-  /** preference (Preferences.use24HourClock) > device setting > language default (en 12 h, es 24 h). */
-  uses24HourClock(options?: { preference?: boolean | null; language?: Language }): boolean;
+  /** preference (Preferences.use24HourClock) > device setting > language default (en 12 h; es, pt, fr, de 24 h). */
+  uses24HourClock(options?: { preference?: boolean | null; language?: AppLanguage }): boolean;
 }
 
 /** Route names and params (single root stack; groups switch on session/onboarding state). */

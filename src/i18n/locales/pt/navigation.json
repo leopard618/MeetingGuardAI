@@ -1,0 +1,41 @@
+{
+  "screens": {
+    "Landing": "Boas-vindas",
+    "EmailAuth": "Entrar com e-mail",
+    "Privacy": "Política de Privacidade",
+    "Terms": "Termos de Serviço",
+    "OnboardingLanguage": "Idioma",
+    "OnboardingCalendars": "Calendários",
+    "OnboardingAlerts": "Alertas",
+    "OnboardingAssistant": "Assistente de IA",
+    "OnboardingFirstMeeting": "Primeira reunião",
+    "Dashboard": "Meeting Guard",
+    "ChooseCreationMethod": "Nova reunião",
+    "CreateMeeting": "Criar reunião",
+    "TotalMeetings": "Todas as reuniões",
+    "MeetingDetails": "Detalhes da reunião",
+    "EditMeeting": "Editar reunião",
+    "Calendar": "Calendário",
+    "Notes": "Notas",
+    "Tasks": "Tarefas",
+    "Settings": "Configurações",
+    "AlertSettings": "Configurações de alertas",
+    "Profile": "Perfil",
+    "AIChat": "Assistente de IA",
+    "AIInsights": "Insights",
+    "CalendarSync": "Sincronização de calendários",
+    "Pricing": "Planos",
+    "WhatsAppConnect": "WhatsApp",
+    "SummaryConnect": "Resumos de reuniões",
+    "SummaryInbox": "Caixa de entrada de resumos",
+    "SummaryView": "Resumo",
+    "SummaryCommitments": "Compromissos",
+    "Matters": "AI executive assistant"
+  },
+  "meeting": {
+    "loading": "Carregando reunião...",
+    "notFoundTitle": "Reunião não encontrada",
+    "notFoundMessage": "Ela pode ter sido excluída ou ainda não foi sincronizada com este dispositivo.",
+    "backToDashboard": "Ir para o painel"
+  }
+}

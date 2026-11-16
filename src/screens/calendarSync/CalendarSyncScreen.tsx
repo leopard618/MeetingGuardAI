@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CalendarStatus, RootStackParamList, TaskListInfo, TodoList, TranslateFn } from '../../core/contracts';
 import { toAppError } from '../../core/errors';
-import type { Language, PreferencesPatch } from '../../core/types';
+import type { AppLanguage, PreferencesPatch } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import {
@@ -93,7 +93,7 @@ function GoogleCard({
   onDisconnect: () => void;
   palette: CalendarPalette;
   t: TranslateFn;
-  language: Language;
+  language: AppLanguage;
   now: Date;
 }): ReactElement {
   const google = status.google;
@@ -188,7 +188,7 @@ function OutlookCard({
   onDisconnect: () => void;
   palette: CalendarPalette;
   t: TranslateFn;
-  language: Language;
+  language: AppLanguage;
   now: Date;
 }): ReactElement {
   const state = outlookStateView(outlook);

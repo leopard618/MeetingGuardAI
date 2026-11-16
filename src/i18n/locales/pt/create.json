@@ -1,0 +1,24 @@
+{
+  "title": "Como você gostaria de criá-la?",
+  "subtitle": "Escolha uma opção. Você pode editar a reunião depois.",
+  "comingSoon": "Em breve",
+  "methods": {
+    "manual": {
+      "title": "Preencher um formulário",
+      "description": "Informe você mesmo o título, a data e a hora, o local, a videochamada, os participantes e os lembretes.",
+      "hint": "Abre o formulário da reunião"
+    },
+    "ai": {
+      "title": "Pedir ao assistente de IA",
+      "description": "Escreva com suas próprias palavras, por exemplo \"Almoço com a Ana amanhã às 14h\". Você revisa antes de qualquer coisa ser salva. Cada mensagem usa uma das suas solicitações diárias de IA.",
+      "hint": "Abre o assistente de IA"
+    },
+    "whatsapp": {
+      "title": "WhatsApp",
+      "description": "Criar reuniões por mensagem no WhatsApp ainda não está disponível.",
+      "hint": "Ainda não disponível",
+      "readyDescription": "Envie ao bot uma mensagem como \"Almoço com a Ana amanhã às 14h\". Você confirma antes de qualquer coisa ser salva.",
+      "readyHint": "Abre a configuração do WhatsApp"
+    }
+  }
+}

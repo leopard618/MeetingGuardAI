@@ -1,0 +1,676 @@
+{
+  "row": {
+    "title": "Comptes rendus de réunion",
+    "subtitle": "Les comptes rendus de votre assistant de prise de notes, classés sous vos réunions",
+    "waiting_one": "{{count}} en attente d'une réunion",
+    "waiting_other": "{{count}} en attente d'une réunion"
+  },
+  "common": {
+    "productLine": "Meeting Guard AI ne rejoint pas, n'enregistre pas et n'écoute pas vos réunions.",
+    "productLineMore": "Il classe sous la bonne réunion le compte rendu que votre propre assistant de prise de notes vous envoie déjà par e-mail.",
+    "notAttended": "Meeting Guard AI n'a pas assisté à cette réunion. Ce texte provient de votre assistant de prise de notes.",
+    "otherRecorder": "Un compte rendu d'assistant de prise de notes peut provenir d'une réunion enregistrée par quelqu'un d'autre.",
+    "unknownSender": "un expéditeur inconnu",
+    "untitled": "Compte rendu sans titre",
+    "received": "Reçu {{time}}",
+    "summaryDate": "Date dans le compte rendu : {{date}}",
+    "noSummaryDate": "Aucune date dans le compte rendu",
+    "loading": "Chargement des comptes rendus...",
+    "retry": "Réessayer",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "copyFailed": "Impossible de copier. Appuyez longuement sur le texte pour le copier.",
+    "origin": {
+      "vendor": "Rédigé par votre assistant de prise de notes ({{domain}}), reçu {{time}}. Signature vérifiée.",
+      "vendorNoDomain": "Rédigé par votre assistant de prise de notes, reçu {{time}}. Signature vérifiée.",
+      "forwarded": "Transféré depuis {{address}}. La signature de l'assistant de prise de notes n'a pas pu être vérifiée.",
+      "forwardedNoAddress": "Transféré depuis l'une de vos boîtes mail. La signature de l'assistant de prise de notes n'a pas pu être vérifiée."
+    },
+    "chip": {
+      "vendor_verified": "De votre assistant de prise de notes",
+      "user_forwarded": "Transféré"
+    },
+    "status": {
+      "matched": "Classé sous une réunion",
+      "inbox": "En attente d'une réunion",
+      "kept": "Conservé sans réunion",
+      "refused": "Refusé"
+    },
+    "method": {
+      "auto": "Classé automatiquement par titre et heure",
+      "user": "Classé par vous"
+    },
+    "inboxReason": {
+      "old_summary": "Il est arrivé longtemps après sa rédaction, ou son heure d'envoi n'a pas pu être vérifiée, il n'a donc pas été classé automatiquement.",
+      "not_addressed_to_you": "Il n'était pas adressé à l'une de vos boîtes mail, par exemple parce qu'il a été envoyé directement à votre adresse privée. Vérifiez qu'il vous appartient avant de le classer.",
+      "user_forwarded": "Vous l'avez transféré vous-même. Choisissez la réunion à laquelle il correspond.",
+      "needs_confirmation": "Une réunion semble correspondre. Confirmez-la avant que le compte rendu soit classé.",
+      "ambiguous": "Deux réunions se ressemblent. Choisissez la bonne.",
+      "no_candidate": "Aucune réunion trouvée vers cette heure. La réunion est peut-être dans un calendrier non connecté.",
+      "weak": "Aucune réunion ne correspond assez à son titre et à son heure.",
+      "no_date": "Le compte rendu n'a pas de date, sa réunion n'a donc pas pu être recherchée."
+    },
+    "refusedReason": {
+      "too_large": {
+        "title": "Trop volumineux",
+        "body": "L'e-mail dépassait la taille maximale.",
+        "action": "Demandez à votre assistant de prise de notes un e-mail de compte rendu plus court, sans pièces jointes."
+      },
+      "malformed": {
+        "title": "E-mail endommagé",
+        "body": "Ses en-têtes étaient endommagés ou répétés, il n'a donc pas pu être vérifié.",
+        "action": "Envoyez de nouveau le compte rendu. Si cela se reproduit, l'e-mail n'est peut-être pas un vrai compte rendu."
+      },
+      "could_not_verify_after_forwarding": {
+        "title": "Signature perdue en route",
+        "body": "Votre service de messagerie a modifié l'e-mail en le faisant suivre, la signature de l'assistant de prise de notes ne correspondait donc plus.",
+        "action": "Utilisez une règle de redirection au lieu d'un transfert (dans Outlook : Rediriger vers). Consultez les étapes de configuration."
+      },
+      "changed_after_sending": {
+        "title": "Modifié après l'envoi",
+        "body": "La signature de l'assistant de prise de notes est présente mais ne correspond plus : le texte a été modifié après l'envoi.",
+        "action": "Si vous n'attendiez pas cet e-mail, vous n'avez rien à faire. S'il s'agissait de votre compte rendu, vérifiez votre règle de transfert et envoyez-le de nouveau."
+      },
+      "sender_not_verified": {
+        "title": "Expéditeur non vérifié",
+        "body": "Il prétend venir de votre assistant de prise de notes ou de l'une de vos boîtes mail, mais aucune signature valide ne le confirme.",
+        "action": "S'il était à vous, votre service de messagerie ne signe peut-être pas les e-mails qu'il envoie. Configurez une règle de redirection pour recevoir directement l'e-mail de l'assistant de prise de notes."
+      },
+      "not_from_your_notetaker": {
+        "title": "Pas de votre assistant de prise de notes",
+        "body": "Il ne vient pas d'un assistant de prise de notes que nous acceptons, ou quelqu'un d'autre l'a transféré.",
+        "action": "Si vous en recevez régulièrement, obtenez une nouvelle adresse."
+      },
+      "unreadable": {
+        "title": "Aucun texte lisible",
+        "body": "L'e-mail était authentique, mais il ne contenait plus aucun texte lisible.",
+        "action": "Transférez-le de nouveau avec le compte rendu dans le corps de l'e-mail, et non en pièce jointe."
+      }
+    },
+    "refusedFrom": "De {{domain}}",
+    "refusedFromUnknown": "D'un expéditeur inconnu",
+    "refusedNotStored": "Meeting Guard AI ne stocke pas les e-mails refusés. Seuls le motif, le jour, un nombre et un domaine d'expéditeur vérifié sont conservés, pendant 30 jours.",
+    "delete": {
+      "action": "Supprimer",
+      "title": "Supprimer ce compte rendu ?",
+      "body": "Il quitte immédiatement notre base de données active, et nos sauvegardes sous 21 jours. La copie chez notre fournisseur d'e-mail expire après {{providerDays}} jours. L'e-mail d'origine reste dans votre propre boîte mail.",
+      "confirm": "Supprimer",
+      "done": "Compte rendu supprimé"
+    },
+    "privacy": {
+      "title": "Confidentialité",
+      "encrypted": "Chiffré en transit et au repos par Google Cloud. En plus, Meeting Guard AI chiffre le texte, l'objet et les adresses e-mail de chaque compte rendu avec sa propre clé, conservée dans Google Secret Manager. Votre adresse privée, les boîtes mail que vous indiquez et des détails comme la date, le domaine de l'expéditeur et la réunion sous laquelle il est classé ne bénéficient pas de cette couche supplémentaire. Il ne s'agit pas d'un chiffrement de bout en bout : les personnes disposant d'un accès administrateur à nos systèmes pourraient techniquement le déchiffrer. Notre fournisseur d'e-mail, Postmark, reçoit chaque e-mail en premier et le conserve pendant {{providerDays}} jours.",
+      "yoursOnly": "Vous seul pouvez voir vos comptes rendus dans l'application ; les autres utilisateurs de Meeting Guard AI n'y ont pas accès.",
+      "deletable": "Vous pouvez supprimer un compte rendu, ou tous, à tout moment. Ils quittent immédiatement notre base de données active, et nos sauvegardes sous 21 jours. La copie chez notre fournisseur d'e-mail expire après {{providerDays}} jours. L'e-mail d'origine reste dans votre propre boîte mail.",
+      "refused": "Un compte rendu que votre assistant de prise de notes n'a pas signé, qui a été modifié après son envoi ou qui n'a pas été envoyé à l'une de vos propres boîtes mail est refusé, et Meeting Guard AI n'en conserve pas le contenu. Un vrai compte rendu envoyé directement à votre adresse privée attend votre accord dans votre boîte de réception."
+    },
+    "unavailable": {
+      "title": "Pas encore disponible",
+      "body": "Les comptes rendus de réunion ne sont pas encore disponibles pour votre compte."
+    }
+  },
+  "errors": {
+    "unauthenticated": "Reconnectez-vous avec une adresse e-mail vérifiée pour utiliser les comptes rendus de réunion.",
+    "not_enabled": "Les comptes rendus de réunion ne sont pas encore disponibles.",
+    "not_allowed": "Les comptes rendus de réunion ne sont pas encore disponibles pour votre compte.",
+    "not_ready": "Votre adresse privée n'est pas encore prête. Réessayez plus tard.",
+    "invalid_request": "Cela n'a pas fonctionné. Vérifiez votre saisie et réessayez.",
+    "not_found": "Ce compte rendu n'est plus là. Il a peut-être été supprimé.",
+    "invalid_meeting": "Cette réunion n'est plus disponible. Choisissez-en une autre.",
+    "rate_limited": "Vous avez demandé trop de nouvelles adresses aujourd'hui. Réessayez demain.",
+    "upstream_error": "Un problème est survenu de notre côté. Réessayez plus tard.",
+    "generic": "Un problème est survenu. Réessayez."
+  },
+  "connect": {
+    "intro": "Envoyez à votre adresse privée le compte rendu que votre assistant de prise de notes rédige déjà. Meeting Guard AI le classe sous la réunion correspondante.",
+    "notReady": "Les comptes rendus par e-mail sont encore en cours de configuration. Revenez bientôt.",
+    "create": "Créer mon adresse privée",
+    "createHint": "Vous obtenez une adresse que vous seul connaissez. Les comptes rendus de votre assistant de prise de notes y arrivent grâce à une règle de messagerie.",
+    "created": "Votre adresse privée est prête",
+    "openInbox": "Ouvrir la boîte de réception des comptes rendus",
+    "address": {
+      "title": "Votre adresse privée",
+      "hint": "Gardez cette adresse pour vous. Ne l'ajoutez jamais comme invité d'une réunion ni à une liste de partage.",
+      "copy": "Copier",
+      "copied": "Adresse copiée",
+      "share": "Partager",
+      "shareMessage": "Mon adresse Meeting Guard AI pour les comptes rendus de réunion : {{address}}",
+      "regenerate": "Obtenir une nouvelle adresse",
+      "regenerateTitle": "Obtenir une nouvelle adresse ?",
+      "regenerateBody": "Votre adresse actuelle cesse immédiatement de fonctionner, et Meeting Guard AI ne stocke plus les e-mails qui lui sont envoyés. Mettez ensuite à jour votre règle de transfert ; Gmail vous demandera de confirmer à nouveau la nouvelle adresse.",
+      "regenerateConfirm": "Obtenir une nouvelle adresse",
+      "regenerated": "Votre nouvelle adresse est prête. Mettez à jour votre règle de transfert.",
+      "capped": "Votre adresse a reçu beaucoup de courrier indésirable aujourd'hui, le courrier indésirable supplémentaire n'est donc plus compté. Obtenez une nouvelle adresse pour y mettre fin."
+    },
+    "mailboxes": {
+      "title": "Où arrivent vos comptes rendus",
+      "hint": "Les boîtes mail auxquelles votre assistant de prise de notes envoie ses comptes rendus. Un compte rendu n'est classé automatiquement que s'il a été envoyé à l'une d'elles.",
+      "empty": "Aucune boîte mail pour l'instant. Ajoutez celle à laquelle votre assistant de prise de notes envoie ses comptes rendus.",
+      "add": "Ajouter une boîte mail",
+      "label": "Adresse e-mail",
+      "placeholder": "nom@entreprise.com",
+      "remove": "Retirer {{address}}",
+      "save": "Enregistrer",
+      "saved": "Boîtes mail enregistrées",
+      "invalid": "Saisissez une seule adresse e-mail, par exemple nom@entreprise.com.",
+      "duplicate": "Cette boîte mail figure déjà dans la liste.",
+      "maxReached": "Vous pouvez indiquer jusqu'à {{max}} boîtes mail.",
+      "reserved": "Votre adresse privée ne peut pas être l'une de vos boîtes mail. Saisissez la boîte mail à laquelle votre assistant de prise de notes envoie ses comptes rendus.",
+      "unsaved": "Pas encore enregistré. Appuyez sur Enregistrer pour conserver vos modifications."
+    },
+    "gmail": {
+      "title": "Code de confirmation Gmail",
+      "body": "Gmail demande de confirmer le transfert depuis {{address}}. Collez ce code sur la page des paramètres de transfert de Gmail, puis appuyez sur Valider.",
+      "code": "Code : {{code}}",
+      "copy": "Copier le code",
+      "copied": "Code copié",
+      "open": "Ouvrir les paramètres Gmail",
+      "dismiss": "Ignorer",
+      "received": "Reçu {{time}}",
+      "otherTitle": "Quelqu'un d'autre a demandé à transférer ici",
+      "otherBody": "{{address}} n'est pas l'une de vos boîtes mail. Quelqu'un d'autre a fait la demande ; ignorez-la.",
+      "ignore": "Ignorer"
+    },
+    "notetakers": {
+      "title": "Assistants de prise de notes à classement automatique",
+      "hint": "Dans votre règle de messagerie, utilisez l'adresse d'expéditeur de votre assistant de prise de notes ci-dessous. Ses comptes rendus sont vérifiés et classés sous leur réunion.",
+      "item": "{{name}}: {{sender}}",
+      "copy": "Copier",
+      "copied": "Copié",
+      "copyLabel": "Copier l'adresse d'expéditeur de {{name}}",
+      "none": "Aucun assistant de prise de notes à classement automatique pour l'instant.",
+      "other": "Un autre assistant de prise de notes, ou aucun ? Transférez vous-même un compte rendu à votre adresse privée. Il attend dans votre boîte de réception, et un appui suffit pour le classer."
+    },
+    "setup": {
+      "title": "Configurer le transfert",
+      "tabs": {
+        "gmail": "Gmail",
+        "outlook": "Outlook et Microsoft 365",
+        "other": "Autre"
+      },
+      "browserHint": "Faites-le dans un navigateur web. Les applications mobiles ne permettent pas de configurer le transfert.",
+      "gmail": {
+        "steps": {
+          "step1": "Ouvrez les paramètres Gmail, Transfert et POP/IMAP, puis appuyez sur Ajouter une adresse de transfert. Collez votre adresse privée, puis appuyez sur Suivant et Continuer.",
+          "step2": "Gmail envoie un code de confirmation à votre adresse privée. Il apparaît sur cet écran en moins d'une minute. Collez-le sur la même page Gmail et appuyez sur Valider.",
+          "step3": "Laissez désactivé le transfert de tous vos e-mails.",
+          "step4": "Ouvrez Filtres et adresses bloquées et appuyez sur Créer un filtre. Dans De, saisissez l'adresse d'expéditeur de votre assistant de prise de notes et appuyez sur Créer le filtre.",
+          "step5": "Choisissez Transférer à, sélectionnez votre adresse privée et appuyez sur Créer le filtre."
+        },
+        "openForwarding": "Ouvrir les paramètres de transfert",
+        "openFilters": "Ouvrir les paramètres des filtres",
+        "workspace": "Google Workspace : si le transfert est grisé, votre administrateur doit d'abord autoriser le transfert automatique."
+      },
+      "outlook": {
+        "steps": {
+          "step1": "Ouvrez Outlook sur le web, Paramètres, Courrier, Règles, puis appuyez sur Ajouter une nouvelle règle.",
+          "step2": "Condition : De, l'adresse d'expéditeur de votre assistant de prise de notes. Action : Rediriger vers, votre adresse privée. Enregistrez la règle.",
+          "step3": "Utilisez Rediriger, et non Transférer. La redirection conserve l'assistant de prise de notes comme expéditeur, ce qui permet de vérifier sa signature. Le transfert n'est pas pris en charge."
+        },
+        "openRules": "Ouvrir les règles Outlook",
+        "company": "Boîte mail professionnelle : Microsoft 365 bloque par défaut le transfert automatique vers des adresses externes. Si rien n'arrive, partagez les étapes avec votre administrateur."
+      },
+      "other": {
+        "steps": {
+          "step1": "Dans votre service de messagerie, créez une règle pour les e-mails provenant de l'adresse d'expéditeur de votre assistant de prise de notes, qui les fait suivre à votre adresse privée.",
+          "step2": "Choisissez Rediriger (ou Renvoyer) si votre service de messagerie le propose. Cela préserve la signature de l'assistant de prise de notes.",
+          "step3": "Vous pouvez aussi transférer vous-même un compte rendu depuis l'une de vos boîtes mail. Il attend dans votre boîte de réception des comptes rendus, et un appui suffit."
+        }
+      },
+      "admin": {
+        "title": "Étapes pour votre administrateur",
+        "hint": "Partagez ces étapes avec la personne qui gère la messagerie de votre entreprise.",
+        "share": "Partager les étapes",
+        "mailboxFallback": "ma boîte mail",
+        "microsoft": "J'utilise Meeting Guard AI pour recevoir mes comptes rendus de réunion. Une règle de messagerie sur {{mailbox}} redirige uniquement les e-mails de compte rendu de mon assistant de prise de notes vers {{address}}. Par défaut, Microsoft 365 bloque le transfert automatique vers des adresses externes. Pour l'autoriser pour cette seule boîte mail :\n1. Dans le portail Microsoft Defender (https://security.microsoft.com/antispam), créez une stratégie anti-spam sortante qui s'applique uniquement à {{mailbox}}, avec Règles de transfert automatique réglé sur Activé - Le transfert est activé.\n2. Dans le Centre d'administration Exchange (https://admin.exchange.microsoft.com/#/remotedomains), vérifiez que le domaine distant Default autorise le transfert automatique.\nAucun autre e-mail n'est transféré.",
+        "google": "J'utilise Meeting Guard AI pour recevoir mes comptes rendus de réunion. Un filtre Gmail sur {{mailbox}} transfère uniquement les e-mails de compte rendu de mon assistant de prise de notes vers {{address}}. Le transfert est grisé dans mes paramètres Gmail. Merci d'autoriser le transfert automatique pour mon compte dans la console d'administration Google (https://admin.google.com), sous Applications, Google Workspace, Gmail, Accès des utilisateurs finaux.\nAucun autre e-mail n'est transféré."
+      }
+    },
+    "activity": {
+      "title": "Activité",
+      "lastReceived": "Dernier compte rendu reçu {{time}}",
+      "nothingYet": "Rien reçu pour l'instant.",
+      "waiting": "En attente de votre premier compte rendu. Cet écran vérifie toutes les quelques secondes tant qu'il est ouvert.",
+      "lastRefused": "Dernier refus {{time}} : {{reason}}",
+      "refusedToday_one": "{{count}} e-mail refusé aujourd'hui",
+      "refusedToday_other": "{{count}} e-mails refusés aujourd'hui"
+    },
+    "microsoftHint": {
+      "title": "Rien n'est encore arrivé",
+      "body": "Aucun compte rendu n'est arrivé depuis 24 heures. Si vous utilisez une boîte mail professionnelle Microsoft 365, Microsoft bloque peut-être la redirection. Partagez les étapes avec votre administrateur.",
+      "action": "Étapes pour votre administrateur"
+    },
+    "checks": {
+      "title": "Ce que nous vérifions",
+      "signature": "Le compte rendu porte la signature numérique de votre assistant de prise de notes, et rien n'y a été modifié après l'envoi.",
+      "sender": "Il provient d'un expéditeur d'assistant de prise de notes que nous acceptons.",
+      "mailbox": "Il a été envoyé à l'une des boîtes mail que vous avez indiquées ci-dessus.",
+      "fresh": "Il est récent : rédigé au cours des deux dernières semaines.",
+      "match": "Il n'est classé automatiquement que si son titre et son heure correspondent tous deux à l'une de vos réunions. Sinon, il attend dans votre boîte de réception des comptes rendus.",
+      "refused": "Un compte rendu qui passe les deux premières vérifications mais pas les autres, ou que vous transférez vous-même depuis une boîte mail indiquée, attend votre accord dans votre boîte de réception des comptes rendus. Tout le reste est refusé, et Meeting Guard AI n'en stocke pas le contenu."
+    },
+    "disconnect": {
+      "action": "Déconnecter",
+      "title": "Ne plus recevoir de comptes rendus",
+      "body": "Votre adresse privée cesse immédiatement de fonctionner. Les comptes rendus déjà présents :",
+      "keep": "Les conserver",
+      "delete": "Les supprimer",
+      "tasksStay": "Les tâches que vous avez ajoutées depuis des comptes rendus restent dans vos tâches.",
+      "cancel": "Annuler",
+      "deleteTitle": "Supprimer tous vos comptes rendus ?",
+      "deleteBody": "Ils quittent immédiatement notre base de données active, et nos sauvegardes sous 21 jours. La copie chez notre fournisseur d'e-mail expire après {{providerDays}} jours. Les e-mails d'origine restent dans votre propre boîte mail. Les tâches que vous avez ajoutées depuis des comptes rendus restent dans vos tâches.",
+      "deleteConfirm": "Déconnecter et supprimer",
+      "doneKept": "Déconnecté. Vos comptes rendus sont conservés.",
+      "doneDeleted": "Déconnecté. Vos comptes rendus sont supprimés.",
+      "disconnected": "Non connecté. Meeting Guard AI ne stocke plus les e-mails envoyés à votre ancienne adresse, mais notre fournisseur d'e-mail en conserve une copie pendant {{providerDays}} jours. Supprimez la règle de messagerie qui transfère vers cette adresse.",
+      "reconnect": "Recréer mon adresse privée",
+      "reconnectHint": "Une nouvelle adresse compte dans le nombre de nouvelles adresses que vous pouvez obtenir en une journée."
+    },
+    "retention": {
+      "title": "Durée de conservation des comptes rendus",
+      "filed": "Comptes rendus classés sous une réunion ou conservés : 12 mois après leur arrivée, puis supprimés.",
+      "inbox": "Comptes rendus en attente dans la boîte de réception : 60 jours après leur arrivée, ou 60 jours après que vous en remettez un dans la boîte de réception, selon la date la plus tardive.",
+      "refused": "E-mails refusés : seulement un nombre quotidien, le motif et un domaine d'expéditeur vérifié, pendant 30 jours ; jamais leur contenu.",
+      "suggestions": "Les tâches suggérées font partie de leur compte rendu et sont supprimées avec lui.",
+      "tasks": "Les tâches que vous ajoutez vous appartiennent : elles restent jusqu'à ce que vous les supprimiez, même après la suppression du compte rendu ou la déconnexion. Leur titre et les personnes concernées sont copiés depuis la suggestion et ne bénéficient pas du chiffrement supplémentaire du compte rendu.",
+      "deleting": "Suppression : immédiate dans notre base de données active, sous 21 jours dans les sauvegardes ; la copie de notre fournisseur d'e-mail après {{providerDays}} jours ; l'original reste dans votre boîte mail.",
+      "openai": "Lorsque vous demandez des suggestions, le texte du compte rendu est envoyé à OpenAI via notre serveur.",
+      "copies": "Copies hors de notre base de données : le rappel d'une tâche affiche son titre sur votre écran de verrouillage comme toute tâche ; sur WhatsApp, la liste et les phrases qu'elle cite restent dans votre conversation, dans les aperçus de ses notifications et dans vos sauvegardes WhatsApp jusqu'à ce que vous les y supprimiez ; une synchronisation To Do ou Google Tasks copie la tâche. Supprimer le compte rendu ou vous déconnecter n'affecte pas ces copies."
+    }
+  },
+  "inbox": {
+    "waiting": {
+      "title": "En attente d'une réunion",
+      "empty": "Rien en attente. Un compte rendu qui ne peut pas être classé automatiquement apparaît ici."
+    },
+    "recent": {
+      "title": "Classés récemment",
+      "empty": "Aucun compte rendu classé pour l'instant.",
+      "filedUnder": "Classé sous {{title}}",
+      "kept": "Conservé sans réunion"
+    },
+    "refused": {
+      "title": "Refusés",
+      "show": "Afficher les refusés",
+      "hide": "Masquer les refusés",
+      "row_one": "{{count}} refusé le {{day}}",
+      "row_other": "{{count}} refusés le {{day}}",
+      "empty": "Aucun refus au cours des 30 derniers jours."
+    },
+    "fileUnder": "Classer sous {{title}}",
+    "fileUnderA11y": "Classer sous {{title}}, {{time}}",
+    "choose": "Choisir une réunion",
+    "keep": "Conserver sans réunion",
+    "kept": "Conservé sans réunion",
+    "filed": "Classé sous {{title}}",
+    "noSuggestions": "Aucune suggestion, car ce compte rendu ne vous était pas adressé. S'il est à vous, choisissez vous-même sa réunion.",
+    "pullToRefresh": "Tirez vers le bas pour rechercher à nouveau des réunions correspondantes.",
+    "more": "Seuls les {{count}} plus récents sont affichés.",
+    "openSetup": "Adresse et configuration",
+    "empty": {
+      "title": "Aucun compte rendu pour l'instant",
+      "body": "Quand le compte rendu de votre assistant de prise de notes arrive à votre adresse privée, il est classé sous sa réunion ou attend ici.",
+      "action": "Configurer le transfert"
+    }
+  },
+  "attach": {
+    "title": "Choisir une réunion",
+    "moveTitle": "Déplacer vers une autre réunion",
+    "previousDay": "Jour précédent",
+    "nextDay": "Jour suivant",
+    "summaryDay": "Jour du compte rendu",
+    "noMeetings": "Aucune réunion ce jour-là. Essayez un autre jour.",
+    "loading": "Chargement des réunions...",
+    "allDay": "Toute la journée",
+    "cancelled": "Annulée",
+    "occurrence": "Une réunion d'une série",
+    "file": "Classer ici",
+    "filed": "Classé sous {{title}}",
+    "moved": "Déplacé vers {{title}}",
+    "current": "Classé ici actuellement",
+    "cancel": "Annuler"
+  },
+  "view": {
+    "loading": "Chargement du compte rendu...",
+    "notFound": "Ce compte rendu n'est plus là.",
+    "match": {
+      "auto": "Classé sous {{title}}, {{time}}. Associé automatiquement par titre et heure.",
+      "user": "Classé sous {{title}}, {{time}}. Classé par vous.",
+      "inbox": "Pas encore classé : en attente d'une réunion.",
+      "kept": "Conservé sans réunion."
+    },
+    "tldrHeading": "L'aperçu de votre assistant de prise de notes",
+    "tldrNote": "L'assistant de prise de notes a rédigé lui-même cet aperçu. Comparez-le aux détails ci-dessous.",
+    "textHeading": "Texte",
+    "owner": "Responsable : {{owner}}",
+    "due": "Échéance : {{due}}",
+    "checkbox": {
+      "done": "Fait",
+      "open": "À faire"
+    },
+    "flag": {
+      "possible_instruction": "Ressemble à une instruction. Affiché uniquement en texte brut.",
+      "has_link": "Contient un lien, affiché en texte brut.",
+      "truncated": "Tronqué car trop long."
+    },
+    "truncated": "Ce compte rendu a été tronqué car il était très long.",
+    "linksPlain": "Les liens sont affichés en texte brut. Copiez-en un pour l'ouvrir dans votre navigateur.",
+    "subject": "Objet : {{subject}}",
+    "from": "De : {{address}}",
+    "copyText": "Copier le texte",
+    "copied": "Texte copié",
+    "notThisMeeting": "Pas cette réunion",
+    "notThisMeetingTitle": "Pas cette réunion ?",
+    "notThisMeetingBody": "Le compte rendu retourne dans votre boîte de réception des comptes rendus, et cette réunion ne lui sera plus suggérée.",
+    "notThisMeetingConfirm": "Retour à la boîte de réception",
+    "detached": "Remis dans votre boîte de réception des comptes rendus",
+    "move": "Déplacer",
+    "choose": "Choisir une réunion",
+    "keep": "Conserver sans réunion",
+    "notFoundBody": "Il a peut-être été supprimé, ici ou sur un autre appareil. L'e-mail d'origine reste dans votre propre boîte mail.",
+    "emailHeading": "Détails de l'e-mail",
+    "trust": {
+      "notBound": "Il n'était pas adressé à l'une des boîtes mail que vous avez indiquées. Vérifiez qu'il vous appartient.",
+      "notFresh": "Il est arrivé longtemps après sa rédaction, ou son heure d'envoi n'a pas pu être vérifiée."
+    },
+    "review": "Examiner les engagements",
+    "reviewCount": "Examiner les engagements ({{count}})",
+    "retentionLink": "Durée de conservation des comptes rendus",
+    "keptUntil": "Ce compte rendu est conservé jusqu'au {{date}}.",
+    "truncatedHint": "Seule la première partie a été conservée à son arrivée. L'e-mail d'origine reste dans votre propre boîte mail."
+  },
+  "meeting": {
+    "title_one": "Compte rendu de l'assistant de prise de notes",
+    "title_other": "Comptes rendus de l'assistant de prise de notes",
+    "received": "Reçu {{time}}",
+    "occurrence": "Pour la réunion du {{date}}",
+    "open": "Ouvrir le compte rendu {{title}}"
+  },
+  "commitments": {
+    "title": "Tâches suggérées",
+    "entry": {
+      "review": "Examiner les engagements",
+      "reviewCount": "Examiner les engagements ({{count}})",
+      "reviewA11y": "Examiner les engagements de ce compte rendu",
+      "added_one": "{{count}} ajoutée à vos tâches",
+      "added_other": "{{count}} ajoutées à vos tâches",
+      "empty": "Aucun engagement trouvé",
+      "stale": "Le compte rendu a changé : préparez à nouveau les suggestions (gratuit)",
+      "preparing": "En préparation"
+    },
+    "header": {
+      "count_one": "{{count}} suggestion",
+      "count_other": "{{count}} suggestions",
+      "open_one": "{{count}} encore à examiner",
+      "open_other": "{{count}} encore à examiner",
+      "added_one": "{{count}} dans vos tâches",
+      "added_other": "{{count}} dans vos tâches"
+    },
+    "mode": {
+      "ai": "Suggéré par l'IA",
+      "as_written": "Tel quel",
+      "switchToAi": "Suggérer des tâches avec l'IA",
+      "switchToAsWritten": "Afficher les actions telles qu'elles sont écrites",
+      "aiCost": "Utilise 1 action IA, la première fois seulement.",
+      "asWrittenFree": "Gratuit. Aucune IA n'est utilisée."
+    },
+    "notice": {
+      "title": "Avant que Meeting Guard AI lise ce compte rendu",
+      "body": "Pour suggérer des tâches, Meeting Guard AI envoie le texte de ce compte rendu à OpenAI via notre serveur. Par défaut, OpenAI ne l'utilise pas pour entraîner ses modèles et peut le conserver pendant une durée limitée pour détecter les abus. Rien ne devient une tâche tant que vous ne l'acceptez pas.",
+      "continue": "Continuer",
+      "asWritten": "Afficher les actions telles qu'elles sont écrites"
+    },
+    "start": {
+      "title": "Transformer ce compte rendu en tâches",
+      "body": "Meeting Guard AI peut lire le compte rendu de votre assistant de prise de notes et suggérer les tâches qu'il mentionne, chacune avec la phrase dont elle provient. Rien ne devient une tâche tant que vous ne l'acceptez pas.",
+      "ai": "Suggérer des tâches avec l'IA",
+      "asWritten": "Afficher les actions telles qu'elles sont écrites",
+      "costs": "Telles quelles : gratuit, aucune IA n'est utilisée. Avec l'IA : 1 action IA, la première fois seulement."
+    },
+    "loading": {
+      "get": "Chargement des tâches suggérées...",
+      "ai": "Lecture du compte rendu de votre assistant de prise de notes. Cela utilise 1 action IA, la première fois seulement.",
+      "asWritten": "Lecture des actions..."
+    },
+    "preparing": {
+      "title": "En préparation",
+      "body": "Les tâches suggérées pour ce compte rendu sont en préparation. Cela peut prendre une minute ou deux ; elles apparaissent ici dès qu'elles sont prêtes.",
+      "slow": "Cela prend plus de temps que d'habitude. Réessayez dans un instant."
+    },
+    "empty": {
+      "title": "Aucun engagement trouvé.",
+      "ai": "Meeting Guard AI n'a trouvé aucun engagement dans ce compte rendu.",
+      "asWritten": "Ce compte rendu ne contient aucune action à lister.",
+      "tryAsWritten": "Afficher les actions telles qu'elles sont écrites",
+      "tryAi": "Suggérer des tâches avec l'IA"
+    },
+    "stale": {
+      "title": "Ce compte rendu a changé",
+      "body": "Ce compte rendu a changé. Préparez à nouveau les suggestions.",
+      "free": "Les préparer à nouveau est gratuit.",
+      "action": "Préparer à nouveau",
+      "readOnly": "Voici la liste d'avant le changement. Préparez-la à nouveau pour ajouter ou modifier des tâches."
+    },
+    "quota": {
+      "title": "Quota d'IA épuisé",
+      "body": "Votre quota d'IA est épuisé. Les actions telles qu'elles sont écrites restent gratuites.",
+      "resets": "Votre quota se renouvelle : {{time}}.",
+      "plans": "Voir les offres",
+      "asWritten": "Afficher les actions telles qu'elles sont écrites"
+    },
+    "origin": {
+      "suggested": {
+        "meeting": "Suggéré à partir du compte rendu de {{meeting}} par votre assistant de prise de notes, {{date}}.",
+        "meetingNoDate": "Suggéré à partir du compte rendu de {{meeting}} par votre assistant de prise de notes.",
+        "kept": "Suggéré à partir du compte rendu du {{date}} par votre assistant de prise de notes (non classé sous une réunion).",
+        "keptNoDate": "Suggéré à partir du compte rendu de votre assistant de prise de notes (non classé sous une réunion).",
+        "forwarded": "Suggéré à partir d'un compte rendu transféré depuis {{address}}.",
+        "forwardedNoAddress": "Suggéré à partir d'un compte rendu transféré depuis l'une de vos boîtes mail.",
+        "notAddressed": "Suggéré à partir d'un compte rendu d'assistant de prise de notes qui n'a pas été envoyé à l'une de vos boîtes mail."
+      },
+      "asWritten": {
+        "meeting": "D'après le compte rendu de {{meeting}} par votre assistant de prise de notes, {{date}}.",
+        "meetingNoDate": "D'après le compte rendu de {{meeting}} par votre assistant de prise de notes.",
+        "kept": "D'après le compte rendu du {{date}} par votre assistant de prise de notes (non classé sous une réunion).",
+        "keptNoDate": "D'après le compte rendu de votre assistant de prise de notes (non classé sous une réunion).",
+        "forwarded": "D'après un compte rendu transféré depuis {{address}}.",
+        "forwardedNoAddress": "D'après un compte rendu transféré depuis l'une de vos boîtes mail.",
+        "notAddressed": "D'après un compte rendu d'assistant de prise de notes qui n'a pas été envoyé à l'une de vos boîtes mail."
+      },
+      "notAttended": "Meeting Guard AI n'a pas assisté à cette réunion.",
+      "aiWritten": "Rédigé par l'IA à partir du texte de votre assistant de prise de notes. Vérifiez les noms, les dates et le sens avant de les ajouter.",
+      "asWrittenLine": "Les actions exactement telles que votre assistant de prise de notes les a écrites."
+    },
+    "banner": {
+      "old_summary": "Nous n'avons pas pu confirmer quand ce compte rendu a été envoyé, rien n'est donc sélectionné pour vous.",
+      "not_addressed_to_you": "Ce compte rendu n'a pas été envoyé à l'une de vos boîtes mail. Il concerne peut-être la réunion de quelqu'un d'autre, choisissez donc chaque élément vous-même.",
+      "forwarded": "Ce compte rendu a été transféré depuis {{address}} et la signature de l'assistant de prise de notes n'a pas pu être vérifiée, rien n'est donc sélectionné pour vous.",
+      "forwardedNoAddress": "Ce compte rendu a été transféré depuis l'une de vos boîtes mail et la signature de l'assistant de prise de notes n'a pas pu être vérifiée, rien n'est donc sélectionné pour vous.",
+      "possible_instruction": "Une partie de ce compte rendu ressemble à des instructions destinées à un logiciel. Rien n'est sélectionné pour vous ; lisez chaque élément.",
+      "truncated": "Seule la première partie d'un long compte rendu a été lue.",
+      "meetingChanged": "Classé sous une autre réunion depuis la préparation de ces suggestions. Les tâches déjà ajoutées restent liées à la réunion sous laquelle elles ont été ajoutées."
+    },
+    "reminder": {
+      "title": "Rappel pour les éléments sans date",
+      "choice": {
+        "tomorrow": "Demain à {{time}}",
+        "dayAfter": "Après-demain à {{time}}",
+        "nextMonday": "Lundi prochain à {{time}}",
+        "pick": "Choisir une date et une heure",
+        "picked": "{{date}} à {{time}}",
+        "none": "Aucun rappel"
+      },
+      "yourChoice": "Votre choix. Le compte rendu ne donne pas de date.",
+      "pastPick": "Cette heure est déjà passée. Choisissez-en une plus tardive.",
+      "group": {
+        "tomorrow_one": "{{count}} rappel demain à {{time}}",
+        "tomorrow_other": "{{count}} rappels demain à {{time}}",
+        "dayAfter_one": "{{count}} rappel après-demain à {{time}}",
+        "dayAfter_other": "{{count}} rappels après-demain à {{time}}",
+        "nextMonday_one": "{{count}} rappel lundi prochain à {{time}}",
+        "nextMonday_other": "{{count}} rappels lundi prochain à {{time}}",
+        "picked_one": "{{count}} rappel le {{date}} à {{time}}",
+        "picked_other": "{{count}} rappels le {{date}} à {{time}}",
+        "none_one": "{{count}} élément sans rappel",
+        "none_other": "{{count}} éléments sans rappel"
+      },
+      "groupHint": "Les rappels programmés à la même heure arrivent ensemble."
+    },
+    "card": {
+      "selectA11y": "Sélectionner : {{title}}",
+      "fromSummary": "Dans le compte rendu :",
+      "section": "Section : {{heading}}",
+      "edit": "Modifier",
+      "drop": "Écarter",
+      "dropped": "Écartée",
+      "restore": "Rétablir",
+      "inTasks": "Dans vos tâches",
+      "openTask": "Ouvrir la tâche",
+      "undo": "Annuler",
+      "removedFromTasks": "Retirée de vos tâches",
+      "addAgain": "Ajouter à nouveau",
+      "alreadyAdded": "Déjà ajoutée",
+      "via": {
+        "app": "Ajoutée dans l'application",
+        "whatsapp": "Ajoutée sur WhatsApp"
+      },
+      "edited": "Modifiée par vous",
+      "readOnly": "Préparez à nouveau les suggestions pour modifier celle-ci."
+    },
+    "dropped": {
+      "title_one": "{{count}} écartée",
+      "title_other": "{{count}} écartées",
+      "show": "Afficher les écartées",
+      "hide": "Masquer les écartées"
+    },
+    "owner": {
+      "you": "Vous",
+      "guess": "Vous ? (le compte rendu indique : {{name}})",
+      "named": "Responsable dans le compte rendu : {{name}}",
+      "none": "Aucun responsable indiqué",
+      "title": "{{name}}: {{what}}",
+      "followUp": "Un suivi pour vous : le titre de la tâche commence par {{name}}."
+    },
+    "due": {
+      "date": "Échéance {{date}}",
+      "dateTime": "Échéance {{date}} à {{time}}",
+      "says": "Le compte rendu indique : {{quote}}",
+      "withQuote": "Échéance {{date}} (le compte rendu indique : {{quote}})",
+      "overdue": "En retard : le compte rendu indique {{date}}",
+      "overdueQuote": "En retard (le compte rendu indique : {{quote}}). Aucun rappel tant que vous n'en choisissez pas un.",
+      "noReminderUntilPick": "Aucun rappel tant que vous n'en choisissez pas un.",
+      "meetingTime": "{{time}} heure de la réunion ({{zone}})",
+      "noDate": "Votre choix. Le compte rendu ne donne pas de date.",
+      "noDateReminder": "Aucune date dans le compte rendu. Rappel : {{when}}, votre choix.",
+      "reminderChip": "Rappel {{when}}, votre choix",
+      "noReminder": "Aucun rappel"
+    },
+    "chip": {
+      "overdue": "En retard",
+      "payment_like": "Paiement ou code",
+      "possible_instruction": "Ressemble à une instruction",
+      "suggested": "Suggestion de l'assistant de prise de notes",
+      "checklist": "Liste de contrôle",
+      "similar_added": "Peut-être déjà ajoutée",
+      "owner_guess": "Vérifiez le responsable",
+      "has_link": "Contient un lien",
+      "truncated": "Tronqué",
+      "lowConfidence": "À vérifier"
+    },
+    "reason": {
+      "suggested": "Suggéré par votre assistant de prise de notes, pas dit pendant la réunion.",
+      "checklist": "Fait partie d'une liste de contrôle.",
+      "payment_like": "À vérifier : cela mentionne un paiement ou un code.",
+      "similar_added": "Ressemble à une tâche que vous avez déjà ajoutée.",
+      "possible_instruction": "Cela ressemble à une instruction destinée à un logiciel. Lisez-le avant de l'ajouter.",
+      "owner_guess": "Seul votre prénom correspond au responsable. Vérifiez qu'il s'agit bien de vous.",
+      "lowConfidence": "Meeting Guard AI n'est pas sûr qu'il s'agisse d'un engagement.",
+      "has_link": "Son lien reste en texte brut dans le compte rendu et n'est pas ajouté au titre de la tâche.",
+      "truncated": "Cet élément a été tronqué car il était trop long."
+    },
+    "footer": {
+      "acceptAll": "Tout accepter ({{count}})",
+      "acceptSelected_one": "Ajouter {{count}} sélectionnée",
+      "acceptSelected_other": "Ajouter {{count}} sélectionnées",
+      "selectAll": "Tout sélectionner",
+      "clearSelection": "Effacer la sélection",
+      "nothingSelected": "Sélectionnez les tâches à ajouter.",
+      "offline": "Connectez-vous à Internet pour ajouter ces tâches.",
+      "adding": "Ajout des tâches..."
+    },
+    "result": {
+      "added_one": "{{count}} tâche ajoutée. Son rappel est programmé sur ce téléphone.",
+      "added_other": "{{count}} tâches ajoutées. Leurs rappels sont programmés sur ce téléphone.",
+      "addedNoReminder_one": "{{count}} tâche ajoutée.",
+      "addedNoReminder_other": "{{count}} tâches ajoutées.",
+      "addedSomeReminders_one": "{{count}} tâche ajoutée. Son rappel est programmé sur ce téléphone.",
+      "addedSomeReminders_other": "{{count}} tâches ajoutées. Celles qui ont un rappel l'ont programmé sur ce téléphone.",
+      "alreadyAdded_one": "{{count}} était déjà dans vos tâches.",
+      "alreadyAdded_other": "{{count}} étaient déjà dans vos tâches.",
+      "notOpen_one": "{{count}} a déjà été traitée, ici ou sur un autre appareil.",
+      "notOpen_other": "{{count}} ont déjà été traitées, ici ou sur un autre appareil.",
+      "dropped": "Écartée",
+      "restored": "Rétablie",
+      "removed": "Retirée de vos tâches",
+      "changed": "Cette tâche a été modifiée après son ajout, elle n'a donc pas été retirée. Ouvrez-la pour la modifier ou la supprimer.",
+      "stale": "Ces suggestions ont changé sur un autre appareil. Vérifiez-les et réessayez."
+    },
+    "edit": {
+      "title": "Modifier la tâche",
+      "titleLabel": "Titre",
+      "titleRequired": "Saisissez un titre.",
+      "titleTooLong": "Utilisez au maximum {{max}} caractères.",
+      "owner": "À qui est cette tâche ?",
+      "ownerYou": "À moi",
+      "ownerNamed": "{{name}}, comme dans le compte rendu",
+      "ownerOther": "Quelqu'un d'autre",
+      "ownerOtherLabel": "Son nom",
+      "ownerOtherRequired": "Saisissez son nom.",
+      "ownerNobody": "Personne en particulier",
+      "ownerHint": "Une tâche pour quelqu'un d'autre est un suivi pour vous : son titre commence par le nom de cette personne.",
+      "due": "Échéance",
+      "dueTime": "Heure",
+      "pickDate": "Choisir une date",
+      "pickTime": "Choisir une heure",
+      "clearDate": "Aucune échéance",
+      "clearTime": "Aucune heure",
+      "reminder": "Rappel",
+      "timeNeedsDate": "Choisissez une date avant de choisir une heure.",
+      "reminderNeedsTime": "Un rappel nécessite une heure d'échéance.",
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "discardTitle": "Abandonner vos modifications ?",
+      "discardBody": "Vos modifications de cette tâche seront perdues.",
+      "discard": "Abandonner",
+      "keepEditing": "Continuer à modifier"
+    },
+    "leave": {
+      "title": "Quitter sans ajouter ?",
+      "body": "Vos modifications ne sont que sur cet écran et seront perdues.",
+      "leave": "Quitter",
+      "stay": "Rester"
+    },
+    "keep": {
+      "until": "Ce compte rendu est conservé jusqu'au {{date}}. Les tâches que vous ajoutez restent jusqu'à ce que vous les supprimiez.",
+      "rules": "Durée de conservation des comptes rendus",
+      "deleteKeepTasks": "Supprimer le compte rendu, garder mes tâches",
+      "deleteTitle": "Supprimer le compte rendu et garder vos tâches ?",
+      "deleteBody": "Le compte rendu et ses suggestions quittent immédiatement notre base de données active, et nos sauvegardes sous 21 jours. La copie chez notre fournisseur d'e-mail expire après {{providerDays}} jours. Les tâches que vous avez ajoutées restent dans vos tâches.",
+      "deleteConfirm": "Supprimer le compte rendu",
+      "deleted": "Compte rendu supprimé. Vos tâches sont conservées."
+    },
+    "errors": {
+      "quota_exceeded": "Votre quota d'IA est épuisé. Les actions telles qu'elles sont écrites restent gratuites.",
+      "stale": "Ces suggestions ont changé sur un autre appareil. Vérifiez-les et réessayez.",
+      "upstream_error": "Les tâches suggérées ne sont pas disponibles pour le moment. Réessayez, ou affichez les actions telles qu'elles sont écrites.",
+      "not_found": "Ce compte rendu n'est plus là. Il a peut-être été supprimé ou remis dans la boîte de réception.",
+      "invalid_request": "Cela n'a pas fonctionné. Vérifiez la tâche et réessayez.",
+      "offline": "Vous êtes hors ligne. Connectez-vous à Internet et réessayez.",
+      "timeout": "Cela a pris trop de temps. Réessayez.",
+      "decideUnconfirmed": "Meeting Guard AI n'a pas pu confirmer cette modification, et elle a peut-être été enregistrée. Vérifiez la liste avant de réessayer ; réessayer n'ajoute jamais deux fois la même tâche.",
+      "notFiled": "Ce compte rendu attend une réunion. Classez-le ou conservez-le d'abord, puis examinez ses engagements.",
+      "generic": "Un problème est survenu. Réessayez.",
+      "retry": "Réessayer"
+    }
+  }
+}

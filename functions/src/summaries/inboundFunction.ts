@@ -5,7 +5,7 @@
  * - onRequest, FUNCTIONS_REGION, invoker 'public' set explicitly (a server-to-server webhook,
  *   authenticated by Basic auth inside the handler), the SUMMARIES_WEBHOOK_AUTH and
  *   SUMMARIES_DATA_KEY secrets, and SUMMARIES_FUNCTION_TUNING.inbound (1GiB, concurrency 2,
- *   maxInstances 3, 60 s; finding 11).
+ *   maxInstances 20, 60 s; finding 11).
  * - Exported by ./index.ts only while SUMMARIES_ENABLED is true at deploy time
  *   (summariesEnabledAtLoad), so a default deploy never references the secrets. The handler checks
  *   SUMMARIES_ENABLED.value() again at request time: a stale deployment answers 404.

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German fallback (system locale); mirrors src/i18n/locales/de/widget.json. -->
+<resources>
+  <string name="mg_widget_label">Nächste Besprechung</string>
+  <string name="mg_widget_description">Zeigt Ihre nächste Besprechung in Meeting Guard AI</string>
+  <string name="mg_widget_empty_title">Keine anstehenden Besprechungen</string>
+  <string name="mg_widget_empty_body">Öffnen Sie Meeting Guard, um eine zu planen</string>
+  <string name="mg_widget_now">Läuft gerade</string>
+</resources>

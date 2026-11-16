@@ -4,10 +4,15 @@ import path from 'path';
 import {
   aiActionSchema,
   aiMeetingContextDocSchema,
+  aiMeetingDraftSchema,
+  appLanguageSchema,
   assistantErrorCodeFromFunctionsCode,
   assistantRequestSchema,
   assistantResponseSchema,
+  languageSchema,
+  matterDraftRequestSchema,
   nextUsageResetIso,
+  toBaseLanguage,
   usageDayKey,
 } from '../aiContract';
 import { buildMeeting, toMeetingDoc } from '../types';
@@ -48,6 +53,31 @@ describe('assistant request', () => {
     expect(assistantRequestSchema.safeParse({ ...base, mode: 'debrief', followUpMeetingId: 'm1', messages: transcript }).success).toBe(true);
     expect(assistantRequestSchema.safeParse({ ...base, mode: 'debrief', messages: transcript }).success).toBe(false);
     expect(assistantRequestSchema.safeParse({ ...base, mode: 'debrief', followUpMeetingId: 'm1', messages: [] }).success).toBe(false);
+  });
+});
+
+describe('M12 app languages', () => {
+  const base = { timezone: 'America/Bogota', nowIso: '2026-10-01T10:00:00Z', followUpMeetingId: null, mode: 'chat' };
+  const messages = [{ role: 'user', content: 'oi' }];
+
+  it('the in-app AI chat request accepts every app language and nothing else', () => {
+    for (const language of ['en', 'es', 'pt', 'fr', 'de']) {
+      expect(assistantRequestSchema.safeParse({ ...base, language, messages }).success).toBe(true);
+    }
+    expect(assistantRequestSchema.safeParse({ ...base, language: 'it', messages }).success).toBe(false);
+    expect(appLanguageSchema.options).toEqual(['en', 'es', 'pt', 'fr', 'de']);
+  });
+
+  it('keeps meetings and the executive assistant in en/es', () => {
+    expect(languageSchema.options).toEqual(['en', 'es']);
+    expect(aiMeetingDraftSchema.safeParse({ ...draft, language: 'pt' }).success).toBe(false);
+    const matter = { text: 'Ask Ana for the budget', source: 'text', timeZone: 'Europe/Madrid' };
+    expect(matterDraftRequestSchema.safeParse({ ...matter, language: 'es' }).success).toBe(true);
+    expect(matterDraftRequestSchema.safeParse({ ...matter, language: 'pt' }).success).toBe(false);
+  });
+
+  it('maps an app language to the en/es base language', () => {
+    expect(['en', 'es', 'pt', 'fr', 'de', 'it'].map((language) => toBaseLanguage(language))).toEqual(['en', 'es', 'en', 'en', 'en', 'en']);
   });
 });
 
