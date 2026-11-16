@@ -61,6 +61,7 @@ import type {
   GoogleEventWrite,
   GoogleResponseStatus,
 } from './types';
+import { htmlToPlainText } from '../../../utils/htmlText';
 
 /** Meeting Guard syncs the user's primary calendar. */
 export const GOOGLE_PRIMARY_CALENDAR = 'primary';
@@ -270,7 +271,8 @@ export function googleEventToMeetingInput(event: GoogleEvent, ctx: GoogleMapping
 
   return {
     title: title.length > 0 ? title : ctx.untitledTitle,
-    description: truncate(stripJoinBlock(event.description ?? ''), DESCRIPTION_MAX),
+    // Google descriptions may be HTML (invitations from airlines and booking sites): plain text here.
+    description: truncate(stripJoinBlock(htmlToPlainText(event.description ?? '')), DESCRIPTION_MAX),
     startAt: timing.startAt,
     durationMinutes: timing.durationMinutes,
     timezone: timing.timezone,

@@ -52,6 +52,7 @@ import { conferenceCardState } from './meetingForm';
 import { endNowWrite, isRunningNow, resolveRunningLateMeeting } from './runningLate';
 import { openRunningLate } from './RunningLateSheet';
 import { applyScopedWrite } from './scopedWrite';
+import { htmlToPlainText } from '../../utils/htmlText';
 
 const log = createLogger('meetings');
 
@@ -438,7 +439,7 @@ function MeetingDetails({
           <SectionHeader title={t('meetings:details.description')} />
           <Card>
             <Text variant="bodyMedium" selectable>
-              {meeting.description}
+              {htmlToPlainText(meeting.description)}
             </Text>
           </Card>
         </>

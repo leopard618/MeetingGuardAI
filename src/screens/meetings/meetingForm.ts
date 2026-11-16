@@ -28,6 +28,7 @@ import {
   type ConferencePushTarget,
 } from '../../core/conference';
 import { weekdayOfLocalDate } from '../../core/recurrence';
+import { htmlToPlainText } from '../../utils/htmlText';
 import { isLocalDate, isLocalTime, isValidTimeZone, toLocalDateTime, zonedDateTimeToUtcIso } from '../../core/time';
 import {
   DEFAULT_MEETING_DURATION_MINUTES,
@@ -194,7 +195,8 @@ export function draftFromMeeting(meeting: Meeting, options: { fallbackTimeZone: 
   const rule = meeting.recurrence;
   return {
     title: meeting.title,
-    description: meeting.description,
+    // A description stored as HTML (imported before plain-text import) is edited as plain text.
+    description: htmlToPlainText(meeting.description),
     date: local.date,
     time: local.time,
     allDay: meeting.allDay,
