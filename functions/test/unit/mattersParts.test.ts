@@ -1,9 +1,9 @@
-import { addressesIn, normalizeProposal, buildDraftMessages, draftMatter, PROPOSE_MATTER_TOOL, stripSignature } from '../../src/matters/draft';
+import { addressesIn, foldApostrophes, normalizeProposal, buildDraftMessages, draftMatter, PROPOSE_MATTER_TOOL, resolveLocalDateTime, stripSignature } from '../../src/matters/draft';
 import { composeFirstEmail, createPostmarkSender, postmarkPayload, POSTMARK_API_URL, type EmailSendError } from '../../src/matters/email';
 import { matchInbound, ownMessageIdMatter, parseInbound, toMatterMessage } from '../../src/matters/inbound';
 import { MATTER_LIMITS, draftHash, isOwnDomain, matterMessageSchema, messageIdKey, type Mandate, type MatterDoc } from '../../src/matters/model';
 import { checkSend } from '../../src/matters/sendCheck';
-import { disclosureFooter, formatWindow, readBack, senderName } from '../../src/matters/text';
+import { DISPLAY_NAME_CHARS, QUESTIONS, disclosureFooter, formatWindow, ownerDisplayName, readBack, safeDisplayName, senderName } from '../../src/matters/text';
 import { FakeLlm, FakeMatterStore, DOMAIN, NOW, REQUEST, TOKEN, inboundPayload, proposal } from './mattersFakes';
 
 const ctx = (overrides: Partial<Parameters<typeof normalizeProposal>[1]> = {}) => ({
@@ -72,7 +72,7 @@ describe('matters draft: the model proposes, code decides', () => {
     const request = `Write to Carlos at m-${TOKEN}@${DOMAIN} until Friday.`;
     const result = normalizeProposal(proposal({ contacts: [{ name: 'Carlos', email: `m-${TOKEN}@${DOMAIN}` }] }), ctx({ request }));
     expect(result.mandate).toBeNull();
-    expect(result.questions[0]).toMatch(/belongs to the assistant itself, not to Carlos/);
+    expect(result.questions[0]).toBe('That address belongs to the assistant itself. What is the email address of Carlos?');
     expect(isOwnDomain(`x@mail.${DOMAIN}`, DOMAIN)).toBe(true);
     expect(isOwnDomain('x@meetingguard.ai', DOMAIN)).toBe(false);
     expect(isOwnDomain(`x@not${DOMAIN}`, DOMAIN)).toBe(false);
@@ -88,7 +88,7 @@ describe('matters draft: the model proposes, code decides', () => {
   });
 
   it('removes a name the model put under the closing (code signs every email)', () => {
-    const names = ['Ana Lopez', "Ana Lopez's AI assistant"];
+    const names = ['Ana Lopez', 'AI assistant for Ana Lopez', "Ana Lopez's AI assistant"];
     expect(stripSignature('Hello Carlos,\nCould you send it?\nBest,\nAna Lopez', names)).toBe('Hello Carlos,\nCould you send it?\nBest,');
     expect(stripSignature("Hello,\nBest,\nana lopez's ai assistant\n", names)).toBe('Hello,\nBest,');
     expect(stripSignature('Hello Ana Lopez,\nBest,', names)).toBe('Hello Ana Lopez,\nBest,');
@@ -111,20 +111,77 @@ describe('matters draft: the model proposes, code decides', () => {
       proposal({
         contacts: [{ name: 'Ana', email: null }],
         ends_at: null,
-        questions: ["What should I use as Ana's email address?", 'Until when should I follow up?', 'Should the call be on video?'],
+        questions: [
+          { text: "What should I use as Ana's email address?", topic: 'email' },
+          { text: 'Until when should I follow up?', topic: 'end_date' },
+          { text: 'Should the call be on video?', topic: 'other' },
+        ],
       }),
       ctx({ request: 'Set up a call with Ana next week.' }),
     );
     expect(result.questions).toEqual(['What is the email address of Ana?', 'Until when should I keep working on this?', 'Should the call be on video?']);
     const es = normalizeProposal(
-      proposal({ contacts: [{ name: 'Ana', email: null }], questions: ['¿Cuál es el correo de Ana?', '¿La llamada es por video?'] }),
+      proposal({ contacts: [{ name: 'Ana', email: null }], questions: [{ text: '¿Cuál es el correo de Ana?', topic: 'email' }, { text: '¿La llamada es por video?', topic: 'other' }] }),
       ctx({ language: 'es', request: 'Organiza una llamada con Ana hasta el viernes.' }),
     );
     expect(es.questions).toEqual(['¿Cuál es la dirección de correo de Ana?', '¿La llamada es por video?']);
   });
 
+  it('matches an address typed with an iPhone curly apostrophe, and only folds apostrophes', () => {
+    const curly = 'Write to o\u2019brien@acme.com about it.';
+    expect(addressesIn(curly)).toEqual(new Set(["o'brien@acme.com"]));
+    // the model echoes either form: both match what the user wrote
+    for (const email of ["o'brien@acme.com", 'o\u2019brien@acme.com', 'o\u02bcbrien@acme.com']) {
+      const result = normalizeProposal(proposal({ contacts: [{ name: 'Sean', email }] }), ctx({ request: curly }));
+      expect(result.mandate?.contacts[0]?.email).toBe("o'brien@acme.com");
+    }
+    expect(addressesIn(curly).has('brien@acme.com')).toBe(false);
+    // iOS turns "--" into an em dash: that stays a different mailbox, never ana-lopez
+    expect(foldApostrophes('ana\u2014lopez@acme.com')).toBe('ana\u2014lopez@acme.com');
+    expect(addressesIn('Write to ana\u2014lopez@acme.com').has('ana-lopez@acme.com')).toBe(false);
+  });
+
+  it('reads an address with a possessive after it, straight or curly', () => {
+    expect(addressesIn("Send it to ana@acme.com's office.")).toEqual(new Set(['ana@acme.com']));
+    expect(addressesIn('Send it to ana@acme.com\u2019s office.')).toEqual(new Set(['ana@acme.com']));
+    expect(addressesIn("It is ana@acme.com's.")).toEqual(new Set(['ana@acme.com']));
+    // an apostrophe in the local part is part of the address
+    expect(addressesIn("o'brien@acme.com's desk")).toEqual(new Set(["o'brien@acme.com"]));
+  });
+
+  it('keeps the own-domain question within the question limit with the longest name', () => {
+    const name = 'N'.repeat(MATTER_LIMITS.nameChars);
+    for (const language of ['en', 'es'] as const) expect(QUESTIONS.ownDomain(name, language).length).toBeLessThanOrEqual(MATTER_LIMITS.itemChars);
+    const result = normalizeProposal(proposal({ contacts: [{ name, email: `assistant@${DOMAIN}` }] }), ctx({ request: `Write to ${name}` }));
+    expect(result.questions[0]).toContain(name);
+  });
+
+  it('reads dates as local wall-clock time in the user\'s zone, also across a DST change', () => {
+    // Europe/Madrid leaves summer time on 2026-10-25: 23:59 local is 21:59Z before, 22:59Z after
+    expect(resolveLocalDateTime('2026-10-24T23:59', 'Europe/Madrid')?.toISOString()).toBe('2026-10-24T21:59:00.000Z');
+    expect(resolveLocalDateTime('2026-10-26T23:59', 'Europe/Madrid')?.toISOString()).toBe('2026-10-26T22:59:00.000Z');
+    // an offset the model added anyway is ignored: the wall-clock time is re-read in the zone
+    expect(resolveLocalDateTime('2026-10-26T23:59:00+02:00', 'Europe/Madrid')?.toISOString()).toBe('2026-10-26T22:59:00.000Z');
+    expect(resolveLocalDateTime('2026-11-13T18:00:00Z', 'Europe/Madrid')?.toISOString()).toBe('2026-11-13T17:00:00.000Z');
+    expect(resolveLocalDateTime('Friday', 'Europe/Madrid')).toBeNull();
+    expect(resolveLocalDateTime('2026-02-30T10:00', 'Europe/Madrid')).toBeNull();
+    // an unreadable end date is asked again
+    expect(normalizeProposal(proposal({ ends_at: 'next Friday' }), ctx()).questions).toEqual(['Until when should I keep working on this?']);
+    // the end of a day after the change, in New York
+    const ny = normalizeProposal(proposal({ ends_at: '2026-11-13T23:59' }), ctx({ timeZone: 'America/New_York' }));
+    expect(ny.mandate?.endsAt).toBe('2026-11-14T04:59:00.000Z');
+  });
+
+  it('drops a model question by its topic when the code already asks it, whatever the wording', () => {
+    const result = normalizeProposal(
+      proposal({ contacts: [{ name: 'Ana', email: null }], questions: [{ text: 'How do I reach Ana?', topic: 'email' }, { text: 'Video or phone?', topic: 'other' }] }),
+      ctx(),
+    );
+    expect(result.questions).toEqual(['What is the email address of Ana?', 'Video or phone?']);
+  });
+
   it('keeps a model question about the address when the code did not ask for one', () => {
-    const result = normalizeProposal(proposal({ questions: ['Should I also write to Carlos\'s assistant by email?'] }), ctx());
+    const result = normalizeProposal(proposal({ questions: [{ text: 'Should I also write to Carlos\'s assistant by email?', topic: 'email' }] }), ctx());
     expect(result.questions).toEqual(["Should I also write to Carlos's assistant by email?"]);
   });
 
@@ -140,7 +197,7 @@ describe('matters draft: the model proposes, code decides', () => {
   });
 
   it('keeps the model\'s own questions, and nothing is complete while any remain', () => {
-    const result = normalizeProposal(proposal({ questions: ['Should the meeting be online?'] }), ctx());
+    const result = normalizeProposal(proposal({ questions: [{ text: 'Should the meeting be online?', topic: 'other' }] }), ctx());
     expect(result.mandate).toBeNull();
     expect(result.questions).toEqual(['Should the meeting be online?']);
   });
@@ -152,9 +209,10 @@ describe('matters draft: the model proposes, code decides', () => {
           needed: true,
           duration_minutes: 2,
           windows: [
-            { start: '2026-11-12T08:00:00Z', end: '2026-11-12T12:00:00Z' },
-            { start: '2026-11-13T16:00:00Z', end: '2026-11-13T20:00:00Z' },
-            { start: '2026-11-20T09:00:00Z', end: '2026-11-20T10:00:00Z' },
+            // local wall-clock times in Europe/Madrid (UTC+1 in November)
+            { start: '2026-11-12T09:00', end: '2026-11-12T13:00' },
+            { start: '2026-11-13T17:00', end: '2026-11-13T21:00' },
+            { start: '2026-11-20T10:00', end: '2026-11-20T11:00' },
           ],
         },
         follow_up: { every_days: 40, max_count: 50 },
@@ -210,7 +268,7 @@ describe('matters draft: the model proposes, code decides', () => {
 });
 
 describe('matters text: the read-back and the email framing', () => {
-  const mandate = normalizeProposal(proposal({ meeting: { needed: true, duration_minutes: 30, windows: [{ start: '2026-11-13T08:00:00Z', end: '2026-11-13T12:00:00Z' }] } }), ctx()).mandate!;
+  const mandate = normalizeProposal(proposal({ meeting: { needed: true, duration_minutes: 30, windows: [{ start: '2026-11-13T09:00', end: '2026-11-13T13:00' }] } }), ctx()).mandate!;
 
   it('reads the whole mandate back in English, in the user\'s zone', () => {
     const text = readBack(mandate, 'ana@example.com', 'en');
@@ -264,11 +322,23 @@ describe('matters text: the read-back and the email framing', () => {
   });
 
   it('always says it is an AI assistant, and keeps names safe in headers', () => {
-    expect(senderName('Ana Lopez', 'en')).toBe("Ana Lopez's AI assistant");
+    expect(senderName('Ana Lopez', 'en')).toBe('AI assistant for Ana Lopez');
     expect(senderName('Ana Lopez', 'es')).toBe('Asistente de IA de Ana Lopez');
     expect(senderName('', 'en')).toBe('Meeting Guard AI assistant');
-    expect(senderName('Eve" <evil@x.com>\r\nBcc: a@b.c', 'en')).toBe("Eve evil@x.com Bcc: a@b.c's AI assistant");
-    expect(disclosureFooter('Ana Lopez', 'en')).toMatch(/^--\nI am Ana Lopez's AI assistant\. This email was written by AI/);
+    expect(senderName('Eve" <evil@x.com>\r\nBcc: a@b.c', 'en')).toBe('AI assistant for Eve evil@x.com Bcc: a@b.c');
+    expect(disclosureFooter('Ana Lopez', 'en')).toMatch(/^--\nI am the AI assistant for Ana Lopez\. This email was written by AI/);
+  });
+
+  it('strips invisible and bidi characters from the name, caps it at 40, and refuses names that look like us', () => {
+    // a right-to-left override would show "AI assistant for" reordered; zero-width characters hide text
+    expect(safeDisplayName('Ana‮ Lopez​⁦')).toBe('Ana Lopez');
+    expect(safeDisplayName('A'.repeat(60))).toHaveLength(DISPLAY_NAME_CHARS);
+    expect(ownerDisplayName('Ana Lopez', DOMAIN)).toBe('Ana Lopez');
+    expect(ownerDisplayName('Meeting Guard Support', DOMAIN)).toBe('');
+    expect(ownerDisplayName('MEETING-GUARD', DOMAIN)).toBe('');
+    expect(ownerDisplayName(`Security ${DOMAIN}`, DOMAIN)).toBe('');
+    expect(ownerDisplayName('​‮', DOMAIN)).toBe('');
+    expect(senderName(ownerDisplayName('Meeting Guard Billing', DOMAIN), 'en')).toBe('Meeting Guard AI assistant');
   });
 });
 
@@ -293,6 +363,7 @@ function activeMatter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     firstSentAt: null,
     firstSendState: 'none',
     firstSendClaimedAt: null,
+    firstSendUnknownCause: null,
     replyToken: TOKEN,
     createdAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
@@ -349,7 +420,7 @@ describe('matters email: composing and Postmark', () => {
 
   it('sends from the assistant\'s own address with the matter\'s reply address and the footer', () => {
     expect(email).toMatchObject({
-      from: `"Ana Lopez's AI assistant" <assistant@${DOMAIN}>`,
+      from: `"AI assistant for Ana Lopez" <assistant@${DOMAIN}>`,
       to: ['carlos@example.com'],
       cc: ['ana@example.com'],
       replyTo: `m-${TOKEN}@${DOMAIN}`,
@@ -357,7 +428,7 @@ describe('matters email: composing and Postmark', () => {
       messageId: `<m1.r1@${DOMAIN}>`,
     });
     // code signs under the model's closing, then the footer
-    expect(email.text).toMatch(/Could you send the updated proposal\?\n\nBest,\nAna Lopez's AI assistant\n\n--\nI am Ana Lopez's AI assistant/);
+    expect(email.text).toMatch(/Could you send the updated proposal\?\n\nBest,\nAI assistant for Ana Lopez\n\n--\nI am the AI assistant for Ana Lopez/);
   });
 
   it('leaves the owner out of copy for a daily summary', () => {
@@ -393,7 +464,8 @@ describe('matters email: composing and Postmark', () => {
   it('sends with the server token (the public test token works without an account)', async () => {
     const { fn, calls } = fakeFetch(200, { ErrorCode: 0, Message: 'Test job accepted', MessageID: 'pm-1' });
     const sender = createPostmarkSender({ token: 'POSTMARK_API_TEST', messageStream: 'outbound', timeoutMs: 1000, fetch: fn });
-    await expect(sender.send(email)).resolves.toEqual({ providerId: 'pm-1' });
+    // the public test token is flagged, so the send is recorded as a test (delivered to nobody)
+    await expect(sender.send(email)).resolves.toEqual({ providerId: 'pm-1', test: true });
     expect(calls[0]!.url).toBe(POSTMARK_API_URL);
     expect(calls[0]!.init.headers['X-Postmark-Server-Token']).toBe('POSTMARK_API_TEST');
     expect(JSON.parse(calls[0]!.init.body).To).toBe('carlos@example.com');

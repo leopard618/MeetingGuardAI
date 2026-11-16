@@ -2,6 +2,7 @@ import { HttpsError } from 'firebase-functions/https';
 
 import { UpstreamError } from '../../src/assistant/errors';
 import { EmailSendError } from '../../src/matters/email';
+import { MatterUnreadableError } from '../../src/matters/store';
 import {
   handleInboundEmail,
   handleMatterCancel,
@@ -9,7 +10,7 @@ import {
   handleMatterDraft,
   handleMatterRevise,
 } from '../../src/matters/handlers';
-import { messageIdKey } from '../../src/matters/model';
+import { SENDING_WINDOW_MS, matterDocReadSchema, messageIdKey } from '../../src/matters/model';
 import { CALLER, DOMAIN, NOW, REQUEST, TOKEN, inboundPayload, makeDeps, proposal } from './mattersFakes';
 
 jest.mock('firebase-functions/logger', () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }));
@@ -35,12 +36,12 @@ describe('matterDraft', () => {
     expect(draft.questions).toEqual([]);
     expect(draft.readBack).toContain('I will email Carlos Ruiz (carlos@example.com)');
     expect(draft.firstEmail).toMatchObject({
-      from: `"Ana Lopez's AI assistant" <assistant@${DOMAIN}>`,
+      from: `"AI assistant for Ana Lopez" <assistant@${DOMAIN}>`,
       to: ['carlos@example.com'],
       cc: ['ana@example.com'],
       subject: 'Updated proposal',
     });
-    expect(draft.firstEmail?.text).toMatch(/I am Ana Lopez's AI assistant/);
+    expect(draft.firstEmail?.text).toMatch(/I am the AI assistant for Ana Lopez/);
     expect(draft.draftHash).toMatch(/^[a-f0-9]{64}$/);
     // nothing is sent before the confirmation
     expect(sender.sent).toHaveLength(0);
@@ -89,6 +90,68 @@ describe('matterDraft', () => {
   });
 });
 
+describe('matter reads', () => {
+  it('tolerates a field this version does not know (a newer version wrote it), but not a broken one', () => {
+    const base = {
+      status: 'draft',
+      language: 'en',
+      timeZone: 'Europe/Madrid',
+      title: 'T',
+      request: 'R',
+      source: 'text',
+      ownerName: '',
+      ownerEmail: null,
+      mandate: null,
+      firstEmail: null,
+      questions: [],
+      readBack: '',
+      mandateVersion: 1,
+      confirmedHash: null,
+      confirmedAt: null,
+      firstSentAt: null,
+      replyToken: TOKEN,
+      createdAt: NOW.toISOString(),
+      updatedAt: NOW.toISOString(),
+      endedAt: null,
+    };
+    const read = matterDocReadSchema.safeParse({ ...base, autoReplyCount: 2 });
+    expect(read.success).toBe(true);
+    // defaults fill fields written before they existed
+    expect(read.success && read.data).toMatchObject({ firstSendState: 'none', firstSendClaimedAt: null, firstSendUnknownCause: null });
+    expect(matterDocReadSchema.safeParse({ ...base, status: 'archived' }).success).toBe(false);
+  });
+});
+
+describe('matterDraft: accounts', () => {
+  it('copies only an email the token says is verified, even for a trusted sign-in provider', async () => {
+    const { deps, store, llm } = makeDeps();
+    llm.queue.push(proposal());
+    const draft = await handleMatterDraft({ ...CALLER, emailVerified: false, signInProvider: 'google.com' }, draftRequest, deps);
+    const doc = await store.getMatter('u1', draft.matterId);
+    expect(doc).toMatchObject({ ownerEmail: null });
+    // no verified email for the copies: one summary a day instead of cc
+    expect(doc?.mandate?.copyOwner).toBe('daily_summary');
+  });
+
+  it('never creates a matter for an account that is being deleted', async () => {
+    const { deps, store, llm } = makeDeps();
+    store.deletions.add('u1');
+    llm.queue.push(proposal());
+    expect(await reason(handleMatterDraft(CALLER, draftRequest, deps))).toBe('unauthenticated');
+    expect(store.matters.size).toBe(0);
+    expect(store.addresses.size).toBe(0);
+  });
+
+  it('shows a cleaned name, and the generic sender for a name that looks like us', async () => {
+    const { deps, llm } = makeDeps();
+    llm.queue.push(proposal(), proposal());
+    const odd = await handleMatterDraft({ ...CALLER, name: 'Ana\u202e Lopez' }, draftRequest, deps);
+    expect(odd.firstEmail?.from).toBe(`"AI assistant for Ana Lopez" <assistant@${DOMAIN}>`);
+    const fake = await handleMatterDraft({ ...CALLER, name: 'Meeting Guard Security' }, draftRequest, deps);
+    expect(fake.firstEmail?.from).toBe(`"Meeting Guard AI assistant" <assistant@${DOMAIN}>`);
+  });
+});
+
 describe('matterRevise', () => {
   it('drafts again from the request plus the answer', async () => {
     const { deps, store, llm } = makeDeps();
@@ -101,6 +164,21 @@ describe('matterRevise', () => {
     expect(llm.requests[1]!.messages[1]!.content).toContain('Ask Carlos for the proposal by Friday.\ncarlos@example.com');
     expect((await store.getMatter('u1', first.matterId))?.mandateVersion).toBe(2);
     expect(store.eventTypes('u1', first.matterId)).toEqual(['created', 'mandate_drafted']);
+  });
+
+  it('refuses to overwrite a revision that finished while this one was drafting', async () => {
+    const { deps, store, llm } = makeDeps();
+    llm.queue.push(proposal({ contacts: [{ name: 'Carlos', email: null }] }));
+    const first = await handleMatterDraft(CALLER, { ...draftRequest, text: 'Ask Carlos for the proposal by Friday.' }, deps);
+    // another revise lands (mandateVersion 1 -> 2) while the model answers this one
+    const llmSlow = { complete: async (request: Parameters<typeof llm.complete>[0]) => {
+      const key = `u1/${first.matterId}`;
+      store.matters.set(key, { ...store.matters.get(key)!, mandateVersion: 2 });
+      return llm.complete(request);
+    } };
+    llm.queue.push(proposal());
+    expect(await reason(handleMatterRevise(CALLER, { matterId: first.matterId, answer: 'carlos@example.com' }, { ...deps, llm: () => llmSlow }))).toBe('stale_draft');
+    expect((await store.getMatter('u1', first.matterId))?.mandateVersion).toBe(2);
   });
 
   it('only changes the caller\'s own drafts', async () => {
@@ -150,7 +228,7 @@ describe('matterConfirm', () => {
     // the stored email names the sender as the app showed it
     expect(store.messages.get(`u1/${draft.matterId}`)![0]).toMatchObject({
       status: 'sent',
-      from: { name: "Ana Lopez's AI assistant", email: `assistant@${DOMAIN}` },
+      from: { name: "AI assistant for Ana Lopez", email: `assistant@${DOMAIN}` },
       providerId: 'pm-1',
     });
     // our own Message-ID is indexed, so a reply threads by In-Reply-To as well
@@ -165,8 +243,56 @@ describe('matterConfirm', () => {
     const request = { matterId: draft.matterId, draftHash: draft.draftHash };
     const results = await Promise.all([handleMatterConfirm(CALLER, request, deps), handleMatterConfirm(CALLER, request, deps)]);
     expect(sender.attempts).toBe(1);
-    // the second call found the send claimed: it may be on its way, so it is reported unknown, not sent again
-    expect(results.map((r) => r.outcome).sort()).toEqual(['sent', 'unknown']);
+    // the second call found the send claimed and in progress: "sending" (check again), never a second send
+    expect(results.map((r) => r.outcome).sort()).toEqual(['sending', 'sent']);
+  });
+
+  it('claims a refused send again exactly once, even when two retries overlap', async () => {
+    const { deps, sender, draft } = await confirmedDraft();
+    const request = { matterId: draft.matterId, draftHash: draft.draftHash };
+    sender.failWith = new EmailSendError('rejected', 300);
+    await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toMatchObject({ outcome: 'failed' });
+    sender.failWith = null;
+    const results = await Promise.all([handleMatterConfirm(CALLER, request, deps), handleMatterConfirm(CALLER, request, deps)]);
+    // without the claim, both would see 'failed' and send: exactly one more send
+    expect(sender.attempts).toBe(2);
+    expect(sender.sent).toHaveLength(1);
+    expect(results.map((r) => r.outcome).sort()).toEqual(['sending', 'sent']);
+  });
+
+  it('says why a 406 is unknown, also on a later confirm, so the app leaves out the copy sentence', async () => {
+    const { deps, store, sender, draft } = await confirmedDraft();
+    const request = { matterId: draft.matterId, draftHash: draft.draftHash };
+    sender.failWith = new EmailSendError('unknown', 406);
+    await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toEqual({ matterId: draft.matterId, status: 'active', outcome: 'unknown', unknownCause: 'inactive_recipient' });
+    expect((await store.getMatter('u1', draft.matterId))?.firstSendUnknownCause).toBe('inactive_recipient');
+    sender.failWith = null;
+    await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toMatchObject({ outcome: 'unknown', unknownCause: 'inactive_recipient' });
+    // a timeout has no known cause
+    const other = await confirmedDraft();
+    other.sender.failWith = new EmailSendError('timeout', null);
+    const timedOut = await handleMatterConfirm(CALLER, { matterId: other.draft.matterId, draftHash: other.draft.draftHash }, other.deps);
+    expect(timedOut).toEqual({ matterId: other.draft.matterId, status: 'active', outcome: 'unknown' });
+    expect(sender.attempts).toBe(1);
+  });
+
+  it('records a send with the test token as a test: no firstSentAt, so nothing ever builds on it', async () => {
+    const { deps, store, sender, draft } = await confirmedDraft();
+    sender.test = true;
+    const request = { matterId: draft.matterId, draftHash: draft.draftHash };
+    await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toMatchObject({ outcome: 'sent' });
+    expect(await store.getMatter('u1', draft.matterId)).toMatchObject({ firstSendState: 'test', firstSentAt: null });
+    expect(store.messages.get(`u1/${draft.matterId}`)![0]).toMatchObject({ status: 'test', providerId: 'pm-1' });
+    expect(store.eventTypes('u1', draft.matterId)).toEqual(['created', 'mandate_confirmed', 'email_test']);
+    // a repeated confirm never sends again
+    await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toMatchObject({ outcome: 'sent' });
+    expect(sender.attempts).toBe(1);
+  });
+
+  it('reports a damaged matter as its own outcome, never as not_found', async () => {
+    const { deps, store, draft } = await confirmedDraft();
+    jest.spyOn(store, 'updateMatter').mockRejectedValueOnce(new MatterUnreadableError('u1', draft.matterId, ['status']));
+    expect(await reason(handleMatterConfirm(CALLER, { matterId: draft.matterId, draftHash: draft.draftHash }, deps))).toBe('upstream_error');
   });
 
   it.each([
@@ -195,7 +321,11 @@ describe('matterConfirm', () => {
     const request = { matterId: draft.matterId, draftHash: draft.draftHash };
     await expect(handleMatterConfirm(CALLER, request, deps)).rejects.toThrow('instance stopped');
     sender.failWith = null;
-    await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toMatchObject({ outcome: 'unknown' });
+    // right after, the claim still looks like a send in progress: "check again", never a send
+    await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toMatchObject({ outcome: 'sending' });
+    // once the claim is older than any call can live, it is unknown, and still never resent
+    const later = { ...deps, now: () => new Date(NOW.getTime() + SENDING_WINDOW_MS + 1000) };
+    await expect(handleMatterConfirm(CALLER, request, later)).resolves.toMatchObject({ outcome: 'unknown' });
     expect(sender.attempts).toBe(1);
   });
 
@@ -304,6 +434,7 @@ describe('inbound email', () => {
     // u2 has a matter of their own, with another reply address
     const otherToken = 'fedcba9876543210fedcba98';
     const second = await handleMatterDraft({ ...CALLER, uid: 'u2' }, draftRequest, { ...deps, newToken: () => otherToken });
+    await handleMatterConfirm({ ...CALLER, uid: 'u2' }, { matterId: second.matterId, draftHash: second.draftHash }, { ...deps, random: () => 'r2' });
     const inbound = { store, now: deps.now, domain: DOMAIN, markerTtlDays: 7 };
     // someone writes to u2's address and reuses u1's Message-ID as their own
     const spoof = inboundPayload({
@@ -313,10 +444,10 @@ describe('inbound email', () => {
       Headers: [{ Name: 'Message-ID', Value: `<${first.matterId}.r1@${DOMAIN}>` }],
     });
     await expect(handleInboundEmail(spoof, inbound)).resolves.toBe('stored');
-    expect(store.messages.get(`u2/${second.matterId}`)).toHaveLength(1);
+    expect(store.messages.get(`u2/${second.matterId}`)!.map((m) => m.direction)).toEqual(['outbound', 'inbound']);
     // the index still points at u1, and holds nothing but our own outgoing id
     expect(store.messageIds.get(ours)).toEqual({ uid: 'u1', matterId: first.matterId });
-    expect([...store.messageIds.keys()]).toEqual([ours]);
+    expect([...store.messageIds.keys()]).toEqual([ours, messageIdKey(`<${second.matterId}.r2@${DOMAIN}>`)]);
     // so a real reply that only carries In-Reply-To still reaches u1's matter
     const reply = inboundPayload({ MessageID: 'reply-1', ToFull: [], OriginalRecipient: '', Headers: [{ Name: 'In-Reply-To', Value: `<${first.matterId}.r1@${DOMAIN}>` }] });
     await expect(handleInboundEmail(reply, inbound)).resolves.toBe('stored');
@@ -341,14 +472,48 @@ describe('inbound email', () => {
     expect(store.messages.size).toBe(0);
   });
 
-  it('lets the provider retry when storing failed', async () => {
+  it('lets the provider retry when storing failed: the marker is written in the same batch, so nothing is left to release', async () => {
     const { deps, store, llm } = makeDeps();
     llm.queue.push(proposal());
-    await handleMatterDraft(CALLER, draftRequest, deps);
+    const draft = await handleMatterDraft(CALLER, draftRequest, deps);
+    await handleMatterConfirm(CALLER, { matterId: draft.matterId, draftHash: draft.draftHash }, deps);
     const inbound = { store, now: deps.now, domain: DOMAIN, markerTtlDays: 7 };
-    const add = jest.spyOn(store, 'addMessage').mockRejectedValueOnce(new Error('unavailable'));
-    await expect(handleInboundEmail(inboundPayload(), inbound)).rejects.toThrow('unavailable');
-    add.mockRestore();
+    store.failNextInboundWrite = true;
+    await expect(handleInboundEmail(inboundPayload(), inbound)).rejects.toThrow('write failed');
+    expect(store.inbound.size).toBe(0);
     await expect(handleInboundEmail(inboundPayload(), inbound)).resolves.toBe('stored');
+    await expect(handleInboundEmail(inboundPayload(), inbound)).resolves.toBe('duplicate');
+    expect(store.messages.get(`u1/${draft.matterId}`)!.filter((m) => m.direction === 'inbound')).toHaveLength(1);
+  });
+
+  it('keeps mail only for live matters: never for a draft, and for an ended matter only for a week', async () => {
+    const { deps, store, llm } = makeDeps();
+    llm.queue.push(proposal());
+    const draft = await handleMatterDraft(CALLER, draftRequest, deps);
+    const key = `u1/${draft.matterId}`;
+    const inbound = { store, now: deps.now, domain: DOMAIN, markerTtlDays: 7 };
+    // a draft: nothing was sent, so nobody can be replying (marked, not stored)
+    await expect(handleInboundEmail(inboundPayload({ MessageID: 'd-1' }), inbound)).resolves.toBe('unmatched');
+    await expect(handleInboundEmail(inboundPayload({ MessageID: 'd-1' }), inbound)).resolves.toBe('duplicate');
+    expect(store.messages.get(key)).toBeUndefined();
+    // paused: kept
+    store.matters.set(key, { ...store.matters.get(key)!, status: 'paused' });
+    await expect(handleInboundEmail(inboundPayload({ MessageID: 'p-1' }), inbound)).resolves.toBe('stored');
+    // cancelled six days ago: kept; eight days ago: not
+    const ended = (days: number) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
+    store.matters.set(key, { ...store.matters.get(key)!, status: 'cancelled', endedAt: ended(6) });
+    await expect(handleInboundEmail(inboundPayload({ MessageID: 'c-1' }), inbound)).resolves.toBe('stored');
+    store.matters.set(key, { ...store.matters.get(key)!, status: 'cancelled', endedAt: ended(8) });
+    await expect(handleInboundEmail(inboundPayload({ MessageID: 'c-2' }), inbound)).resolves.toBe('unmatched');
+    expect(store.messages.get(key)).toHaveLength(2);
+  });
+
+  it('looks up at most five reply-address tokens per email', async () => {
+    const { deps, store } = makeDeps();
+    const lookups = jest.spyOn(store, 'findByToken');
+    const many = Array.from({ length: 40 }, (_, i) => ({ Email: `m-${i.toString(16).padStart(24, '0')}@${DOMAIN}`, Name: '', MailboxHash: '' }));
+    const inbound = { store, now: deps.now, domain: DOMAIN, markerTtlDays: 7 };
+    await expect(handleInboundEmail(inboundPayload({ ToFull: many, OriginalRecipient: '' }), inbound)).resolves.toBe('unmatched');
+    expect(lookups).toHaveBeenCalledTimes(5);
   });
 });

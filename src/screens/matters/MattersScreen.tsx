@@ -7,9 +7,10 @@
  * draft:   the questions (answer -> matterRevise), or the read-back of the mandate and the first
  *          email exactly as it will be sent; "Confirm and send" sends the draft's hash
  *          (matterConfirm), "Change the draft" -> matterRevise, "Cancel this matter" -> matterCancel
- * done:    sent / not sent (refused: retry = the same confirm) / unknown (no clear answer: it may
- *          have gone out, so no retry) / cancelled; until cancelled, the matter can still be
- *          cancelled from here
+ * done:    sent / sending (another call is sending it: "check again" = the same confirm, which never
+ *          sends twice) / not sent (refused: retry = the same confirm) / unknown (no clear answer:
+ *          it may have gone out, so no retry; the copy sentence only with a copy and not after a
+ *          406) / cancelled; until cancelled, the matter can still be cancelled from here
  * Every string lives in the "matters" namespace (EN + ES). Nothing typed is logged.
  */
 import { useCallback, useState, type ReactElement } from 'react';
@@ -18,7 +19,7 @@ import { Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
-import type { MatterDraftResponse, MatterSendOutcome } from '../../core/aiContract';
+import type { MatterConfirmResponse, MatterDraftResponse, MatterSendOutcome } from '../../core/aiContract';
 import { errorMessageKey, toAppError, type AppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
 import { toBaseLanguage } from '../../core/types';
@@ -29,13 +30,17 @@ import { ScreenBody, Section } from '../shared/Section';
 
 
 type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | null;
-type Done = { kind: 'sent' } | { kind: 'not_sent' } | { kind: 'unknown' } | { kind: 'cancelled' };
+type Done = { kind: 'sent' } | { kind: 'sending' } | { kind: 'not_sent' } | { kind: 'unknown'; inactiveRecipient: boolean } | { kind: 'cancelled' };
 
-const DONE_BY_OUTCOME: Readonly<Record<MatterSendOutcome, Done>> = {
-  sent: { kind: 'sent' },
-  failed: { kind: 'not_sent' },
-  unknown: { kind: 'unknown' },
-};
+function doneFor(result: MatterConfirmResponse): Done {
+  const kinds: Readonly<Record<MatterSendOutcome, Done>> = {
+    sent: { kind: 'sent' },
+    sending: { kind: 'sending' },
+    failed: { kind: 'not_sent' },
+    unknown: { kind: 'unknown', inactiveRecipient: result.unknownCause === 'inactive_recipient' },
+  };
+  return kinds[result.outcome];
+}
 
 /** The message key for a failed action (the server's reason first, then the generic one). */
 export function matterErrorKey(error: AppError): string {
@@ -89,7 +94,7 @@ export function MattersScreen(): ReactElement {
     run('confirm', async () => {
       if (!draft?.draftHash) return;
       const result = await matterService.confirm(draft.matterId, draft.draftHash);
-      setDone(DONE_BY_OUTCOME[result.outcome]);
+      setDone(doneFor(result));
     });
 
   const cancel = (): Promise<void> =>
@@ -141,9 +146,22 @@ export function MattersScreen(): ReactElement {
             </MGButton>
           </>
         ) : null}
-        {/* no retry: the email may have gone out, and it is never sent twice */}
+        {done.kind === 'sending' ? (
+          <>
+            <Banner tone="info" text={t('matters:result.sending')} testID="matters-sending" />
+            <MGButton style={styles.action} onPress={() => void confirm()} loading={busy === 'confirm'} disabled={busy !== null} testID="matters-check-again">
+              {t('matters:result.checkAgain')}
+            </MGButton>
+          </>
+        ) : null}
+        {/* no retry: the email may have gone out, and it is never sent twice. "Your copy shows whether
+            it arrived" only with a copy, and not after a 406: then the copy arrives, the contact's does not */}
         {done.kind === 'unknown' ? (
-          <Banner tone="warning" text={t(draft?.firstEmail?.cc.length ? 'matters:result.unknown' : 'matters:result.unknownNoCopy')} testID="matters-unknown" />
+          <Banner
+            tone="warning"
+            text={t(draft?.firstEmail?.cc.length && !done.inactiveRecipient ? 'matters:result.unknown' : 'matters:result.unknownNoCopy')}
+            testID="matters-unknown"
+          />
         ) : null}
         <MGButton variant="tonal" style={styles.action} onPress={startOver} disabled={busy !== null} testID="matters-new">
           {t('matters:newMatter')}

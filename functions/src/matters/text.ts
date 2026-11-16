@@ -136,10 +136,11 @@ export const QUESTIONS = {
       : `The end date can be at most ${days} days away. Until when should I keep working on this?`,
   endsInPast: (language: Language) =>
     language === 'es' ? 'Esa fecha ya ha pasado. ¿Hasta cuándo debo seguir?' : 'That date has already passed. Until when should I keep working on this?',
+  // the contact is named once: names go up to 100 characters and a question to 200
   ownDomain: (name: string, language: Language) =>
     language === 'es'
-      ? `Esa dirección es del propio asistente, no de ${name}. ¿Cuál es la dirección de correo de ${name}?`
-      : `That address belongs to the assistant itself, not to ${name}. What is the email address of ${name}?`,
+      ? `Esa dirección es del propio asistente. ¿Cuál es la dirección de correo de ${name}?`
+      : `That address belongs to the assistant itself. What is the email address of ${name}?`,
   windowsOutside: (language: Language) =>
     language === 'es'
       ? 'Las horas que me diste para la reunión ya han pasado o son después de la fecha límite. ¿Qué días y horas te vienen bien?'
@@ -156,20 +157,46 @@ export const QUESTIONS = {
 // The emails
 // ---------------------------------------------------------------------------------------------
 
-/** A name safe inside a quoted display name (no quotes, angle brackets or line breaks). */
+/** The owner's name is cut to this in the sender name and the footer. */
+export const DISPLAY_NAME_CHARS = 40;
+
+/**
+ * A name safe inside a quoted display name: no quotes, angle brackets, backslashes, line breaks,
+ * control characters or invisible format characters (Unicode Cf, which includes the bidi controls
+ * that could reorder "AI assistant for" visually), at most DISPLAY_NAME_CHARS characters.
+ */
 export function safeDisplayName(name: string): string {
   return name
-    .replace(/[\r\n"<>\\]/g, ' ')
+    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ')
+    .replace(/["<>\\]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 60);
+    .slice(0, DISPLAY_NAME_CHARS)
+    .trim();
 }
 
-/** The display name of the sender: it always says it is an AI assistant. */
+/**
+ * The owner's name as the contacts will see it, from the account's display name: '' (the generic
+ * sender name) when it is empty after cleaning, or when it would make the email look like it comes
+ * from us rather than from the owner's assistant ("Meeting Guard", our mail domain).
+ */
+export function ownerDisplayName(name: string, domain: string): string {
+  const safe = safeDisplayName(name);
+  const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9.]/g, '');
+  const own = squash(domain.trim());
+  const squashed = squash(safe);
+  if (squashed.includes('meetingguard') || (own.length > 0 && squashed.includes(own))) return '';
+  return safe;
+}
+
+/**
+ * The display name of the sender: it always says it is an AI assistant, with the AI part first in
+ * both languages ("AI assistant for Ana Lopez", "Asistente de IA de Ana Lopez").
+ */
 export function senderName(ownerName: string, language: Language): string {
   const name = safeDisplayName(ownerName);
   if (language === 'es') return name ? `Asistente de IA de ${name}` : 'Asistente de IA de Meeting Guard AI';
-  return name ? `${name}'s AI assistant` : 'Meeting Guard AI assistant';
+  return name ? `AI assistant for ${name}` : 'Meeting Guard AI assistant';
 }
 
 /** Added by code under every email to a contact, so it always says what wrote it. */
@@ -181,6 +208,6 @@ export function disclosureFooter(ownerName: string, language: Language): string 
       : '--\nSoy un asistente de IA. Este correo lo ha escrito una IA, con Meeting Guard AI.';
   }
   return name
-    ? `--\nI am ${name}'s AI assistant. This email was written by AI on their behalf, with Meeting Guard AI, and ${name} is kept informed of this conversation.`
+    ? `--\nI am the AI assistant for ${name}. This email was written by AI on their behalf, with Meeting Guard AI, and ${name} is kept informed of this conversation.`
     : '--\nI am an AI assistant. This email was written by AI, with Meeting Guard AI.';
 }

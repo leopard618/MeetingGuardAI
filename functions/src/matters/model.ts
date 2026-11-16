@@ -207,18 +207,29 @@ export type MatterStatus = (typeof MATTER_STATUSES)[number];
  * none:    not tried yet
  * sending: claimed by one confirm call that is sending it now
  * sent:    the provider accepted it (firstSentAt)
+ * test:    accepted with Postmark's test token POSTMARK_API_TEST, which delivers nothing: no
+ *          firstSentAt, so no follow-up or reply ever builds on it
  * failed:  the provider clearly refused it (setup, rejected, rate limit): a retry may send again
  * unknown: no clear answer (timeout, lost connection, server error): it may have gone out, so it
  *          is never sent again automatically
  */
-export const FIRST_SEND_STATES = ['none', 'sending', 'sent', 'failed', 'unknown'] as const;
+export const FIRST_SEND_STATES = ['none', 'sending', 'sent', 'test', 'failed', 'unknown'] as const;
 export type FirstSendState = (typeof FIRST_SEND_STATES)[number];
+
+/** Why a send is 'unknown', when we know more (Postmark 406: the copy arrives, the contact's does not). */
+export const SEND_UNKNOWN_CAUSES = ['inactive_recipient'] as const;
+
+/**
+ * How long a 'sending' claim counts as a send in progress: a second confirm in this window hears
+ * 'sending' ("check again"); after it, the claiming call has died (the function timeout is 60 s) and
+ * the send is 'unknown'.
+ */
+export const SENDING_WINDOW_MS = 120_000;
 
 /** The secret part of a matter's reply address: 96 random bits, lowercase hex (case-safe in email). */
 export const REPLY_TOKEN_PATTERN = /^[a-f0-9]{24}$/;
 
-export const matterDocSchema = z
-  .object({
+const matterDocShape = {
     status: z.enum(MATTER_STATUSES),
     /** The user's interface language when the matter was created (read-back, questions). */
     language: languageSchema,
@@ -250,13 +261,24 @@ export const matterDocSchema = z
     firstSendState: z.enum(FIRST_SEND_STATES).default('none'),
     /** When the current send was claimed ('sending'). */
     firstSendClaimedAt: isoDateTimeSchema.nullable().default(null),
+    /** Set with firstSendState 'unknown' when the cause is known (SEND_UNKNOWN_CAUSES). */
+    firstSendUnknownCause: z.enum(SEND_UNKNOWN_CAUSES).nullable().default(null),
     replyToken: z.string().regex(REPLY_TOKEN_PATTERN),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,
     /** When it became done or cancelled. */
     endedAt: isoDateTimeSchema.nullable(),
-  })
-  .strict();
+};
+
+/** What the functions WRITE: strict, nothing outside the model. */
+export const matterDocSchema = z.object(matterDocShape).strict();
+
+/**
+ * What the functions READ: the same fields, but a field this version does not know (written by a
+ * newer version during a rollout) is dropped instead of making the whole matter unreadable. Updates
+ * are patches, so the unknown field stays in Firestore.
+ */
+export const matterDocReadSchema = z.object(matterDocShape);
 
 export type MatterDoc = z.infer<typeof matterDocSchema>;
 
@@ -273,6 +295,8 @@ export const MATTER_EVENT_TYPES = [
   'email_failed',
   /** The provider gave no clear answer: the email may have gone out (never resent automatically). */
   'email_unconfirmed',
+  /** Accepted with Postmark's test token: delivered to nobody. */
+  'email_test',
   'email_received',
   'status_changed',
 ] as const;
@@ -303,7 +327,8 @@ export const emailAuthSchema = z
   .strict();
 
 export const MESSAGE_DIRECTIONS = ['outbound', 'inbound'] as const;
-export const MESSAGE_STATUSES = ['sending', 'sent', 'failed', 'received'] as const;
+/** test: sent with Postmark's test token (accepted, delivered to nobody). */
+export const MESSAGE_STATUSES = ['sending', 'sent', 'test', 'failed', 'received'] as const;
 
 const messageIdSchema = z.string().min(3).max(MATTER_LIMITS.messageIdChars);
 

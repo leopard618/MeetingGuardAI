@@ -52,6 +52,34 @@ to users: the assistant stays switched off in every release until its beta (A10)
   owner's copy only when there is one; the shared deleteAccount header line is restored (own
   step 2a); SETUP and CONTRIBUTING say that a replaced secret needs a by-name redeploy and that
   the MATTERS_* lines stay in one developer's `.env`.
+- **A2.0, the groundwork for replies** (November 14), no new behaviour for the contacts:
+  - addresses: `o'brien@acme.com` typed with the iPhone curly apostrophe matches (only the three
+    apostrophe characters are folded, never dashes, so `ana--lopez` cannot become `ana-lopez`), and
+    `ana@acme.com's office` reads as `ana@acme.com`;
+  - dates: the model writes local wall-clock times and code resolves them in the user's zone, so
+    an end date or a meeting window after a daylight saving change is right; an unreadable one is
+    asked again;
+  - questions: each model question has a topic (email, end date, other), so a repeated question is
+    dropped by topic, not by wording; the own-domain question names the contact once and stays
+    within the 200-character limit;
+  - the first email: a second confirm during a live send answers "sending" (the app offers "Check
+    again", which never sends twice); after a Postmark 406 the app no longer says the copy shows
+    whether it arrived; a send with Postmark's test token is recorded as a test (no firstSentAt, so
+    nothing later builds on an email nobody got);
+  - the sender name: "AI assistant for Ana Lopez" in English like the Spanish form, without
+    invisible or bidi characters, at most 40 characters, and the generic name when the account name
+    contains "Meeting Guard" or our mail domain; copies go only to an email the token says is
+    verified;
+  - robustness: inbound mail is kept only for active or paused matters (and a week after the end),
+    stored once through a dedupe marker written in the same batch, with at most five reply-address
+    lookups per email; a matter with a field this version does not know still reads, and a broken
+    one is logged as unreadable instead of "not found"; a revise that lost a race answers
+    stale_draft; no matter is created while the account is being deleted; an emulator test covers
+    the store's create()-once writes;
+  - setup: the five functions run as the dedicated `matters-functions` service account (the
+    `MATTERS_SERVICE_ACCOUNT` line in `functions/.env.<projectId>`), and the Postmark secret is
+    renamed to MATTERS_POSTMARK_TOKEN (the old POSTMARK_SERVER_TOKEN is deleted only after this is
+    in `v2`).
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 
