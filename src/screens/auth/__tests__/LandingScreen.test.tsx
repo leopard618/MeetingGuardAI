@@ -210,11 +210,16 @@ it('offers email sign-in as a secondary path', async () => {
   expect(mockSignInWithGoogle).not.toHaveBeenCalled();
 });
 
-it('switches to Spanish instantly', async () => {
+it('switches to Spanish instantly from the language dropdown', async () => {
   await renderLanding();
+  expect(screen.getByLabelText('Language: English')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('landing-language'));
+  });
   await act(async () => {
     fireEvent.press(screen.getByTestId('landing-language-es'));
   });
   expect(screen.getByText('Continuar con Google')).toBeTruthy();
-  expect(screen.getByTestId('landing-language-es').props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+  expect(screen.queryByTestId('landing-language-menu')).toBeNull();
+  expect(screen.getByLabelText('Idioma: Español')).toBeTruthy();
 });
