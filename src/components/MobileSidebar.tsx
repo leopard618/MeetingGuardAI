@@ -3,6 +3,9 @@
  * (src/navigation/sidebar.tsx) and opened from the header.
  *
  * - Items are typed Main routes (SIDEBAR_ITEMS), so a removed route fails to compile.
+ * - M10: "Meeting summaries" follows Tasks only for users the feature is open to (useSummaryStatus
+ *   `available`), with the count of summaries waiting for a meeting; it opens the summary inbox, or
+ *   the setup screen while there is no address yet.
  * - Live language (LanguageMenu dropdown, full width) and theme switches; sign-out goes through the shared flow (useSignOutFlow),
  *   which asks again when unsynced changes would be lost (AppError 'pending_writes').
  * - Theme-aware colors, safe-area insets, hardware back / scrim tap closes it, respects
@@ -30,6 +33,7 @@ import { useT } from '../i18n';
 import { navigateToTopLevel } from '../navigation/navigationService';
 import { useSignOutFlow } from '../navigation/useSignOut';
 import { useAuth } from '../services/auth';
+import { useSummaryStatus } from '../services/summaries';
 import { componentMetrics, radii, spacing, typography } from '../theme';
 import { GradientSurface, Icon, type IconName } from './ui';
 import { avatarInitial } from './CustomHeader';
@@ -57,6 +61,11 @@ export const SIDEBAR_ITEMS: readonly SidebarItem[] = [
   { route: 'Pricing', icon: 'plans' },
   { route: 'Settings', icon: 'settings' },
 ];
+
+/** Routes of the M10 summaries entry (the item is highlighted on both). */
+const SUMMARY_ROUTES: readonly RouteName[] = ['SummaryInbox', 'SummaryConnect'];
+/** The summaries entry is listed right after this item. */
+const SUMMARIES_AFTER: keyof MainStackParamList = 'Tasks';
 
 const THEME_ICONS: Readonly<Record<ThemeMode, IconName>> = {
   system: 'phone',
@@ -170,11 +179,46 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
   const { themeMode, setThemeMode } = useTheme();
   const { authUser } = useAuth();
   const startSignOut = useSignOutFlow();
+  // Cached status; asked again when stale each time the menu opens (outside a screen it counts as focused).
+  const summaries = useSummaryStatus({ refreshOnFocus: true });
+  const summariesRoute: keyof MainStackParamList = summaries.status?.address ? 'SummaryInbox' : 'SummaryConnect';
+  const waiting = summaries.status?.inboxCount ?? 0;
 
   const go = (route: keyof MainStackParamList) => {
     onClose();
     navigateToTopLevel(route);
   };
+
+  const renderItem = (
+    key: string,
+    route: keyof MainStackParamList,
+    icon: IconName,
+    label: string,
+    active: boolean,
+    badge?: number,
+  ): ReactElement => (
+    <Pressable
+      key={key}
+      onPress={() => go(route)}
+      style={({ pressed }) => [styles.item, active && { backgroundColor: colors.secondaryContainer }, pressed && styles.pressed]}
+      accessibilityRole="menuitem"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={badge ? `${label}, ${t('summaries:row.waiting', { count: badge })}` : undefined}
+      testID={`sidebar-item-${key}`}
+    >
+      <Icon name={icon} size={22} color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
+      <Text style={[styles.itemText, { color: active ? colors.onSecondaryContainer : colors.onSurfaceVariant }]} numberOfLines={2}>
+        {label}
+      </Text>
+      {badge ? (
+        <View style={[styles.badge, { backgroundColor: colors.primary }]} testID={`sidebar-item-${key}-badge`}>
+          <Text style={[styles.badgeText, { color: colors.onPrimary }]} maxFontSizeMultiplier={1.3}>
+            {badge > 99 ? '99+' : String(badge)}
+          </Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
 
   return (
     <View style={styles.fill}>
@@ -222,29 +266,10 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
 
         <View accessibilityRole="menu">
           {SIDEBAR_ITEMS.map((item) => {
-            const active = currentRouteName === item.route;
-            return (
-              <Pressable
-                key={item.route}
-                onPress={() => go(item.route)}
-                style={({ pressed }) => [
-                  styles.item,
-                  active && { backgroundColor: colors.secondaryContainer },
-                  pressed && styles.pressed,
-                ]}
-                accessibilityRole="menuitem"
-                accessibilityState={{ selected: active }}
-                testID={`sidebar-item-${item.route}`}
-              >
-                <Icon name={item.icon} size={22} color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
-                <Text
-                  style={[styles.itemText, { color: active ? colors.onSecondaryContainer : colors.onSurfaceVariant }]}
-                  numberOfLines={2}
-                >
-                  {t(`shell:sidebar.items.${item.route}`)}
-                </Text>
-              </Pressable>
-            );
+            const row = renderItem(item.route, item.route, item.icon, t(`shell:sidebar.items.${item.route}`), currentRouteName === item.route);
+            if (item.route !== SUMMARIES_AFTER || !summaries.available) return row;
+            const summariesActive = currentRouteName !== null && SUMMARY_ROUTES.includes(currentRouteName);
+            return [row, renderItem('Summaries', summariesRoute, 'inbox', t('summaries:row.title'), summariesActive, waiting)];
           })}
         </View>
 
@@ -388,6 +413,18 @@ const styles = StyleSheet.create({
     ...typography.labelL,
     flex: 1,
     marginLeft: spacing.md,
+  },
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+  },
+  badgeText: {
+    ...typography.labelS,
   },
   section: {
     borderTopWidth: StyleSheet.hairlineWidth,

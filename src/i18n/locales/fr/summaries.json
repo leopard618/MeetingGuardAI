@@ -20,6 +20,7 @@
     "cancel": "Annuler",
     "close": "Fermer",
     "copyFailed": "Impossible de copier. Appuyez longuement sur le texte pour le copier.",
+    "shareCopied": "Le partage n'est pas disponible ici, le texte a donc été copié. Collez-le dans un message.",
     "origin": {
       "vendor": "Rédigé par votre assistant de prise de notes ({{domain}}), reçu {{time}}. Signature vérifiée.",
       "vendorNoDomain": "Rédigé par votre assistant de prise de notes, reçu {{time}}. Signature vérifiée.",

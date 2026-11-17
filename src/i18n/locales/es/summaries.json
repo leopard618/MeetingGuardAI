@@ -20,6 +20,7 @@
     "cancel": "Cancelar",
     "close": "Cerrar",
     "copyFailed": "No se pudo copiar. Mantén pulsado el texto para copiarlo.",
+    "shareCopied": "No se puede compartir aquí, así que el texto se copió. Pégalo en un mensaje.",
     "origin": {
       "vendor": "Escrita por tu asistente de notas ({{domain}}), recibida {{time}}. Firma comprobada.",
       "vendorNoDomain": "Escrita por tu asistente de notas, recibida {{time}}. Firma comprobada.",
