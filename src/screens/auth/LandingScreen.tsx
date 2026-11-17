@@ -13,9 +13,10 @@
  *   prominence - App Review 4.8) and runs useAuth().signInWithApple(); a dismissed Apple sheet
  *   is as silent as a closed Google picker (AppleSignInButton.tsx, docs/v1/ARCHITECTURE.md
  *   section 26).
- * - Language chips (en, es, pt, fr, de; explicit choice, applied instantly; the row wraps on narrow
- *   phones and the hero spacer shrinks by its measured height) and separate, screen-reader friendly links
- *   to the Terms and the Privacy Policy (both in the Auth stack).
+ * - The language dropdown at the top right (LanguageMenu: flag, code, chevron, and the five languages
+ *   under it; explicit choice, applied instantly; the hero spacer shrinks by the row's measured
+ *   height) and separate, screen-reader friendly links to the Terms and the Privacy Policy (both in
+ *   the Auth stack).
  * - While a sign-in runs, every button is disabled and the spinner replaces the icon of the
  *   provider that is running (busyProvider), so a Microsoft sign-in never shows "Signing in" on
  *   the Google button.
@@ -41,8 +42,9 @@ import type { AuthStackParamList } from '../../core/contracts';
 import { errorMessageKey } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useResponsive } from '../../hooks/useResponsive';
-import { useLanguage, useT } from '../../i18n';
+import { useT } from '../../i18n';
 import { useAuth, type AuthActionResult } from '../../services/auth';
+import { LanguageMenu } from '../../components/LanguageMenu';
 import { GradientSurface } from '../../components/ui';
 import { componentMetrics, lightColors, pressedDimOpacity, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 
@@ -58,8 +60,6 @@ const HERO_FRACTION = 0.46;
 const ACTIONS_MAX_WIDTH = 340;
 const ACTIONS_BOTTOM_LIFT = spacing.xxxl + spacing.lg;
 const LANGUAGE_ROW_HEIGHT = 36;
-/** Space between language chips, also between wrapped chip lines (M12: five chips wrap on a narrow phone). */
-const LANGUAGE_CHIP_GAP = spacing.sm;
 
 type SignInProvider = 'apple' | 'google' | 'microsoft';
 
@@ -69,8 +69,6 @@ const ON_HERO_BORDER = withAlpha(lightColors.onPrimary, 0.7);
 /** Scrim over the photo: clear on the branded top, night-dark behind the content card. */
 const HERO_SCRIM: readonly [string, string] = ['rgba(0,0,0,0)', withAlpha(lightColors.onBackground, 0.78)];
 const HERO_SCRIM_STOPS: readonly [number, number] = [0.4, 1];
-/** Dark label on the selected (white) language chip. */
-const ON_HERO_INVERSE = lightColors.onSurface;
 /** Glass fill of the Microsoft and email buttons on the photo. */
 const ON_HERO_GLASS = withAlpha(lightColors.onPrimary, 0.1);
 
@@ -81,9 +79,8 @@ export function LandingScreen(): ReactElement {
   const layout = useResponsive();
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
   const { signInWithGoogle, signInWithApple, signInWithMicrosoft, canSignInWithMicrosoft } = useAuth();
-  const { language, setLanguage, supportedLanguages } = useLanguage();
   const [busyProvider, setBusyProvider] = useState<SignInProvider | null>(null);
-  // Measured height of the language chip row (one line, or two when the chips wrap).
+  // Measured height of the language row (it grows with large fonts).
   const [languageRowHeight, setLanguageRowHeight] = useState(LANGUAGE_ROW_HEIGHT);
   const busy = busyProvider !== null;
   // Synchronous re-entry guard: with two provider buttons, same-frame multi-touch can run both
@@ -126,27 +123,14 @@ export function LandingScreen(): ReactElement {
         <View
           style={[styles.languageRow, columnStyle]}
           onLayout={(event) => setLanguageRowHeight(Math.round(event.nativeEvent.layout.height))}
-          accessibilityRole="radiogroup"
-          accessibilityLabel={t('landing:language')}
         >
-          {supportedLanguages.map((code) => {
-            const selected = code === language;
-            return (
-              <Pressable
-                key={code}
-                onPress={() => {
-                  void setLanguage(code);
-                }}
-                style={[styles.languageChip, selected && styles.languageChipSelected]}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                hitSlop={4}
-                testID={`landing-language-${code}`}
-              >
-                <Text style={[styles.languageText, selected && styles.languageTextSelected]}>{t(`common:language.${code}`)}</Text>
-              </Pressable>
-            );
-          })}
+          <LanguageMenu
+            testID="landing-language"
+            color={ON_HERO}
+            backgroundColor={ON_HERO_GLASS}
+            borderColor={ON_HERO_BORDER}
+            maxFontSizeMultiplier={1.4}
+          />
         </View>
 
         {/* The brand (mark, name, tagline) is part of the image: this spacer keeps the card below it and names it for screen readers. */}
@@ -259,29 +243,9 @@ const styles = StyleSheet.create({
   },
   languageRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'flex-end',
-    gap: LANGUAGE_CHIP_GAP,
-  },
-  languageChip: {
     minHeight: LANGUAGE_ROW_HEIGHT,
-    paddingHorizontal: spacing.lg,
-    justifyContent: 'center',
-    borderRadius: radii.full,
-    borderWidth: 1,
-    borderColor: ON_HERO_BORDER,
-  },
-  languageChipSelected: {
-    backgroundColor: ON_HERO,
-    borderColor: ON_HERO,
-  },
-  languageText: {
-    ...typography.labelL,
-    color: ON_HERO,
-  },
-  languageTextSelected: {
-    ...typography.labelL,
-    color: ON_HERO_INVERSE,
+    alignItems: 'center',
   },
   hero: {
     width: '100%',

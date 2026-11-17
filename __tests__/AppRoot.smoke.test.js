@@ -89,8 +89,8 @@ describe('AppRoot (composed app shell)', () => {
     const { AppRoot } = require('../src/navigation/AppRoot');
     const { unmount } = await render(<AppRoot />);
 
-    // The Landing screen's language switch + consent footer (rendered once the session is known).
-    await waitFor(() => expect(screen.getByText('Español')).toBeTruthy(), { timeout: 20_000 });
+    // The Landing screen's language dropdown (rendered once the session is known).
+    await waitFor(() => expect(screen.getByTestId('landing-language')).toBeTruthy(), { timeout: 20_000 });
     await unmount();
   }, 60_000);
 });

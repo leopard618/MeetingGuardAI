@@ -3,7 +3,7 @@
  * (src/navigation/sidebar.tsx) and opened from the header.
  *
  * - Items are typed Main routes (SIDEBAR_ITEMS), so a removed route fails to compile.
- * - Live language and theme switches; sign-out goes through the shared flow (useSignOutFlow),
+ * - Live language (LanguageMenu dropdown, full width) and theme switches; sign-out goes through the shared flow (useSignOutFlow),
  *   which asks again when unsynced changes would be lost (AppError 'pending_writes').
  * - Theme-aware colors, safe-area insets, hardware back / scrim tap closes it, respects
  *   "reduce motion", keeps focus inside while open (accessibilityViewIsModal).
@@ -26,13 +26,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { THEME_MODES, useTheme, type AppColors, type ThemeMode } from '../contexts/ThemeContext';
 import type { MainStackParamList, RouteName } from '../core/contracts';
-import { useLanguage, useT } from '../i18n';
+import { useT } from '../i18n';
 import { navigateToTopLevel } from '../navigation/navigationService';
 import { useSignOutFlow } from '../navigation/useSignOut';
 import { useAuth } from '../services/auth';
 import { componentMetrics, radii, spacing, typography } from '../theme';
 import { GradientSurface, Icon, type IconName } from './ui';
 import { avatarInitial } from './CustomHeader';
+import { LanguageMenu } from './LanguageMenu';
 
 const APP_LOGO = require('../../assets/icon.png') as number;
 
@@ -166,7 +167,6 @@ interface SidebarContentProps {
 
 function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentProps): ReactElement {
   const t = useT();
-  const { language, setLanguage, supportedLanguages } = useLanguage();
   const { themeMode, setThemeMode } = useTheme();
   const { authUser } = useAuth();
   const startSignOut = useSignOutFlow();
@@ -250,30 +250,8 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
 
         <View style={[styles.section, { borderTopColor: colors.border }]}>
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t('shell:sidebar.language')}</Text>
-          <View style={styles.chipRow} accessibilityRole="radiogroup" accessibilityLabel={t('shell:sidebar.language')}>
-            {supportedLanguages.map((code) => {
-              const selected = code === language;
-              return (
-                <Pressable
-                  key={code}
-                  onPress={() => {
-                    void setLanguage(code);
-                  }}
-                  style={[
-                    styles.chip,
-                    { borderColor: selected ? colors.secondaryContainer : colors.outline },
-                    selected && { backgroundColor: colors.secondaryContainer },
-                  ]}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  testID={`sidebar-language-${code}`}
-                >
-                  <Text style={[styles.chipText, { color: selected ? colors.onSecondaryContainer : colors.onSurfaceVariant }]}>
-                    {t(`common:language.${code}`)}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.languageField}>
+            <LanguageMenu testID="sidebar-language" variant="field" color={colors.onSurfaceVariant} borderColor={colors.outline} />
           </View>
 
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t('shell:sidebar.theme')}</Text>
@@ -420,6 +398,9 @@ const styles = StyleSheet.create({
   sectionLabel: {
     ...typography.titleS,
     marginBottom: spacing.sm,
+  },
+  languageField: {
+    marginBottom: spacing.lg,
   },
   chipRow: {
     flexDirection: 'row',

@@ -9,7 +9,7 @@ import type { ReactElement } from 'react';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { I18nProvider, i18n } from '../../i18n';
 import { ROUTES } from '../../navigation/routes';
-import { avatarInitial, CustomHeader, LANGUAGE_FLAGS, nextLanguage } from '../CustomHeader';
+import { avatarInitial, CustomHeader, LANGUAGE_FLAGS } from '../CustomHeader';
 import { MobileSidebar, SIDEBAR_ITEMS } from '../MobileSidebar';
 
 jest.mock('expo-localization', () => ({
@@ -50,15 +50,23 @@ beforeEach(async () => {
 });
 
 describe('CustomHeader', () => {
-  it('shows the route title and switches the language live', async () => {
+  it('shows the route title and switches the language live from the dropdown', async () => {
     const onMenuPress = jest.fn();
     await renderWithProviders(<CustomHeader title="Calendar" onMenuPress={onMenuPress} />);
     expect(screen.getByText('Calendar')).toBeTruthy();
-    expect(screen.getByLabelText('Change language to Español')).toBeTruthy();
-
+    expect(screen.getByLabelText('Language: English')).toBeTruthy();
+    // A tap opens the list; it does not switch by itself.
     await act(async () => {
       fireEvent.press(screen.getByTestId('header-language'));
     });
+    expect(screen.getByText('Calendar')).toBeTruthy();
+    expect(screen.getByTestId('header-language-menu')).toBeTruthy();
+    expect(screen.getByTestId('header-language-en').props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('header-language-es'));
+    });
+    expect(screen.queryByTestId('header-language-menu')).toBeNull();
     expect(screen.getByText('Calendario')).toBeTruthy();
     expect(screen.getByText('ES')).toBeTruthy();
 
@@ -98,12 +106,18 @@ describe('CustomHeader', () => {
     expect(screen.queryByTestId('header-back')).toBeNull();
   });
 
-  it('cycles through the supported languages', () => {
-    expect(nextLanguage('en', ['en', 'es'])).toBe('es');
-    expect(nextLanguage('es', ['en', 'es'])).toBe('en');
-    // M12: five languages, in order, then back to English.
-    const five = ['en', 'es', 'pt', 'fr', 'de'] as const;
-    expect(five.map((language) => nextLanguage(language, five))).toEqual(['es', 'pt', 'fr', 'de', 'en']);
+  it('lists the five languages with their flags, and a tap outside closes the list unchanged', async () => {
+    await renderWithProviders(<CustomHeader title="Calendar" />);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('header-language'));
+    });
+    for (const name of ['English', 'Español', 'Português', 'Français', 'Deutsch']) expect(screen.getByText(name)).toBeTruthy();
+    expect(screen.getByText(LANGUAGE_FLAGS.pt)).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('header-language-scrim'));
+    });
+    expect(screen.queryByTestId('header-language-menu')).toBeNull();
+    expect(screen.getByText('Calendar')).toBeTruthy();
   });
 });
 
@@ -129,11 +143,18 @@ describe('MobileSidebar', () => {
 
   it('switches language and theme live', async () => {
     await renderWithProviders(<MobileSidebar visible onClose={jest.fn()} />);
+    expect(screen.getByText('English')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('sidebar-language'));
+    });
     await act(async () => {
       fireEvent.press(screen.getByTestId('sidebar-language-es'));
     });
     expect(screen.getByText('Todas las reuniones')).toBeTruthy();
-    expect(screen.getByTestId('sidebar-language-es').props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+    // The field now shows the new language; the list is closed.
+    expect(screen.queryByTestId('sidebar-language-menu')).toBeNull();
+    expect(screen.getByTestId('sidebar-language-flag').props.children).toBe(LANGUAGE_FLAGS.es);
+    expect(screen.getByText('Español')).toBeTruthy();
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('sidebar-theme-dark'));

@@ -4,33 +4,25 @@
  * - Left: the back arrow when the stack can go back, otherwise the menu button (opens the
  *   sidebar).
  * - Title: navigation:screens.<routeName> in the live language (titleL), else the app name.
- * - Right: the language pill with the country flag of the CURRENT language and its code
- *   (EN with the US flag, ES with the Spanish flag); a tap switches to the next language and saves
- *   it as the user's choice. The theme switch and the account live in the menu and in Settings.
+ * - Right: the language dropdown (LanguageMenu: the flag of the CURRENT language, its code and a
+ *   chevron; a tap opens the list of languages, a pick applies and saves it). The theme switch and
+ *   the account live in the menu and in Settings.
  * 44dp targets, Feather icons, onSurface@12% borderless ripples. No animation.
  */
 import type { ReactElement } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { AppLanguage } from '../core/types';
-import { useLanguage, useT } from '../i18n';
+import { useT } from '../i18n';
 import { ROUTES } from '../navigation/routes';
-import { componentMetrics, radii, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
+import { componentMetrics, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
+import { LanguageMenu } from './LanguageMenu';
 import { Icon } from './ui';
+
+export { LANGUAGE_FLAGS } from './LanguageMenu';
 
 /** Header text never grows past this multiple of its size (it must stay on one row). */
 const HEADER_MAX_FONT_SCALE = 1.4;
-
-/** Country flag shown in the language pill (regional indicator pairs; render on iOS and Android). */
-export const LANGUAGE_FLAGS: Readonly<Record<AppLanguage, string>> = {
-  en: '\u{1F1FA}\u{1F1F8}',
-  es: '\u{1F1EA}\u{1F1F8}',
-  // M12: Brazil (pt is Brazilian Portuguese), France, Germany.
-  pt: '\u{1F1E7}\u{1F1F7}',
-  fr: '\u{1F1EB}\u{1F1F7}',
-  de: '\u{1F1E9}\u{1F1EA}',
-};
 
 export interface CustomHeaderProps {
   /** Route name (title from navigation:screens.<name>); unknown names show the app name. */
@@ -39,12 +31,6 @@ export interface CustomHeaderProps {
   showMenu?: boolean;
   /** Shows a back arrow instead of the menu button. */
   onBackPress?: () => void;
-}
-
-/** The next language in the cycle of the header pill (en, es, pt, fr, de, then en again). */
-export function nextLanguage(language: AppLanguage, supported: readonly AppLanguage[]): AppLanguage {
-  const index = supported.indexOf(language);
-  return supported[(index + 1) % supported.length] ?? language;
 }
 
 /** First letter of the display name, else of the email, else null (icon fallback). Used by the sidebar. */
@@ -57,12 +43,10 @@ export function avatarInitial(displayName: string | null | undefined, email: str
 export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress }: CustomHeaderProps): ReactElement {
   const { colors } = useAppTheme();
   const t = useT();
-  const { language, setLanguage, supportedLanguages } = useLanguage();
   const insets = useSafeAreaInsets();
 
   const appName = t('common:app.name');
   const displayTitle = title !== undefined && title in ROUTES ? t(`navigation:screens.${title}`) : appName;
-  const next = nextLanguage(language, supportedLanguages);
   const iconRipple = {
     color: withAlpha(colors.onSurface, stateAlpha.rippleOnIcon),
     borderless: true,
@@ -112,23 +96,7 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
           {displayTitle}
         </Text>
 
-        <Pressable
-          onPress={() => {
-            void setLanguage(next);
-          }}
-          style={({ pressed }) => [styles.languageButton, { backgroundColor: colors.surfaceVariant }, pressed && styles.pressed]}
-          accessibilityRole="button"
-          accessibilityLabel={t('shell:header.switchLanguage', { language: t(`common:language.${next}`) })}
-          hitSlop={4}
-          testID="header-language"
-        >
-          <Text style={styles.flag} maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE} testID="header-language-flag">
-            {LANGUAGE_FLAGS[language]}
-          </Text>
-          <Text style={[styles.languageText, { color: colors.onSurface }]} maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}>
-            {language.toUpperCase()}
-          </Text>
-        </Pressable>
+        <LanguageMenu testID="header-language" maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE} />
       </View>
     </View>
   );
@@ -153,22 +121,6 @@ const styles = StyleSheet.create({
     ...typography.titleL,
     flex: 1,
     marginHorizontal: spacing.sm,
-  },
-  languageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: componentMetrics.buttonHeightSmall - 4,
-    borderRadius: radii.full,
-    paddingLeft: spacing.sm,
-    paddingRight: spacing.md,
-    gap: spacing.xs,
-  },
-  flag: {
-    fontSize: 18,
-    lineHeight: 22,
-  },
-  languageText: {
-    ...typography.labelM,
   },
   pressed: {
     opacity: 0.6,
