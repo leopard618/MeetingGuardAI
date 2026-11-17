@@ -33,7 +33,7 @@ import {
   type FirstEmail,
   type Mandate,
 } from './model';
-import { QUESTIONS, senderName } from './text';
+import { QUESTIONS, formatDay, formatInstant, senderName } from './text';
 
 export const PROPOSE_TOOL = 'propose_matter';
 
@@ -189,7 +189,7 @@ export function buildDraftMessages(ctx: DraftContext): PromptMessage[] {
     `Call ${PROPOSE_TOOL} exactly once with your proposal.`,
     'Rules:',
     '1. Only include people the user named. Never invent or guess an email address: if it was not given, set it to null.',
-    '2. Resolve relative dates ("Friday", "next week") against now, and write every date and time as the user\'s local wall-clock time, YYYY-MM-DDTHH:MM, without a UTC offset (the offset is worked out for you, also across a daylight saving change).',
+    '2. Resolve relative dates ("Friday", "next week") against now, and write every date and time in the date fields (ends_at, the meeting windows) as the user\'s local wall-clock time, YYYY-MM-DDTHH:MM, without a UTC offset (the offset is worked out for you, also across a daylight saving change). In the goal, may_ask and the email, write dates in words in that text\'s language ("today at 12:30", "Friday, November 20"), never in the YYYY-MM-DD form.',
     '3. You never pay, accept a price, negotiate money, agree to anything contractual or contact anyone else. Do not put any of that in the goal, in may_ask or in the email; if the user asks for it, add a question saying you can only ask them to decide it.',
     '4. Write the first email as the user\'s AI assistant, polite and short. Do not pretend to be the user.',
     '5. Plain punctuation only: no em dashes, en dashes, ellipsis characters or curly quotes.',
@@ -213,6 +213,23 @@ const PLAIN = (text: string) =>
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"');
 const clean = (text: string, max: number) => PLAIN(text).trim().slice(0, max);
+
+/** A machine date the model left in prose: "2026-11-17T12:30", "2026-11-17 12:30" or "2026-11-17". */
+const MACHINE_DATE = /\b(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::\d{2})?)?\b/g;
+
+/**
+ * Prose for a person: a machine date the model wrote anyway is rewritten in words in the text's
+ * language ("Tue, Nov 17, 12:30 PM", "mar, 17 nov, 12:30"). The wall-clock value is kept as written
+ * (it is already the user's local time), so no zone is applied.
+ */
+export function humanizeDates(text: string, language: Language): string {
+  return text.replace(MACHINE_DATE, (whole, y: string, m: string, d: string, hh?: string, mm?: string) => {
+    const ms = Date.UTC(Number(y), Number(m) - 1, Number(d), hh ? Number(hh) : 12, mm ? Number(mm) : 0);
+    const date = new Date(ms);
+    if (!Number.isFinite(ms) || date.getUTCDate() !== Number(d)) return whole;
+    return hh ? formatInstant(date.toISOString(), 'UTC', language) : formatDay(date.toISOString(), 'UTC', language);
+  });
+}
 
 /**
  * Characters that end an address in running text: space, angle and round brackets, double quotes,
@@ -350,8 +367,8 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
 
   const candidate = {
     contacts,
-    goal: clean(p.goal, MATTER_LIMITS.goalChars),
-    mayAsk: p.may_ask.map((m) => clean(m, MATTER_LIMITS.itemChars)).filter(Boolean).slice(0, MATTER_LIMITS.maxAskItems),
+    goal: clean(humanizeDates(p.goal, ctx.language), MATTER_LIMITS.goalChars),
+    mayAsk: p.may_ask.map((m) => clean(humanizeDates(m, ctx.language), MATTER_LIMITS.itemChars)).filter(Boolean).slice(0, MATTER_LIMITS.maxAskItems),
     meeting: p.meeting.needed ? { durationMinutes: duration, windows } : null,
     followUp: {
       everyDays: Math.min(MATTER_LIMITS.followUpEveryDaysMax, Math.max(1, p.follow_up.every_days)),
@@ -364,10 +381,10 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   };
   const mandate = mandateSchema.safeParse(candidate);
   const firstEmail = firstEmailSchema.safeParse({
-    subject: clean(p.first_email.subject, MATTER_LIMITS.subjectChars),
+    subject: clean(humanizeDates(p.first_email.subject, p.email_language), MATTER_LIMITS.subjectChars),
     // the possessive form too: the model may sign "Ana Lopez's AI assistant" on its own
     text: clean(
-      stripSignature(p.first_email.text, [ctx.ownerName, senderName(ctx.ownerName, p.email_language), `${ctx.ownerName}'s AI assistant`]),
+      humanizeDates(stripSignature(p.first_email.text, [ctx.ownerName, senderName(ctx.ownerName, p.email_language), `${ctx.ownerName}'s AI assistant`]), p.email_language),
       MATTER_LIMITS.firstEmailChars,
     ),
   });
@@ -377,9 +394,15 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   return { title, mandate: mandate.data, firstEmail: firstEmail.data, questions: [] };
 }
 
-/** One model call; throws the LLM adapter's UpstreamError on failure. */
-export async function draftMatter(llm: LlmClient, ctx: DraftContext, safetyIdentifier: string): Promise<DraftResult> {
+/** One model call; throws the LLM adapter's UpstreamError on failure. onUsage: the admin stats. */
+export async function draftMatter(
+  llm: LlmClient,
+  ctx: DraftContext,
+  safetyIdentifier: string,
+  onUsage?: (usage: { promptTokens: number; completionTokens: number } | null) => Promise<void>,
+): Promise<DraftResult> {
   const result = await llm.complete(draftRequest(ctx, safetyIdentifier));
+  if (onUsage) await onUsage(result.usage);
   const call = result.toolCalls.find((c) => c.name === PROPOSE_TOOL);
   let args: unknown = null;
   if (call) {

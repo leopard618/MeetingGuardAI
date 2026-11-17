@@ -87,4 +87,24 @@ describe('matterService', () => {
     expect(mapMatterError(httpsError('functions/resource-exhausted', 'rate_limited'))).toMatchObject({ code: 'quota_exceeded' });
     expect(mapMatterError(httpsError('functions/deadline-exceeded'))).toMatchObject({ code: 'timeout' });
   });
+  it('A2: decides a card or a commitment through matterDecide, validated both ways', async () => {
+    const answer = { matterId: 'm1', id: 'c1', status: 'approved', outcome: 'sent', taskId: null, matterStatus: 'active' };
+    const { calls, service } = setup(() => answer);
+    await expect(service.decide({ matterId: 'm1', target: 'approval', id: 'c1', action: 'approve', draftHash: HASH })).resolves.toEqual(answer);
+    expect(calls[0]).toEqual({ name: CALLABLES.matterDecide, request: { matterId: 'm1', target: 'approval', id: 'c1', action: 'approve', draftHash: HASH }, timeoutMs: MATTER_CALL_TIMEOUT_MS });
+    await expect(service.decide({ matterId: 'm1', target: 'approval', id: 'bad/id', action: 'approve' })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('A2: asks matterView for the open matters and for one matter page', async () => {
+    const item = { matterId: 'm1', status: 'active', title: 'Proposal', updatedAt: '2026-11-12T09:00:00.000Z', stopReason: null, pendingApprovals: 2 };
+    const page = { matter: item, approvals: [], proposals: [] };
+    const { calls, service } = setup((_name, request) => ((request as { matterId?: string }).matterId ? { matters: null, page } : { matters: [item], page: null }));
+    await expect(service.listOpen()).resolves.toEqual([item]);
+    await expect(service.getPage('m1')).resolves.toEqual(page);
+    expect(calls.map((c) => [c.name, c.request])).toEqual([
+      [CALLABLES.matterView, {}],
+      [CALLABLES.matterView, { matterId: 'm1' }],
+    ]);
+    await expect(service.getPage('bad/id')).rejects.toMatchObject({ code: 'invalid_input' });
+  });
 });

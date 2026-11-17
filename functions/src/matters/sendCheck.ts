@@ -11,7 +11,10 @@
  * - there is at least one recipient, every To address is a contact of the mandate, and every Cc
  *   address is a contact or the owner's own verified email;
  * - no recipient is on our own mail domain or a subdomain of it (it would loop into our own
- *   inbound, with our own SPF and DKIM).
+ *   inbound, with our own SPF and DKIM);
+ * - no recipient hard-bounced or is inactive at Postmark (bouncedRecipients, A2);
+ * - A2 sends (replies, follow-ups) only after the first email really went out (firstSentAt): a
+ *   matter whose first email is failed, unknown, sending or a test never gets a second email.
  */
 import { draftHash, isOwnDomain, type MatterDoc } from './model';
 
@@ -24,6 +27,8 @@ export const SEND_REFUSALS = [
   'no_recipients',
   'recipient_not_allowed',
   'own_domain',
+  'recipient_bounced',
+  'first_email_not_sent',
 ] as const;
 export type SendRefusal = (typeof SEND_REFUSALS)[number];
 
@@ -39,6 +44,8 @@ export function checkSend(input: {
   enabled: boolean;
   /** Our mail domain (MATTERS_MAIL_DOMAIN). */
   domain: string;
+  /** Every A2 send (reply, follow-up): the first email must have gone out (firstSentAt). */
+  requireFirstSent?: boolean;
 }): SendDecision {
   const { matter, now } = input;
   if (!input.enabled) return { ok: false, reason: 'switched_off' };
@@ -48,8 +55,11 @@ export function checkSend(input: {
     return { ok: false, reason: 'changed_since_confirmation' };
   }
   if (now.getTime() >= Date.parse(matter.mandate.endsAt)) return { ok: false, reason: 'ended' };
+  if (input.requireFirstSent && !matter.firstSentAt) return { ok: false, reason: 'first_email_not_sent' };
   if (input.to.length === 0) return { ok: false, reason: 'no_recipients' };
   if ([...input.to, ...input.cc].some((email) => isOwnDomain(email, input.domain))) return { ok: false, reason: 'own_domain' };
+  const bounced = new Set((matter.bouncedRecipients ?? []).map(norm));
+  if ([...input.to, ...input.cc].some((email) => bounced.has(norm(email)))) return { ok: false, reason: 'recipient_bounced' };
   const contacts = new Set(matter.mandate.contacts.map((c) => norm(c.email)));
   if (!input.to.every((email) => contacts.has(norm(email)))) return { ok: false, reason: 'recipient_not_allowed' };
   const owner = matter.ownerEmail ? norm(matter.ownerEmail) : null;

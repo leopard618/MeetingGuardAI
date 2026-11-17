@@ -46,5 +46,80 @@
     "stale": "El borrador ha cambiado. Revísalo de nuevo antes de confirmar.",
     "notAllowed": "Esto queda fuera de lo que confirmaste, así que no se ha enviado nada.",
     "unavailable": "El asistente todavía no está disponible para tu cuenta."
+  },
+  "open": {
+    "title": "Asuntos abiertos",
+    "waiting_one": "{{count}} cosa te espera",
+    "waiting_other": "{{count}} cosas te esperan",
+    "status": {
+      "draft": "Borrador",
+      "active": "Activo",
+      "paused": "En pausa",
+      "done": "Terminado",
+      "cancelled": "Cancelado"
+    }
+  },
+  "page": {
+    "back": "Volver a mis asuntos",
+    "cardsTitle": "Te espera",
+    "noCards": "No hay nada esperándote.",
+    "proposalsTitle": "Tareas propuestas",
+    "proposalDue": "Fecha: {{value}}",
+    "accept": "Añadir a mis tareas",
+    "drop": "Omitir",
+    "accepted": "Añadida a tus tareas.",
+    "sent": "Respuesta enviada.",
+    "sending": "Esta respuesta se está enviando ahora mismo. Vuelve a abrir el asunto en un momento para ver cómo ha ido.",
+    "notSent": "La respuesta no se ha podido enviar todavía. Inténtalo de nuevo en un momento.",
+    "unknown": "No hemos podido confirmar que la respuesta haya salido. Puede que se haya enviado, así que no se enviará de nuevo.",
+    "notFound": "Este asunto ya no está disponible.",
+    "loadFailed": "No se ha podido cargar este asunto ahora mismo. Comprueba tu conexión e inténtalo de nuevo."
+  },
+  "card": {
+    "from": "De: {{value}}",
+    "address": "Dirección: {{value}}",
+    "quote": "Escribió: \"{{value}}\"",
+    "kind": {
+      "reply_draft": "Respuesta lista para enviar",
+      "new_person": "Ha escrito alguien nuevo o lo han puesto en copia",
+      "outside_mandate": "Esto necesita tu decisión",
+      "time_proposal": "Ha propuesto una hora",
+      "goal_reached": "Parece que el objetivo se ha cumplido",
+      "unclear": "No he sabido qué pide esta respuesta",
+      "bounce": "Un correo no se ha podido entregar",
+      "many_replies": "Muchas respuestas hoy"
+    },
+    "reason": {
+      "money": "Trata de dinero o precios, algo que nunca gestiono.",
+      "contract": "Trata de un contrato o una firma, algo que nunca gestiono.",
+      "not_covered": "Pide algo fuera de lo que confirmaste.",
+      "new_person": "Implica a alguien que no forma parte de este asunto.",
+      "asks_other_contact": "Me pide que escriba a otra persona.",
+      "auto_reply_off": "Las respuestas solo salen cuando tú las apruebas.",
+      "unverified_sender": "No he podido verificar el remitente, así que te pregunto primero.",
+      "content_guard": "El borrador menciona algo que nunca envío por mi cuenta.",
+      "cap_reached": "Se ha alcanzado el límite de hoy para este asunto. Las demás respuestas se guardan sin leer.",
+      "read_failed": "No he podido leer esta respuesta. Léela en tu copia.",
+      "loop": "Este hilo ha ido y venido muchas veces hoy, así que dejo de leerlo hasta mañana.",
+      "other": "Te pregunto primero."
+    },
+    "guard": {
+      "title": "Revísalo antes de enviar, menciona:",
+      "money": "dinero o precios",
+      "contract": "un contrato o una firma",
+      "link": "un enlace",
+      "address": "otra dirección de correo",
+      "length": "un texto muy largo"
+    },
+    "approve": {
+      "reply_draft": "Enviar esta respuesta",
+      "goal_reached": "Marcar el asunto como terminado",
+      "default": "De acuerdo"
+    },
+    "decline": {
+      "reply_draft": "No enviar",
+      "goal_reached": "Todavía no",
+      "default": "Descartar"
+    }
   }
 }

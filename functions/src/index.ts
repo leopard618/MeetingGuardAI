@@ -75,4 +75,17 @@ export { summaryWhatsApp } from './summaries';
 // is false at deploy time, and its params and secrets are not even declared then (config.ts
 // mattersParams), so a deploy without the MATTERS_* secrets never asks for them. With the
 // MATTERS_SERVICE_ACCOUNT line set at deploy time they run as that account (src/matters/index.ts).
-export { assistantInboundEmail, matterCancel, matterConfirm, matterDraft, matterRevise } from './matters';
+// A2 adds matterDecide, matterView, matterInboundRead (a Firestore trigger), matterTick
+// (scheduled) and matterDeliveryEvents (Postmark's bounce webhook), under the same gate.
+export {
+  assistantInboundEmail,
+  matterCancel,
+  matterConfirm,
+  matterDecide,
+  matterDeliveryEvents,
+  matterDraft,
+  matterInboundRead,
+  matterRevise,
+  matterTick,
+  matterView,
+} from './matters';

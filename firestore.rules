@@ -21,6 +21,7 @@ rules_version = '2';
 //   summaryUsers/{uid}                 M10 address state  server only (no client access at all)
 //   summaryEvents/{eventId}            M10 dedupe markers server only (no client access at all)
 //   matterAddresses, matterMessageIds, inboundEmails     server only (no client access at all)
+//   matterSchedule, matterReadQueue (A2)                 server only (no client access at all)
 //   everything else                                       denied
 //
 // The Admin SDK (Cloud Functions) bypasses these rules. Instants are UTC ISO strings
@@ -424,6 +425,19 @@ service cloud.firestore {
           allow read: if isOwner(uid);
           allow write: if false;
         }
+
+        // A2: approval cards and proposed commitments. The owner decides them only through
+        // matterDecide (which re-checks the hash of a reply draft and the send rules), never by
+        // writing here: a client that could write a card could approve a draft it never showed.
+        match /approvals/{approvalId} {
+          allow read: if isOwner(uid);
+          allow write: if false;
+        }
+
+        match /proposals/{proposalId} {
+          allow read: if isOwner(uid);
+          allow write: if false;
+        }
       }
     }
 
@@ -525,6 +539,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /inboundEmails/{providerId} {
+      allow read, write: if false;
+    }
+    // A2: the follow-up schedule and the read retry queue (carry a uid; matterTick only).
+    match /matterSchedule/{matterId} {
+      allow read, write: if false;
+    }
+    match /matterReadQueue/{entryId} {
       allow read, write: if false;
     }
 

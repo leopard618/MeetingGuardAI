@@ -121,6 +121,8 @@ export const CALLABLES = {
   matterRevise: 'matterRevise',
   matterConfirm: 'matterConfirm',
   matterCancel: 'matterCancel',
+  matterDecide: 'matterDecide',
+  matterView: 'matterView',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -2024,6 +2026,181 @@ export const matterCancelRequestSchema = z.object({ matterId: matterIdSchema }).
 export type MatterCancelRequest = z.infer<typeof matterCancelRequestSchema>;
 export const matterCancelResponseSchema = z.object({ matterId: matterIdSchema, status: z.literal('cancelled') });
 export type MatterCancelResponse = z.infer<typeof matterCancelResponseSchema>;
+
+// A2: replies. The assistant reads each reply of a contact and the code turns what the model
+// proposes into approval cards (users/{uid}/matters/{matterId}/approvals/{id}) and proposed
+// commitments (.../proposals/{id}); the owner decides them with matterDecide. The app reads those
+// documents (owner read) with the view schemas below; they are lenient (a field a later server
+// adds is dropped), the server writes them strictly.
+
+export const MATTER_STATUSES_CONTRACT = ['draft', 'active', 'paused', 'done', 'cancelled'] as const;
+
+/**
+ * reply_draft:     a reply the assistant drafted; approving sends exactly this draft
+ * new_person:      someone outside the mandate wrote or was copied in (never answered)
+ * outside_mandate: the reply asks for something the mandate does not cover (money, a contract...)
+ * time_proposal:   the contact proposed a time (A3 books it; in A2 the owner decides)
+ * goal_reached:    the goal looks reached: approving marks the matter done
+ * unclear:         the assistant could not tell what the reply wants, or could not read it
+ * bounce:          an email to a contact bounced or the address is inactive
+ * many_replies:    the day's read limit of this matter was reached (more replies are kept unread)
+ */
+export const MATTER_APPROVAL_KINDS = [
+  'reply_draft',
+  'new_person',
+  'outside_mandate',
+  'time_proposal',
+  'goal_reached',
+  'unclear',
+  'bounce',
+  'many_replies',
+] as const;
+export type MatterApprovalKind = (typeof MATTER_APPROVAL_KINDS)[number];
+
+/** expired: a newer email arrived on the thread, so this reply draft is out of context. */
+export const MATTER_APPROVAL_STATUSES = ['pending', 'approved', 'declined', 'expired'] as const;
+export type MatterApprovalStatus = (typeof MATTER_APPROVAL_STATUSES)[number];
+
+/** Why a card exists, when the kind alone does not say it. */
+export const MATTER_APPROVAL_REASONS = [
+  'money',
+  'contract',
+  'not_covered',
+  'new_person',
+  'asks_other_contact',
+  'auto_reply_off',
+  'unverified_sender',
+  'content_guard',
+  'cap_reached',
+  'read_failed',
+  'loop',
+  'other',
+] as const;
+export type MatterApprovalReason = (typeof MATTER_APPROVAL_REASONS)[number];
+
+/** What the content guard found in a reply draft (it then never goes out automatically). */
+export const MATTER_GUARD_FLAGS = ['money', 'contract', 'link', 'address', 'length'] as const;
+export type MatterGuardFlag = (typeof MATTER_GUARD_FLAGS)[number];
+
+/** Lenient: an unknown value a later server writes is dropped, never a failed parse. */
+const lenientEnumArray = <T extends readonly [string, ...string[]]>(values: T) =>
+  z
+    .array(z.enum(values).nullable().catch(null))
+    .max(32)
+    .transform((list) => [...new Set(list.filter((value): value is T[number] => value !== null))]);
+
+export const MATTER_DOC_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+export const matterDocIdSchema = z.string().regex(MATTER_DOC_ID_PATTERN);
+
+/** A reply draft exactly as it would be sent (the footer included). */
+export const matterDraftEmailSchema = z.object({
+  to: z.array(z.string()),
+  cc: z.array(z.string()),
+  subject: z.string(),
+  text: z.string(),
+});
+export type MatterDraftEmail = z.infer<typeof matterDraftEmailSchema>;
+
+/** users/{uid}/matters/{matterId}/approvals/{id}, as the app reads it. */
+export const matterApprovalViewSchema = z.object({
+  kind: z.enum(MATTER_APPROVAL_KINDS),
+  status: z.enum(MATTER_APPROVAL_STATUSES),
+  reason: z.enum(MATTER_APPROVAL_REASONS).nullable().catch(null),
+  /** The sentence of the email the card is about, verbatim; null when there is none. */
+  quote: z.string().nullable(),
+  /** Who wrote the email ("Carlos Ruiz <carlos@example.com>"); null for a card about our own email. */
+  from: z.string().nullable(),
+  /** reply_draft only: the exact email, and its hash (matterDecide sends it back). */
+  draft: matterDraftEmailSchema.nullable(),
+  draftHash: z.string().regex(DRAFT_HASH_PATTERN).nullable(),
+  guardFlags: lenientEnumArray(MATTER_GUARD_FLAGS),
+  /** reply_draft after approval: where the send stands. */
+  sendOutcome: z.enum(MATTER_SEND_OUTCOMES).nullable().catch(null),
+  /** Sent automatically (MATTERS_AUTO_REPLY), not by the owner. */
+  auto: z.boolean(),
+  createdAt: z.string(),
+});
+export type MatterApprovalView = z.infer<typeof matterApprovalViewSchema> & { id: string };
+
+/** users/{uid}/matters/{matterId}/proposals/{id}: a commitment the reply contains, as the app reads it. */
+export const matterProposalViewSchema = z.object({
+  /** The contact's own sentence, verbatim. */
+  quote: z.string(),
+  /** The proposed task title ("<owner>: ..." for the contact's commitment). */
+  title: z.string(),
+  owner: commitmentOwnerSchema.nullable(),
+  due: commitmentDueSchema.nullable(),
+  status: z.enum(COMMITMENT_STATUSES),
+  /** Accepted: the task's id. */
+  taskId: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type MatterProposalView = z.infer<typeof matterProposalViewSchema> & { id: string };
+
+/** users/{uid}/matters/{matterId}, the fields the app's list and matter page show. */
+export const matterListItemSchema = z.object({
+  status: z.enum(MATTER_STATUSES_CONTRACT),
+  title: z.string(),
+  updatedAt: z.string(),
+  /** Why it ended, when it did. */
+  stopReason: z.string().nullable().optional(),
+  /** Approval cards waiting for the owner. */
+  pendingApprovals: z.number().int().min(0).optional(),
+});
+export type MatterListItem = z.infer<typeof matterListItemSchema> & { matterId: string };
+
+export const MATTER_DECIDE_TARGETS = ['approval', 'proposal'] as const;
+/** approve / decline: an approval card; accept / drop: a proposed commitment. */
+export const MATTER_DECIDE_ACTIONS = ['approve', 'decline', 'accept', 'drop'] as const;
+
+export const matterDecideRequestSchema = z
+  .object({
+    matterId: matterIdSchema,
+    target: z.enum(MATTER_DECIDE_TARGETS),
+    id: matterDocIdSchema,
+    action: z.enum(MATTER_DECIDE_ACTIONS),
+    /** Approving a reply_draft: the hash of the draft the owner read. */
+    draftHash: z.string().regex(DRAFT_HASH_PATTERN).optional(),
+    /** Accepting a commitment: the device zone, for the task's date and reminder. */
+    timeZone: timeZoneSchema.optional(),
+  })
+  .strict();
+export type MatterDecideRequest = z.infer<typeof matterDecideRequestSchema>;
+
+export const matterDecideResponseSchema = z.object({
+  matterId: matterIdSchema,
+  id: matterDocIdSchema,
+  /** The card's or the commitment's status after the call. */
+  status: z.enum([...MATTER_APPROVAL_STATUSES, ...COMMITMENT_STATUSES]),
+  /** Approving a reply_draft: where its send stands (as matterConfirm); null otherwise. */
+  outcome: z.enum(MATTER_SEND_OUTCOMES).nullable(),
+  /** Accepting a commitment: the task's id; null otherwise. */
+  taskId: z.string().nullable(),
+  matterStatus: z.enum(MATTER_STATUSES_CONTRACT),
+});
+export type MatterDecideResponse = z.infer<typeof matterDecideResponseSchema>;
+
+/**
+ * matterView (A2): what the app shows, read by the server for the signed-in owner only (so the
+ * app needs no Firestore rule for the cards). Without matterId: the open matters (active and
+ * paused, newest first). With matterId: that matter with its pending cards and open commitments
+ * (page null when it does not exist).
+ */
+export const matterViewRequestSchema = z.object({ matterId: matterIdSchema.optional() }).strict();
+export type MatterViewRequest = z.infer<typeof matterViewRequestSchema>;
+
+export const matterViewItemSchema = matterListItemSchema.extend({ matterId: matterIdSchema });
+export const matterViewResponseSchema = z.object({
+  matters: z.array(matterViewItemSchema).nullable(),
+  page: z
+    .object({
+      matter: matterViewItemSchema,
+      approvals: z.array(matterApprovalViewSchema.extend({ id: matterDocIdSchema })),
+      proposals: z.array(matterProposalViewSchema.extend({ id: matterDocIdSchema })),
+    })
+    .nullable(),
+});
+export type MatterViewResponse = z.infer<typeof matterViewResponseSchema>;
 
 /** Error taxonomy of the matter* callables (details.reason). */
 export const MATTER_ERROR_CODES = [

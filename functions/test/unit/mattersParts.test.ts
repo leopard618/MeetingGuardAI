@@ -1,4 +1,4 @@
-import { addressesIn, foldApostrophes, normalizeProposal, buildDraftMessages, draftMatter, PROPOSE_MATTER_TOOL, resolveLocalDateTime, stripSignature } from '../../src/matters/draft';
+import { addressesIn, buildDraftMessages, draftMatter, foldApostrophes, humanizeDates, normalizeProposal, PROPOSE_MATTER_TOOL, resolveLocalDateTime, stripSignature } from '../../src/matters/draft';
 import { composeFirstEmail, createPostmarkSender, postmarkPayload, POSTMARK_API_URL, type EmailSendError } from '../../src/matters/email';
 import { matchInbound, ownMessageIdMatter, parseInbound, toMatterMessage } from '../../src/matters/inbound';
 import { MATTER_LIMITS, draftHash, isOwnDomain, matterMessageSchema, messageIdKey, type Mandate, type MatterDoc } from '../../src/matters/model';
@@ -368,6 +368,14 @@ function activeMatter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     createdAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
     endedAt: null,
+    stopReason: null,
+    followUpsSent: 0,
+    followUpClaim: null,
+    lastOutboundAt: null,
+    lastInboundAt: null,
+    bouncedRecipients: [],
+    pendingApprovals: 0,
+    dailyCounts: null,
     ...overrides,
   };
   return base;
@@ -559,5 +567,23 @@ describe('matters inbound: reading Postmark and finding the matter', () => {
     expect(ownMessageIdMatter(`<AbC123.0f1e@${DOMAIN.toUpperCase()}>`, DOMAIN)).toBe('AbC123');
     expect(ownMessageIdMatter('<m1.r1@evil.example>', DOMAIN)).toBeNull();
     expect(ownMessageIdMatter(`<m1@${DOMAIN}>`, DOMAIN)).toBeNull();
+  });
+});
+
+describe('dates in prose', () => {
+  it('rewrites a machine date the model left in the goal or the email, in the text language, keeping the wall-clock time', () => {
+    expect(humanizeDates('Ask Sven for the notes until 2026-11-17T12:30.', 'en')).toBe('Ask Sven for the notes until Tue, Nov 17, 12:30 PM.');
+    expect(humanizeDates('Could you send the notes by 2026-11-17 12:30?', 'en')).toBe('Could you send the notes by Tue, Nov 17, 12:30 PM?');
+    expect(humanizeDates('Antes del 2026-11-20.', 'es')).toMatch(/^Antes del vie, 20 nov\.?\.$/);
+    expect(humanizeDates('Invoice 2026-13-45 stays as written.', 'en')).toBe('Invoice 2026-13-45 stays as written.');
+  });
+
+  it('cleans the goal and the first email of a proposal', () => {
+    const draft = normalizeProposal(
+      proposal({ goal: 'Get the notes until 2026-11-13T18:00.', first_email: { subject: 'Notes', text: ['Hello Carlos,', '', 'Could you send the notes by 2026-11-13 18:00?', '', 'Best,'].join('\n') } }),
+      ctx(),
+    );
+    expect(draft.mandate!.goal).toBe('Get the notes until Fri, Nov 13, 6:00 PM.');
+    expect(draft.firstEmail!.text).toContain('by Fri, Nov 13, 6:00 PM?');
   });
 });

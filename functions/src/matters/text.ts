@@ -37,7 +37,7 @@ function sameLocalDay(a: string, b: string, timeZone: string): boolean {
 }
 
 /** "Mon, Nov 16" in the zone (no time). */
-function formatDay(iso: string, timeZone: string, language: Language): string {
+export function formatDay(iso: string, timeZone: string, language: Language): string {
   return new Intl.DateTimeFormat(LOCALES[language], { timeZone, weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(iso));
 }
 
@@ -210,4 +210,44 @@ export function disclosureFooter(ownerName: string, language: Language): string 
   return name
     ? `--\nI am the AI assistant for ${name}. This email was written by AI on their behalf, with Meeting Guard AI, and ${name} is kept informed of this conversation.`
     : '--\nI am an AI assistant. This email was written by AI, with Meeting Guard AI.';
+}
+
+// ---------------------------------------------------------------------------------------------
+// A2: replies, follow-ups, tasks
+// ---------------------------------------------------------------------------------------------
+
+/** "Re: <subject>" once (an existing Re: or RE: is kept as it is). */
+export function replySubject(subject: string): string {
+  const trimmed = subject.trim() || 'Re:';
+  return /^re\s*:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+}
+
+/** Our earlier email quoted under a follow-up, line by line ("> ..."), cut to a sane length. */
+export function quoteBelow(text: string, maxChars = 2000): string {
+  return text
+    .slice(0, maxChars)
+    .trimEnd()
+    .split('\n')
+    .map((line) => (line.length ? `> ${line}` : '>'))
+    .join('\n');
+}
+
+/**
+ * The follow-up: a FIXED template, never written by the model, so no reply text can steer it. The
+ * earlier email is quoted under it. The closing line has no name: the code signs it (email.ts).
+ */
+export function followUpText(title: string, language: Language): string {
+  const topic = title.trim();
+  return language === 'es'
+    ? `Hola de nuevo,\n\nLe escribo para hacer seguimiento de mi correo de abajo sobre "${topic}". ¿Podría echarle un vistazo cuando tenga un momento?\n\nSaludos,`
+    : `Hello again,\n\nI am following up on my email below about "${topic}". Could you have a look when you have a moment?\n\nBest,`;
+}
+
+/** The description of a task accepted from a matter: where it came from (never the email text). */
+export function matterTaskOrigin(input: { contactName: string; title: string; language: Language }): string {
+  const name = input.contactName.trim();
+  const title = input.title.trim();
+  return input.language === 'es'
+    ? `Del correo de ${name} en el asunto "${title}" (asistente de IA de Meeting Guard AI).`
+    : `From the email of ${name} in the matter "${title}" (Meeting Guard AI assistant).`;
 }

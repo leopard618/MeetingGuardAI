@@ -1,8 +1,10 @@
 /**
- * AI executive assistant, prototype (route "Matters", from Settings; A1 of the November 10 plan,
- * docs/v1/ARCHITECTURE.md section 36). Shown only when EXPO_PUBLIC_MATTERS_ENABLED; the full
- * screens (matters list, timeline, approval cards, voice) come in A3 and A5.
+ * AI executive assistant, prototype (route "Matters", from Settings; A1 and A2 of the November 10
+ * plan, docs/v1/ARCHITECTURE.md section 36). Shown only when EXPO_PUBLIC_MATTERS_ENABLED; the full
+ * screens (timeline, settings, voice) come in A3 and A5.
  *
+ * open:    A2: under the new-matter box, the open matters (active and paused); a tap opens the
+ *          matter page (MatterPage.tsx: the cards waiting for the owner and the proposed tasks)
  * compose: the user's words -> matterDraft
  * draft:   the questions (answer -> matterRevise), or the read-back of the mandate and the first
  *          email exactly as it will be sent; "Confirm and send" sends the draft's hash
@@ -13,20 +15,24 @@
  *          406) / cancelled; until cancelled, the matter can still be cancelled from here
  * Every string lives in the "matters" namespace (EN + ES). Nothing typed is logged.
  */
-import { useCallback, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
 import type { MatterConfirmResponse, MatterDraftResponse, MatterSendOutcome } from '../../core/aiContract';
-import { errorMessageKey, toAppError, type AppError } from '../../core/errors';
+import { toAppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
 import { toBaseLanguage } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
-import { matterService } from '../../services/matters';
+import { matterService, type MatterOpenItem } from '../../services/matters';
 import { spacing, useAppTheme } from '../../theme';
 import { ScreenBody, Section } from '../shared/Section';
+import { MatterPage } from './MatterPage';
+import { matterErrorKey } from './matterErrors';
+
+export { matterErrorKey };
 
 
 type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | null;
@@ -42,15 +48,6 @@ function doneFor(result: MatterConfirmResponse): Done {
   return kinds[result.outcome];
 }
 
-/** The message key for a failed action (the server's reason first, then the generic one). */
-export function matterErrorKey(error: AppError): string {
-  const reason = (error.details as { reason?: unknown } | undefined)?.reason;
-  if (reason === 'stale_draft') return 'matters:errors.stale';
-  if (reason === 'not_allowed') return 'matters:errors.notAllowed';
-  if (reason === 'not_configured' || error.code === 'not_configured') return 'matters:errors.unavailable';
-  return errorMessageKey(error.code);
-}
-
 export function MattersScreen(): ReactElement {
   const t = useT();
   const { language } = useLanguage();
@@ -60,6 +57,22 @@ export function MattersScreen(): ReactElement {
   const [draft, setDraft] = useState<MatterDraftResponse | null>(null);
   const [done, setDone] = useState<Done | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
+  const [openMatters, setOpenMatters] = useState<MatterOpenItem[] | null>(null);
+  const [openMatterId, setOpenMatterId] = useState<string | null>(null);
+
+  // every state update comes after the await (react-hooks/set-state-in-effect); the list is a
+  // convenience, so a failed read (or the assistant off) simply shows none
+  const loadOpen = useCallback(async (): Promise<void> => {
+    const list = await matterService.listOpen().catch((): MatterOpenItem[] => []);
+    setOpenMatters(list);
+  }, []);
+
+  useEffect(() => {
+    const start = (): void => {
+      void loadOpen();
+    };
+    start();
+  }, [loadOpen]);
 
   const run = useCallback(
     async (kind: Exclude<Busy, null>, action: () => Promise<void>): Promise<void> => {
@@ -109,6 +122,12 @@ export function MattersScreen(): ReactElement {
     setDone(null);
     setRequest('');
     setAnswer('');
+    void loadOpen();
+  };
+
+  const closeMatter = (): void => {
+    setOpenMatterId(null);
+    void loadOpen();
   };
 
   if (!matterService.isEnabled()) {
@@ -171,6 +190,14 @@ export function MattersScreen(): ReactElement {
     );
   }
 
+  if (openMatterId) {
+    return (
+      <ScreenBody>
+        <MatterPage matterId={openMatterId} onBack={closeMatter} />
+      </ScreenBody>
+    );
+  }
+
   if (!draft) {
     return (
       <ScreenBody>
@@ -191,6 +218,28 @@ export function MattersScreen(): ReactElement {
         <MGButton style={styles.action} onPress={() => void prepare()} loading={busy === 'prepare'} disabled={busy !== null || request.trim().length === 0} testID="matters-prepare">
           {t('matters:prepare')}
         </MGButton>
+        {openMatters && openMatters.length > 0 ? (
+          <Section title={t('matters:open.title')} testID="matters-open-list">
+            <ListGroup>
+              {openMatters.map((item) => (
+                <ListRow
+                  key={item.matterId}
+                  icon="email-fast-outline"
+                  title={item.title}
+                  supporting={
+                    item.pendingApprovals
+                      ? t('matters:open.waiting', { count: item.pendingApprovals })
+                      : t(`matters:open.status.${item.status}`)
+                  }
+                  trailing="chevron"
+                  onPress={() => setOpenMatterId(item.matterId)}
+                  accessibilityRole="button"
+                  testID={`matters-open-${item.matterId}`}
+                />
+              ))}
+            </ListGroup>
+          </Section>
+        ) : null}
       </ScreenBody>
     );
   }

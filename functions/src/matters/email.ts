@@ -31,6 +31,8 @@ export interface OutboundEmail {
   /** In-Reply-To / References for replies inside a thread (A2); empty for the first email. */
   inReplyTo: string | null;
   references: string[];
+  /** Postmark Metadata, echoed in its bounce and spam-complaint webhooks (matterDeliveryEvents). */
+  metadata?: Record<string, string>;
 }
 
 /** The bare address inside a From header value ("Name" <a@b> -> a@b). */
@@ -53,6 +55,8 @@ export function composeFirstEmail(input: {
   domain: string;
   fromLocalPart: string;
   random?: () => string;
+  /** When sending: the owner's uid, for the Postmark Metadata of bounce events (not in the preview). */
+  uid?: string;
 }): OutboundEmail {
   const { matter } = input;
   if (!matter.mandate || !matter.firstEmail) throw new Error('The draft is not complete.');
@@ -69,6 +73,52 @@ export function composeFirstEmail(input: {
     messageId: newMessageId(input.matterId, input.domain, input.random),
     inReplyTo: null,
     references: [],
+    ...(input.uid ? { metadata: { matterId: input.matterId, uid: input.uid } } : {}),
+  };
+}
+
+/**
+ * An A2 email of a matter (a reply or a follow-up): the same From, Reply-To, signature and footer
+ * as the first email. To and Cc come from the caller (the send check decides whether they may go
+ * out); the body is the text before the signature.
+ */
+export function composeMatterEmail(input: {
+  matter: Pick<MatterDoc, 'mandate' | 'ownerName' | 'replyToken'>;
+  matterId: string;
+  uid: string;
+  domain: string;
+  fromLocalPart: string;
+  to: string[];
+  cc: string[];
+  subject: string;
+  /** The body before the signature (the model's reply, or the follow-up template). */
+  body: string;
+  /** Under the signature and footer (the quoted earlier email of a follow-up). */
+  quoted?: string;
+  inReplyTo: string | null;
+  references: string[];
+  random?: () => string;
+}): OutboundEmail {
+  if (!input.matter.mandate) throw new Error('The matter has no mandate.');
+  const language: Language = input.matter.mandate.language;
+  const name = senderName(input.matter.ownerName, language);
+  const footer = disclosureFooter(input.matter.ownerName, language);
+  return {
+    from: `"${name}" <${fromAddress(input.domain, input.fromLocalPart)}>`,
+    to: input.to,
+    cc: input.cc,
+    replyTo: replyAddressFor(input.matter.replyToken, input.domain),
+    subject: input.subject,
+    text: `${input.body.trim()}
+${name}
+
+${footer}${input.quoted ? `
+
+${input.quoted}` : ''}`,
+    messageId: newMessageId(input.matterId, input.domain, input.random),
+    inReplyTo: input.inReplyTo,
+    references: input.references,
+    metadata: { matterId: input.matterId, uid: input.uid },
   };
 }
 
@@ -129,6 +179,7 @@ export function postmarkPayload(email: OutboundEmail, messageStream: string): Re
     Headers: headers,
     TrackOpens: false,
     TrackLinks: 'None',
+    ...(email.metadata ? { Metadata: email.metadata } : {}),
   };
 }
 

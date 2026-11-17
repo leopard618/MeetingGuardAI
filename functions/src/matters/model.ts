@@ -12,11 +12,17 @@
  *   users/{uid}/matters/{matterId}                   MatterDoc      owner read, server write
  *   users/{uid}/matters/{matterId}/events/{eventId}  MatterEvent    owner read, server write
  *   users/{uid}/matters/{matterId}/messages/{msgId}  MatterMessage  owner read, server write
+ *   users/{uid}/matters/{matterId}/approvals/{id}    MatterApproval owner read, server write (A2)
+ *   users/{uid}/matters/{matterId}/proposals/{id}    MatterProposal owner read, server write (A2)
  *   matterAddresses/{token}                          reply address -> matter, server only
  *   matterMessageIds/{messageIdKey}                  Message-ID -> matter (threading), server only
  *   inboundEmails/{providerId}                       inbound dedupe marker, server only
+ *   matterSchedule/{matterId}                        next follow-up or end check (A2), server only
+ *   matterReadQueue/{matterId_messageId}             a reply read in progress or to retry (A2), server only
  * Under users/{uid}, so deleteAccount's recursive delete removes the matters with the account;
- * the two lookup collections carry the uid and are removed by deleteAccount as well.
+ * the lookup collections carry the uid and are removed by deleteAccount as well. The two A2
+ * queues are top-level collections queried on one field (nextActionAt, claimedAt), so they need no
+ * composite or collection-group index.
  *
  * Pure module: schemas, limits, ids and helpers only (no Firebase, no network).
  */
@@ -25,8 +31,18 @@ import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
 import {
+  COMMITMENT_LIMITS,
+  COMMITMENT_STATUSES,
   DRAFT_HASH_PATTERN,
+  MATTER_APPROVAL_KINDS,
+  MATTER_APPROVAL_REASONS,
+  MATTER_APPROVAL_STATUSES,
+  MATTER_GUARD_FLAGS,
+  MATTER_SEND_OUTCOMES,
   MATTER_SOURCES,
+  MEETING_ID_PATTERN,
+  commitmentDueSchema,
+  commitmentOwnerSchema,
   emailSchema,
   isoDateTimeSchema,
   languageSchema,
@@ -43,12 +59,22 @@ export const MATTER_MESSAGES_SUBCOLLECTION = 'messages';
 export const MATTER_ADDRESSES_COLLECTION = 'matterAddresses';
 export const MATTER_MESSAGE_IDS_COLLECTION = 'matterMessageIds';
 export const INBOUND_EMAILS_COLLECTION = 'inboundEmails';
+export const MATTER_APPROVALS_SUBCOLLECTION = 'approvals';
+export const MATTER_PROPOSALS_SUBCOLLECTION = 'proposals';
+export const MATTER_SCHEDULE_COLLECTION = 'matterSchedule';
+export const MATTER_READ_QUEUE_COLLECTION = 'matterReadQueue';
 
 export const matterPath = (uid: string, matterId: string) => `users/${uid}/${MATTERS_SUBCOLLECTION}/${matterId}`;
 export const matterEventPath = (uid: string, matterId: string, eventId: string) =>
   `${matterPath(uid, matterId)}/${MATTER_EVENTS_SUBCOLLECTION}/${eventId}`;
 export const matterMessagePath = (uid: string, matterId: string, messageId: string) =>
   `${matterPath(uid, matterId)}/${MATTER_MESSAGES_SUBCOLLECTION}/${messageId}`;
+export const matterApprovalPath = (uid: string, matterId: string, id: string) =>
+  `${matterPath(uid, matterId)}/${MATTER_APPROVALS_SUBCOLLECTION}/${id}`;
+export const matterProposalPath = (uid: string, matterId: string, id: string) =>
+  `${matterPath(uid, matterId)}/${MATTER_PROPOSALS_SUBCOLLECTION}/${id}`;
+/** matterReadQueue/{id}: matter and message ids are Firestore auto ids (alphanumeric), so "_" separates them. */
+export const readQueueId = (matterId: string, messageId: string) => `${matterId}_${messageId}`;
 
 // ---------------------------------------------------------------------------------------------
 // Limits
@@ -83,6 +109,15 @@ export const MATTER_LIMITS = {
   maxReferences: 50,
   /** RFC 5322 line limit; Message-IDs are far shorter in practice. */
   messageIdChars: 998,
+  /** A contact's Message-ID is put in In-Reply-To / References only up to this length (A2). */
+  threadIdChars: 250,
+  /** Attachments described per inbound email (name, type, size; the bytes are never kept in A2). */
+  maxAttachments: 20,
+  attachmentNameChars: 200,
+  /** A reply draft as the model writes it (before the code adds the signature and footer). */
+  replyChars: 3000,
+  quoteChars: 300,
+  maxProposalsPerReply: 5,
 } as const;
 
 // ---------------------------------------------------------------------------------------------
@@ -226,6 +261,29 @@ export const SEND_UNKNOWN_CAUSES = ['inactive_recipient'] as const;
  */
 export const SENDING_WINDOW_MS = 120_000;
 
+/**
+ * Why a matter stopped (A2): the user cancelled it, its end date passed, the contact asked us to
+ * stop, the owner confirmed the goal was reached, or a contact marked our email as spam.
+ */
+export const STOP_REASONS = ['user', 'ended', 'contact_asked', 'goal_reached', 'complaint'] as const;
+export type StopReason = (typeof STOP_REASONS)[number];
+
+/** The day's counters of one matter (UTC day), for the caps of A2 (caps.ts). */
+export const dailyCountsSchema = z
+  .object({
+    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    /** Model reads of replies. */
+    reads: z.number().int().min(0),
+    /** Replies sent without the owner's approval (MATTERS_AUTO_REPLY). */
+    autoReplies: z.number().int().min(0),
+    /** Emails in and out on the matter (a loop shows as many). */
+    exchanges: z.number().int().min(0),
+    /** A many_replies card was already added today. */
+    capCard: z.boolean(),
+  })
+  .strict();
+export type DailyCounts = z.infer<typeof dailyCountsSchema>;
+
 /** The secret part of a matter's reply address: 96 random bits, lowercase hex (case-safe in email). */
 export const REPLY_TOKEN_PATTERN = /^[a-f0-9]{24}$/;
 
@@ -268,6 +326,22 @@ const matterDocShape = {
     updatedAt: isoDateTimeSchema,
     /** When it became done or cancelled. */
     endedAt: isoDateTimeSchema.nullable(),
+    // ---- A2 (every field has a default, so matters written by A1 still read) ----
+    /** Why it stopped (STOP_REASONS); null while it runs. */
+    stopReason: z.enum(STOP_REASONS).nullable().default(null),
+    /** Follow-ups sent (and claimed ones whose fate is unknown: never sent twice). */
+    followUpsSent: z.number().int().min(0).default(0),
+    /** A follow-up a tick claimed and is sending: { number, claimedAt }. */
+    followUpClaim: z.object({ number: z.number().int().min(1), claimedAt: isoDateTimeSchema }).strict().nullable().default(null),
+    /** Our last email that went out (the follow-up clock runs from it). */
+    lastOutboundAt: isoDateTimeSchema.nullable().default(null),
+    /** The last email of a contact that was not an automatic reply. */
+    lastInboundAt: isoDateTimeSchema.nullable().default(null),
+    /** Contact addresses that hard-bounced or are inactive at Postmark: never emailed again. */
+    bouncedRecipients: z.array(emailSchema).max(MATTER_LIMITS.maxRecipients).default([]),
+    /** Approval cards waiting for the owner (shown in the list). */
+    pendingApprovals: z.number().int().min(0).default(0),
+    dailyCounts: dailyCountsSchema.nullable().default(null),
 };
 
 /** What the functions WRITE: strict, nothing outside the model. */
@@ -299,6 +373,19 @@ export const MATTER_EVENT_TYPES = [
   'email_test',
   'email_received',
   'status_changed',
+  // A2
+  /** The model read a reply (detail: what it proposed, as a category). */
+  'reply_read',
+  /** A reply was stored and never acted on (the owner's address, an automatic reply, a paused matter). */
+  'reply_not_acted_on',
+  'approval_requested',
+  'approval_decided',
+  'commitment_proposed',
+  'commitment_decided',
+  'reply_sent',
+  'follow_up_sent',
+  'email_bounced',
+  'spam_complaint',
 ] as const;
 export type MatterEventType = (typeof MATTER_EVENT_TYPES)[number];
 
@@ -315,15 +402,53 @@ export const matterEventSchema = z
 
 export type MatterEvent = z.infer<typeof matterEventSchema>;
 
-/** Results of the sender checks on an inbound email (computed by our code from the raw message). */
-export const AUTH_VERDICTS = ['pass', 'fail', 'softfail', 'neutral', 'none', 'temperror', 'permerror'] as const;
+/** SPF as Postmark's Received-SPF header states it: a hint only, never deciding. */
+export const SPF_HINTS = ['pass', 'fail', 'softfail', 'neutral', 'none', 'temperror', 'permerror', 'unknown'] as const;
+
+/**
+ * The sender check of an inbound email (A2; mailCheck.ts, computed by our code from the raw email):
+ * trusted:    a DKIM signature that passes, aligned with the From domain, signs From
+ *             (mail/auth.ts isPassSig)
+ * unverified: no such signature (or no raw email to check): read, but never answered automatically
+ * malformed:  the headers do not parse strictly, or the raw From is not the From Postmark reports
+ */
+export const SENDER_VERDICTS = ['trusted', 'unverified', 'malformed'] as const;
+export type SenderVerdict = (typeof SENDER_VERDICTS)[number];
 
 export const emailAuthSchema = z
   .object({
-    spf: z.enum(AUTH_VERDICTS),
-    dkim: z.enum(AUTH_VERDICTS),
-    dmarc: z.enum(AUTH_VERDICTS),
+    verdict: z.enum(SENDER_VERDICTS),
+    fromAligned: z.boolean(),
+    spf: z.enum(SPF_HINTS),
+    /** A valid ARC chain sealed by google.com or microsoft.com (recorded; not deciding in A2). */
+    arcTrusted: z.boolean(),
+    /** Why it is not trusted, as a category ('no_raw', 'from_mismatch', 'no_aligned_signature', ...). */
+    reason: z.string().max(40).nullable(),
   })
+  .strict();
+export type EmailAuth = z.infer<typeof emailAuthSchema>;
+
+/**
+ * Who wrote an inbound email, by its From address:
+ * contact: one of the mandate's contacts; owner: the owner's own email (never acted on: the owner
+ * instructs only in the app); other: anyone else (a card, never answered).
+ */
+export const SENDER_ROLES = ['contact', 'owner', 'other'] as const;
+export type SenderRole = (typeof SENDER_ROLES)[number];
+
+/**
+ * Where the model read of an inbound email stands (matterInboundRead):
+ * none: waits for the trigger; reading: claimed; done: read and acted on (or decided without the
+ * model); failed: the read failed and matterTick retries it; skipped: stored only (never acted on).
+ */
+export const READ_STATES = ['none', 'reading', 'done', 'failed', 'skipped'] as const;
+export type ReadState = (typeof READ_STATES)[number];
+/** A read claim older than this is stale (the trigger died): matterTick retries it. */
+export const READ_STALE_MS = 10 * 60_000;
+export const MAX_READ_ATTEMPTS = 3;
+
+export const attachmentInfoSchema = z
+  .object({ name: z.string().max(MATTER_LIMITS.attachmentNameChars), type: z.string().max(100), size: z.number().int().min(0) })
   .strict();
 
 export const MESSAGE_DIRECTIONS = ['outbound', 'inbound'] as const;
@@ -348,12 +473,122 @@ export const matterMessageSchema = z
     at: isoDateTimeSchema,
     /** The email provider's id (outbound: for delivery events; inbound: for dedupe). */
     providerId: z.string().min(1).max(128).nullable(),
-    /** Inbound only: our own SPF, DKIM and DMARC checks. */
+    /** Inbound only: our own sender check (A2); null for outbound and for A1 emails. */
     auth: emailAuthSchema.nullable(),
+    // ---- A2 inbound fields (defaults keep A1 messages readable) ----
+    senderRole: z.enum(SENDER_ROLES).nullable().default(null),
+    /** An automatic reply (out of office, Auto-Submitted, bulk): stored, never answered. */
+    autoReply: z.boolean().default(false),
+    attachments: z.array(attachmentInfoSchema).max(MATTER_LIMITS.maxAttachments).default([]),
+    readState: z.enum(READ_STATES).nullable().default(null),
+    readAttempts: z.number().int().min(0).default(0),
+    readClaimedAt: isoDateTimeSchema.nullable().default(null),
+    /** What the read decided, as a category (the intent, or why it was not read). */
+    readOutcome: z.string().max(40).nullable().default(null),
   })
   .strict();
 
-export type MatterMessage = z.infer<typeof matterMessageSchema>;
+export type MatterMessage = z.input<typeof matterMessageSchema>;
+/** A stored message as read back (defaults applied, an unknown field dropped). */
+export const matterMessageReadSchema = matterMessageSchema.strip();
+export type StoredMessage = z.output<typeof matterMessageSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Approval cards and proposed commitments (A2)
+// ---------------------------------------------------------------------------------------------
+
+/** Where an approved reply draft's send stands (the matterConfirm pattern, per card). */
+export const CARD_SEND_STATES = ['none', 'sending', 'sent', 'failed', 'unknown'] as const;
+
+export const draftEmailSchema = z
+  .object({
+    to: z.array(emailSchema).min(1).max(MATTER_LIMITS.maxRecipients),
+    cc: z.array(emailSchema).max(MATTER_LIMITS.maxRecipients),
+    subject: z.string().min(1).max(MATTER_LIMITS.subjectChars),
+    /** The whole body as sent (signature and footer included). */
+    text: z.string().min(1).max(MATTER_LIMITS.bodyChars),
+  })
+  .strict();
+export type DraftEmail = z.infer<typeof draftEmailSchema>;
+
+export const threadingSchema = z
+  .object({ inReplyTo: messageIdSchema.nullable(), references: z.array(messageIdSchema).max(MATTER_LIMITS.maxReferences) })
+  .strict();
+export type Threading = z.infer<typeof threadingSchema>;
+
+export const matterApprovalSchema = z
+  .object({
+    kind: z.enum(MATTER_APPROVAL_KINDS),
+    status: z.enum(MATTER_APPROVAL_STATUSES),
+    reason: z.enum(MATTER_APPROVAL_REASONS).nullable(),
+    quote: z.string().max(MATTER_LIMITS.quoteChars).nullable(),
+    from: z.string().max(400).nullable(),
+    draft: draftEmailSchema.nullable(),
+    draftHash: z.string().regex(DRAFT_HASH_PATTERN).nullable(),
+    threading: threadingSchema.nullable(),
+    guardFlags: z.array(z.enum(MATTER_GUARD_FLAGS)).max(MATTER_GUARD_FLAGS.length),
+    sendOutcome: z.enum(MATTER_SEND_OUTCOMES).nullable(),
+    sendState: z.enum(CARD_SEND_STATES),
+    sendClaimedAt: isoDateTimeSchema.nullable(),
+    auto: z.boolean(),
+    /** The inbound message the card is about (messages/{id}); null for a bounce. */
+    sourceMessageId: z.string().min(1).max(128).nullable(),
+    createdAt: isoDateTimeSchema,
+    updatedAt: isoDateTimeSchema,
+    decidedAt: isoDateTimeSchema.nullable(),
+  })
+  .strict();
+export type MatterApproval = z.infer<typeof matterApprovalSchema>;
+export const matterApprovalReadSchema = matterApprovalSchema.strip();
+
+export const matterProposalSchema = z
+  .object({
+    quote: z.string().min(1).max(MATTER_LIMITS.quoteChars),
+    title: z.string().min(1).max(COMMITMENT_LIMITS.maxTitleChars),
+    owner: commitmentOwnerSchema.nullable(),
+    due: commitmentDueSchema.nullable(),
+    status: z.enum(COMMITMENT_STATUSES),
+    taskId: z.string().regex(MEETING_ID_PATTERN).nullable(),
+    sourceMessageId: z.string().min(1).max(128),
+    createdAt: isoDateTimeSchema,
+    updatedAt: isoDateTimeSchema,
+    decidedAt: isoDateTimeSchema.nullable(),
+  })
+  .strict();
+export type MatterProposal = z.infer<typeof matterProposalSchema>;
+export const matterProposalReadSchema = matterProposalSchema.strip();
+
+/** The hash of one exact reply draft (and its threading): approving names the version shown. */
+export function draftEmailHash(draft: DraftEmail, threading: Threading): string {
+  return createHash('sha256').update(canonicalJson({ draft, threading })).digest('hex');
+}
+
+/**
+ * A proposed commitment's id, which is also its task's id once accepted: "mt_" plus a hash of the
+ * matter, the message and the position, so a re-read of the same reply never makes a second one.
+ */
+export function proposalIdFor(matterId: string, messageId: string, index: number): string {
+  return `mt_${createHash('sha256').update(`${matterId}:${messageId}:${index}`).digest('hex').slice(0, 24)}`;
+}
+
+/** matterSchedule/{matterId}: when matterTick looks at the matter next. */
+export const matterScheduleSchema = z
+  .object({ uid: z.string().min(1).max(128), matterId: z.string().min(1).max(128), nextActionAt: isoDateTimeSchema })
+  .strict();
+export type MatterSchedule = z.infer<typeof matterScheduleSchema>;
+
+/** matterReadQueue/{matterId_messageId}: a read claimed (or failed) that matterTick may retry. */
+export const matterReadQueueSchema = z
+  .object({
+    uid: z.string().min(1).max(128),
+    matterId: z.string().min(1).max(128),
+    messageId: z.string().min(1).max(128),
+    /** The claim's time, or the time a failed read may be retried from. */
+    claimedAt: isoDateTimeSchema,
+    attempts: z.number().int().min(0),
+  })
+  .strict();
+export type MatterReadQueue = z.infer<typeof matterReadQueueSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Lookup documents (server only)

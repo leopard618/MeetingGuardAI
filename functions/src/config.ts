@@ -420,6 +420,20 @@ export function mattersParams() {
      * (HTTP basic auth). Anything without it is answered 401 before the body is read.
      */
     MATTERS_INBOUND_PASSWORD: defineSecret('MATTERS_INBOUND_PASSWORD'),
+    /**
+     * A2: replies the assistant drafts go out without the owner's approval (only to a trusted
+     * contact, only when the content guard and the caps allow it). Default false: for the pilot
+     * every reply is an approval card, until the hostile suite and the device test pass.
+     */
+    MATTERS_AUTO_REPLY: defineBoolean('MATTERS_AUTO_REPLY', {
+      default: false,
+      description: 'Lets the assistant send replies without approval (trusted contacts only). Keep false for the pilot.',
+    }),
+    /** A2: per-user cap on assistant emails per UTC day across matters (replies and follow-ups). */
+    MATTERS_USER_DAILY_SENDS: defineInt('MATTERS_USER_DAILY_SENDS', {
+      default: 30,
+      description: 'Maximum assistant emails (replies and follow-ups) one user may send per UTC day.',
+    }),
   };
   return mattersParamsCache;
 }
@@ -432,6 +446,8 @@ export const MATTERS_PARAM_NAMES = [
   'MATTERS_USER_DAILY_LIMIT',
   'MATTERS_POSTMARK_TOKEN',
   'MATTERS_INBOUND_PASSWORD',
+  'MATTERS_AUTO_REPLY',
+  'MATTERS_USER_DAILY_SENDS',
 ] as const;
 
 type MattersParams = {
@@ -441,6 +457,8 @@ type MattersParams = {
   MATTERS_USER_DAILY_LIMIT: ReturnType<typeof defineInt>;
   MATTERS_POSTMARK_TOKEN: ReturnType<typeof defineSecret>;
   MATTERS_INBOUND_PASSWORD: ReturnType<typeof defineSecret>;
+  MATTERS_AUTO_REPLY: ReturnType<typeof defineBoolean>;
+  MATTERS_USER_DAILY_SENDS: ReturnType<typeof defineInt>;
 };
 let mattersParamsCache: MattersParams | undefined;
 
@@ -453,8 +471,24 @@ export const MATTERS_TUNING = {
   fromLocalPart: 'assistant',
   /** Postmark message stream for the assistant's emails. */
   messageStream: 'outbound',
-  /** Inbound webhook body cap (Postmark's own limit is 35 MB with attachments; text is enough). */
-  maxInboundBytes: 5 * 1024 * 1024,
+  /**
+   * Inbound webhook body cap. A2 reads the raw email (DKIM), so attachments arrive too: kept under
+   * Cloud Run's 32 MiB request limit, which refuses larger bodies before our code runs (Postmark's
+   * own maximum is 35 MB). Over it: answered 200 and logged with the provider id and size only.
+   */
+  maxInboundBytes: 30 * 1024 * 1024,
+  /** The inbound webhook (A2): the DKIM check waits on DNS up to 32 s, and a raw email can be large. */
+  inboundMemory: '1GiB',
+  inboundTimeoutSeconds: 60,
+  inboundConcurrency: 2,
+  /** matterInboundRead: one model read and maybe one send. */
+  readTimeoutSeconds: 120,
+  /** matterTick: every 15 minutes, a bounded batch per run. */
+  tickTimeoutSeconds: 300,
+  tickBatch: 50,
+  tickReadBatch: 20,
+  /** One global-budget unit per started block of prompt characters (as COMMITMENTS_TUNING). */
+  globalBudgetCharsPerUnit: 10_000,
   /** Inbound dedupe markers expire after this many days. */
   inboundMarkerTtlDays: 7,
   memory: '512MiB',

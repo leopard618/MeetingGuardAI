@@ -745,4 +745,28 @@ describe('executive assistant matters (docs/v1/ARCHITECTURE.md 36)', () => {
     }
     await assertFails(getDocs(collection(alice(), 'matterAddresses')));
   });
+
+  it('A2: lets the owner read the approval cards and proposed commitments, never write them', async () => {
+    await seed(MATTER, matter);
+    await seed(`${MATTER}/approvals/a1`, { kind: 'reply_draft', status: 'pending', draftHash: 'c'.repeat(64) });
+    await seed(`${MATTER}/proposals/mt_${'d'.repeat(24)}`, { title: 'Send the proposal', status: 'open' });
+    await assertSucceeds(getDocs(collection(alice(), `${MATTER}/approvals`)));
+    await assertSucceeds(getDoc(doc(alice(), `${MATTER}/proposals/mt_${'d'.repeat(24)}`)));
+    await assertFails(getDocs(collection(bob(), `${MATTER}/approvals`)));
+    await assertFails(getDoc(doc(bob(), `${MATTER}/proposals/mt_${'d'.repeat(24)}`)));
+    // approving or accepting only through matterDecide
+    await assertFails(updateDoc(doc(alice(), `${MATTER}/approvals/a1`), { status: 'approved' }));
+    await assertFails(setDoc(doc(alice(), `${MATTER}/approvals/a2`), { kind: 'reply_draft', status: 'approved' }));
+    await assertFails(updateDoc(doc(alice(), `${MATTER}/proposals/mt_${'d'.repeat(24)}`), { status: 'accepted' }));
+  });
+
+  it('A2: keeps the follow-up schedule and the read queue server-only', async () => {
+    await seed('matterSchedule/m1', { uid: 'alice', matterId: 'm1', nextActionAt: ISO });
+    await seed('matterReadQueue/m1_x1', { uid: 'alice', matterId: 'm1', messageId: 'x1', claimedAt: ISO, attempts: 1 });
+    for (const path of ['matterSchedule/m1', 'matterReadQueue/m1_x1']) {
+      await assertFails(getDoc(doc(alice(), path)));
+      await assertFails(setDoc(doc(alice(), path), { uid: 'alice' }));
+      await assertFails(deleteDoc(doc(alice(), path)));
+    }
+  });
 });

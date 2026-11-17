@@ -8,6 +8,9 @@
  *   details.reason so the screen can word 'stale_draft' and 'not_allowed' itself.
  * - Shown only when env.mattersEnabled (EXPO_PUBLIC_MATTERS_ENABLED); the server also gates it.
  * - Never logs the user's words, addresses or email text: error codes only.
+ * - A2: matterDecide (approve or decline a card, accept or drop a commitment) and matterView (the
+ *   open matters, or one matter with its pending cards and open commitments). The server reads
+ *   them for the signed-in owner, so the app needs no Firestore rule for the cards.
  */
 import { httpsCallable } from 'firebase/functions';
 
@@ -16,6 +19,10 @@ import {
   MATTER_CALL_TIMEOUT_MS,
   matterCancelRequestSchema,
   matterCancelResponseSchema,
+  matterDecideRequestSchema,
+  matterDecideResponseSchema,
+  matterViewRequestSchema,
+  matterViewResponseSchema,
   matterConfirmRequestSchema,
   matterConfirmResponseSchema,
   matterDraftRequestSchema,
@@ -25,8 +32,11 @@ import {
   type Language,
   type MatterCancelResponse,
   type MatterConfirmResponse,
+  type MatterDecideRequest,
+  type MatterDecideResponse,
   type MatterDraftResponse,
   type MatterErrorCode,
+  type MatterViewResponse,
 } from '../../core/aiContract';
 import { AppError, isAppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -39,7 +49,9 @@ export type MatterCallableName =
   | typeof CALLABLES.matterDraft
   | typeof CALLABLES.matterRevise
   | typeof CALLABLES.matterConfirm
-  | typeof CALLABLES.matterCancel;
+  | typeof CALLABLES.matterCancel
+  | typeof CALLABLES.matterDecide
+  | typeof CALLABLES.matterView;
 
 export interface MatterTransport {
   call(name: MatterCallableName, request: unknown, options: { timeoutMs: number }): Promise<unknown>;
@@ -52,7 +64,16 @@ export interface MatterService {
   revise(matterId: string, answer: string): Promise<MatterDraftResponse>;
   confirm(matterId: string, draftHash: string): Promise<MatterConfirmResponse>;
   cancel(matterId: string): Promise<MatterCancelResponse>;
+  /** A2: approve or decline a card, accept or drop a proposed commitment. */
+  decide(request: MatterDecideRequest): Promise<MatterDecideResponse>;
+  /** A2: the signed-in user's active and paused matters, newest first (matterView). */
+  listOpen(): Promise<MatterOpenItem[]>;
+  /** A2: one matter with its pending cards and open commitments; null when it does not exist (matterView). */
+  getPage(matterId: string): Promise<MatterPage | null>;
 }
+
+export type MatterOpenItem = NonNullable<MatterViewResponse['matters']>[number];
+export type MatterPage = NonNullable<MatterViewResponse['page']>;
 
 const REASON_TO_APP_CODE: Readonly<Record<MatterErrorCode, AppErrorCode>> = {
   not_configured: 'not_configured',
@@ -128,6 +149,10 @@ export function createMatterService(deps: MatterServiceDeps): MatterService {
     confirm: async (matterId, draftHash) =>
       call(CALLABLES.matterConfirm, validated(matterConfirmRequestSchema, { matterId, draftHash }), (raw) => matterConfirmResponseSchema.safeParse(raw)),
     cancel: async (matterId) => call(CALLABLES.matterCancel, validated(matterCancelRequestSchema, { matterId }), (raw) => matterCancelResponseSchema.safeParse(raw)),
+    decide: async (request) => call(CALLABLES.matterDecide, validated(matterDecideRequestSchema, request), (raw) => matterDecideResponseSchema.safeParse(raw)),
+    listOpen: async () => (await call(CALLABLES.matterView, {}, (raw) => matterViewResponseSchema.safeParse(raw))).matters ?? [],
+    getPage: async (matterId) =>
+      (await call(CALLABLES.matterView, validated(matterViewRequestSchema, { matterId }), (raw) => matterViewResponseSchema.safeParse(raw))).page,
   };
 }
 

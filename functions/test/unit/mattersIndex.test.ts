@@ -27,7 +27,18 @@ function setEnv(name: string, value: string | undefined): void {
 
 /** A synthetic dedicated runtime account (reserved test project id). */
 const RUNTIME_ACCOUNT = 'matters-functions@demo-meetingguard.iam.gserviceaccount.com';
-const FUNCTION_NAMES = ['matterDraft', 'matterRevise', 'matterConfirm', 'matterCancel', 'assistantInboundEmail'] as const;
+const FUNCTION_NAMES = [
+  'matterDraft',
+  'matterRevise',
+  'matterConfirm',
+  'matterCancel',
+  'assistantInboundEmail',
+  'matterDecide',
+  'matterView',
+  'matterInboundRead',
+  'matterTick',
+  'matterDeliveryEvents',
+] as const;
 
 function secretKeys(fn: unknown): string[] {
   const endpoint = (fn as EndpointView).__endpoint;
@@ -69,6 +80,11 @@ describe('matters functions: deploy gate', () => {
       expect(mod.matterConfirm).toBeUndefined();
       expect(mod.matterCancel).toBeUndefined();
       expect(mod.assistantInboundEmail).toBeUndefined();
+      expect(mod.matterDecide).toBeUndefined();
+      expect(mod.matterView).toBeUndefined();
+      expect(mod.matterInboundRead).toBeUndefined();
+      expect(mod.matterTick).toBeUndefined();
+      expect(mod.matterDeliveryEvents).toBeUndefined();
     }
   });
 
@@ -92,6 +108,24 @@ describe('matters functions: deploy gate', () => {
     expect(secretKeys(mod.matterConfirm)).toEqual(['MATTERS_POSTMARK_TOKEN']);
     expect(secretKeys(mod.matterCancel)).toEqual([]);
     expect(secretKeys(mod.assistantInboundEmail)).toEqual(['MATTERS_INBOUND_PASSWORD']);
+    // A2
+    expect(secretKeys(mod.matterDecide)).toEqual(['MATTERS_POSTMARK_TOKEN']);
+    expect(secretKeys(mod.matterView)).toEqual([]);
+    expect(secretKeys(mod.matterInboundRead)).toEqual(['MATTERS_POSTMARK_TOKEN', 'OPENAI_API_KEY']);
+    expect(secretKeys(mod.matterTick)).toEqual(['MATTERS_POSTMARK_TOKEN', 'OPENAI_API_KEY']);
+    expect(secretKeys(mod.matterDeliveryEvents)).toEqual(['MATTERS_INBOUND_PASSWORD']);
+  });
+
+  it('wires the read trigger to the messages of a matter, the tick every 15 minutes, and the webhook for raw emails', () => {
+    const mod = loadModule('true');
+    const endpoint = (fn: unknown) => (fn as { __endpoint: Record<string, unknown> }).__endpoint;
+    const trigger = endpoint(mod.matterInboundRead).eventTrigger as { eventFilters?: Record<string, unknown>; eventFilterPathPatterns?: Record<string, unknown>; retry?: unknown };
+    expect(JSON.stringify(trigger)).toContain('users/{uid}/matters/{matterId}/messages/{messageId}');
+    expect(JSON.parse(JSON.stringify(trigger.retry ?? false))).toBe(false);
+    expect((endpoint(mod.matterTick).scheduleTrigger as { schedule?: unknown }).schedule).toBe('every 15 minutes');
+    const webhook = endpoint(mod.assistantInboundEmail);
+    expect(JSON.parse(JSON.stringify(webhook.availableMemoryMb))).toBe(1024);
+    expect(JSON.parse(JSON.stringify(webhook.concurrency))).toBe(2);
   });
 
   it('runs every function as the MATTERS_SERVICE_ACCOUNT account when the line is set', () => {

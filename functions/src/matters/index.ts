@@ -21,14 +21,26 @@
  * - matterCancel: Firestore only.
  * - assistantInboundEmail: Postmark's inbound webhook (HTTP basic auth, user "postmark", password
  *   MATTERS_INBOUND_PASSWORD); 401 before the body is read when it does not match. Every other
- *   outcome answers 200 so Postmark does not retry what we already handled or chose to drop.
+ *   outcome answers 200 so Postmark does not retry what we already handled or chose to drop. A2:
+ *   1 GiB, concurrency 2, the sender check (./mailCheck.ts, which loads mailauth) required lazily
+ *   on the first request; no model call here.
+ * - A2: matterView (callable: the open matters and one matter's cards, for the owner; no secret),
+ *   matterDecide (callable: cards and commitments; MATTERS_POSTMARK_TOKEN for approved replies),
+ *   matterInboundRead (onDocumentCreated on a matter's messages: the model read of a reply;
+ *   OPENAI_API_KEY and MATTERS_POSTMARK_TOKEN), matterTick (every 15 minutes: end dates, follow-ups,
+ *   read retries; both secrets) and matterDeliveryEvents (Postmark's bounce and spam-complaint
+ *   webhook, the same basic auth as the inbound one). The logic is in ./replies.ts.
  */
 import { timingSafeEqual } from 'node:crypto';
 
+import { FieldValue } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
+import { onDocumentCreated } from 'firebase-functions/firestore';
 import { onCall, onRequest, type CallableOptions } from 'firebase-functions/https';
+import { onSchedule } from 'firebase-functions/scheduler';
 
 import {
+  ASSISTANT_GLOBAL_DAILY_LIMIT,
   FUNCTIONS_REGION,
   MATTERS_TUNING,
   OPENAI_API_KEY,
@@ -40,8 +52,10 @@ import {
 } from '../config';
 import { adminDb } from '../firebase';
 import { instanceOpenAiKeyProvider, withKeyRetry } from '../openaiKey';
+import { AI_STATS_SHARD_COUNT, adminStatsAiShardPath } from '../admin/schemas';
+import { createGlobalBudget, firestoreGlobalBudgetStore, type GlobalBudget } from '../assistant/globalBudget';
 import { createOpenAiClient } from '../assistant/llm';
-import type { MatterCancelResponse, MatterConfirmResponse, MatterDraftResponse } from '../shared/aiContract';
+import type { MatterCancelResponse, MatterConfirmResponse, MatterDecideResponse, MatterDraftResponse, MatterViewResponse } from '../shared/aiContract';
 import { createPostmarkSender, EmailSendError } from './email';
 import {
   handleInboundEmail,
@@ -52,7 +66,35 @@ import {
   type MatterCaller,
   type MatterDeps,
 } from './handlers';
+import type * as MailCheckNs from './mailCheck';
+import type { SenderCheck } from './mailCheck';
+import { handleDeliveryEvent, handleInboundRead, handleMatterDecide, handleMatterView, runMatterTick } from './replies';
 import { firestoreMatterStore } from './store';
+
+type MailCheckModule = typeof MailCheckNs;
+let mailCheckModule: MailCheckModule | null = null;
+
+/**
+ * The sender check, required on the first inbound request: it loads mailauth, which no deploy-time
+ * module may load (test/unit/genericModules.test.ts). require, not import(), for the reason in
+ * summaries/inboundFunction.ts (CommonJS build); a failed require is retried on the next request.
+ */
+function loadMailCheck(): SenderCheck {
+  if (mailCheckModule === null) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- deliberate lazy load, see above.
+    mailCheckModule = require('./mailCheck') as MailCheckModule;
+  }
+  return mailCheckModule.checkSender;
+}
+
+/** One per instance (its short cache keeps the check cheap); the assistant's daily cap. */
+let globalBudget: GlobalBudget | null = null;
+function instanceGlobalBudget(): GlobalBudget {
+  if (globalBudget === null) {
+    globalBudget = createGlobalBudget(firestoreGlobalBudgetStore(adminDb()), { limit: () => ASSISTANT_GLOBAL_DAILY_LIMIT.value() });
+  }
+  return globalBudget;
+}
 
 /** Whether MATTERS_ENABLED is true while this module is LOADED (deploy-time gate). */
 export function mattersEnabledAtLoad(): boolean {
@@ -127,6 +169,24 @@ function deps(): MatterDeps {
     domain: params.MATTERS_MAIL_DOMAIN.value(),
     fromLocalPart: MATTERS_TUNING.fromLocalPart,
     dailyLimit: params.MATTERS_USER_DAILY_LIMIT.value(),
+    autoReply: params.MATTERS_AUTO_REPLY.value() === true,
+    dailySendLimit: params.MATTERS_USER_DAILY_SENDS.value(),
+    globalBudget: instanceGlobalBudget(),
+    // the assistant's admin stats: one merge-set with increments on a random shard
+    recordAiUsage: async (dayKey, tokens) => {
+      const shard = Math.floor(Math.random() * AI_STATS_SHARD_COUNT);
+      await adminDb()
+        .doc(adminStatsAiShardPath(dayKey, shard))
+        .set(
+          {
+            requests: FieldValue.increment(1),
+            inputTokens: FieldValue.increment(tokens.inputTokens),
+            outputTokens: FieldValue.increment(tokens.outputTokens),
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true },
+        );
+    },
   };
 }
 
@@ -157,7 +217,92 @@ function makeCallables() {
       handleMatterConfirm(callerOf(request.auth), request.data, deps()),
     ),
     matterCancel: onCall(CALLABLE_BASE, (request): Promise<MatterCancelResponse> => handleMatterCancel(callerOf(request.auth), request.data, deps())),
+    matterDecide: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN] }, (request): Promise<MatterDecideResponse> =>
+      handleMatterDecide(callerOf(request.auth), request.data, deps()),
+    ),
+    // the app's open matters and matter page, read for the owner (no client rule needed)
+    matterView: onCall(CALLABLE_BASE, (request): Promise<MatterViewResponse> => handleMatterView(callerOf(request.auth), request.data, deps())),
   };
+}
+
+/** A2: the model read of each stored reply (the webhook never calls the model). */
+function makeInboundRead() {
+  const { MATTERS_POSTMARK_TOKEN } = mattersParams();
+  return onDocumentCreated(
+    {
+      document: 'users/{uid}/matters/{matterId}/messages/{messageId}',
+      region: FUNCTIONS_REGION,
+      secrets: [OPENAI_API_KEY, MATTERS_POSTMARK_TOKEN],
+      timeoutSeconds: MATTERS_TUNING.readTimeoutSeconds,
+      memory: MATTERS_TUNING.memory,
+      maxInstances: MATTERS_TUNING.maxInstances,
+      // no platform retry: the readState claim and matterTick's retries cover a failed read
+      retry: false,
+      ...runtimeIdentity(),
+    },
+    async (event) => {
+      const { uid, matterId, messageId } = event.params;
+      if (!uid || !matterId || !messageId) return;
+      // outbound messages and mail kept only finish at once (claimRead), without a model call
+      if (event.data?.get('direction') !== 'inbound') return;
+      await handleInboundRead({ uid, matterId, messageId }, deps());
+    },
+  );
+}
+
+/** A2: end dates, follow-ups and read retries, every 15 minutes. */
+function makeTick() {
+  const { MATTERS_POSTMARK_TOKEN } = mattersParams();
+  return onSchedule(
+    {
+      schedule: 'every 15 minutes',
+      timeZone: 'Etc/UTC',
+      region: FUNCTIONS_REGION,
+      secrets: [OPENAI_API_KEY, MATTERS_POSTMARK_TOKEN],
+      timeoutSeconds: MATTERS_TUNING.tickTimeoutSeconds,
+      memory: MATTERS_TUNING.memory,
+      maxInstances: 1,
+      retryCount: 0,
+      ...runtimeIdentity(),
+    },
+    async () => {
+      if (mattersParams().MATTERS_ENABLED.value() !== true) return;
+      const result = await runMatterTick(deps(), { schedules: MATTERS_TUNING.tickBatch, reads: MATTERS_TUNING.tickReadBatch });
+      logger.info('matters.tick', { ...result });
+    },
+  );
+}
+
+/** A2: Postmark's outbound webhook (Bounce, SpamComplaint), with the inbound webhook's basic auth. */
+function makeDeliveryEvents() {
+  const { MATTERS_ENABLED, MATTERS_INBOUND_PASSWORD } = mattersParams();
+  return onRequest(
+    {
+      region: FUNCTIONS_REGION,
+      secrets: [MATTERS_INBOUND_PASSWORD],
+      timeoutSeconds: 30,
+      memory: '256MiB',
+      maxInstances: MATTERS_TUNING.maxInstances,
+      ...runtimeIdentity(),
+    },
+    async (req, res) => {
+      if (MATTERS_ENABLED.value() !== true) {
+        res.status(404).send('Not configured');
+        return;
+      }
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+      if (!isInboundAuthorized(req.headers.authorization, MATTERS_INBOUND_PASSWORD.value())) {
+        logger.warn('matters.delivery_unauthorized', {});
+        res.status(401).send('Unauthorized');
+        return;
+      }
+      const outcome = await handleDeliveryEvent(req.body, { store: firestoreMatterStore(adminDb()), now: () => new Date() });
+      res.status(200).send(outcome);
+    },
+  );
 }
 
 /** HTTP basic auth "postmark:<password>", compared in constant time. */
@@ -180,8 +325,9 @@ function makeInboundWebhook() {
     {
       region: FUNCTIONS_REGION,
       secrets: [MATTERS_INBOUND_PASSWORD],
-      timeoutSeconds: 30,
-      memory: '256MiB',
+      timeoutSeconds: MATTERS_TUNING.inboundTimeoutSeconds,
+      memory: MATTERS_TUNING.inboundMemory,
+      concurrency: MATTERS_TUNING.inboundConcurrency,
       maxInstances: MATTERS_TUNING.maxInstances,
       ...runtimeIdentity(),
     },
@@ -204,8 +350,7 @@ function makeInboundWebhook() {
         return;
       }
       if (req.rawBody.length > MATTERS_TUNING.maxInboundBytes) {
-        // answered 200 (Postmark would only send it again), but never dropped without a trace;
-        // keep "Include raw email content" off until A2 reads it, so ordinary replies stay small
+        // answered 200 (Postmark would only send it again), but never dropped without a trace
         logger.warn('matters.inbound_too_large', { providerId: providerIdOf(req.rawBody), sizeMiB: Math.ceil(req.rawBody.length / (1024 * 1024)) });
         res.status(200).send('ignored');
         return;
@@ -222,6 +367,7 @@ function makeInboundWebhook() {
         now: () => new Date(),
         domain: MATTERS_MAIL_DOMAIN.value(),
         markerTtlDays: MATTERS_TUNING.inboundMarkerTtlDays,
+        checkSender: loadMailCheck(),
       });
       res.status(200).send(outcome);
     },
@@ -236,4 +382,9 @@ export const matterDraft = callables?.matterDraft;
 export const matterRevise = callables?.matterRevise;
 export const matterConfirm = callables?.matterConfirm;
 export const matterCancel = callables?.matterCancel;
+export const matterDecide = callables?.matterDecide;
+export const matterView = callables?.matterView;
 export const assistantInboundEmail = enabledAtLoad ? makeInboundWebhook() : undefined;
+export const matterInboundRead = enabledAtLoad ? makeInboundRead() : undefined;
+export const matterTick = enabledAtLoad ? makeTick() : undefined;
+export const matterDeliveryEvents = enabledAtLoad ? makeDeliveryEvents() : undefined;

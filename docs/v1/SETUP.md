@@ -1205,10 +1205,14 @@ nothing below is needed for a deploy.
 1. Server `assistant` > Settings > Inbound: inbound domain `assistant.meetingguard.ai`.
 2. Webhook URL (after the first deploy with MATTERS_ENABLED, 15.4):
    `https://postmark:<MATTERS_INBOUND_PASSWORD>@<region>-<project>.cloudfunctions.net/assistantInboundEmail`
-   (HTTP basic auth; the function answers 401 to anything else). Leave "Include raw email
-   content" OFF until A2 reads it (A2 checks SPF, DKIM and DMARC from it): with it on, a reply
-   carrying an attachment of about 2 MB is over the webhook's 5 MiB limit and is only logged
-   (`matters.inbound_too_large`), never stored.
+   (HTTP basic auth; the function answers 401 to anything else).
+3. A2: tick "Include raw email content in JSON payload" (Inbound settings). The sender check
+   reads the DKIM signatures from it; without it every reply is `unverified` (read, but never
+   answered automatically). The webhook takes bodies up to 30 MiB (under Cloud Run's 32 MiB).
+4. A2: Server `assistant` > the outbound message stream > Webhooks > Add webhook: URL
+   `https://postmark:<MATTERS_INBOUND_PASSWORD>@<region>-<project>.cloudfunctions.net/matterDeliveryEvents`,
+   events Bounce and Spam Complaint (the same password as the inbound webhook). Hard bounces
+   and complaints then reach the matter they belong to.
 
 ### 15.4 Secrets, params and deploy
 
@@ -1228,19 +1232,36 @@ MATTERS_ALLOWED_UIDS=<uid of each tester, comma-separated>
 MATTERS_MAIL_DOMAIN=assistant.meetingguard.ai
 MATTERS_USER_DAILY_LIMIT=30
 MATTERS_SERVICE_ACCOUNT=matters-functions@
+MATTERS_AUTO_REPLY=false
+MATTERS_USER_DAILY_SENDS=30
 ```
 
-`MATTERS_SERVICE_ACCOUNT` is the runtime account of the five functions (`name@` is expanded with
+`MATTERS_SERVICE_ACCOUNT` is the runtime account of the matter functions (`name@` is expanded with
 the project id). The project owner creates it once, without a key: Cloud Datastore User and Logs
 Writer on the project, and Service Account User on the account for whoever deploys. The deploy
 then grants it access to the secrets it binds. Without the line the functions run as the default
-compute account.
+compute account. A2: matterInboundRead is a Firestore trigger (Eventarc), so the account also
+needs Eventarc Event Receiver on the project and Cloud Run Invoker (the project owner grants
+both). The first Firestore trigger of the project enables Eventarc on its first deploy, which
+can fail once while the service agents are created: deploy it once on its own and repeat if so.
 
-and deploy only these five functions by name (CONTRIBUTING, "Deploying"):
+`MATTERS_AUTO_REPLY` stays `false` for the pilot: every reply the assistant drafts is an
+approval card. Turn it on only after the hostile suite and the device test pass.
+`MATTERS_USER_DAILY_SENDS` caps the replies and follow-ups per user per UTC day.
+
+A full or by-name deploy also needs every declared param of the codebase in the deployer's
+`.env.<projectId>`, the summaries ones included (`SUMMARIES_ENABLED=false` and empty
+`SUMMARIES_PILOT_UIDS`, `SUMMARIES_ADDRESS_TEMPLATE` and `SUMMARIES_SENDERS` when you do not
+run summaries); a non-interactive deploy stops on a missing one before deploying anything.
+
+Deploy only the matter functions by name (CONTRIBUTING, "Deploying"):
 
 ```bash
-npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail
+npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents
 ```
+
+No Firestore index is needed: the A2 queues (`matterSchedule`, `matterReadQueue`) are top-level
+collections queried on one field.
 
 Before a Postmark account exists, the secret MATTERS_POSTMARK_TOKEN can hold Postmark's public
 test token `POSTMARK_API_TEST`: sends are accepted and nothing is delivered (the matter records
@@ -1265,17 +1286,18 @@ functions deploy). Then check with one real send (15.6).
 
 The MATTERS_* lines stay ONLY in the `.env.<projectId>` of the developer who deploys the matter
 functions (Sven) until the beta. The other developer does not copy them: a deploy from `v2`
-with MATTERS_ENABLED=true would redeploy the five functions from `v2` code with another tester
+with MATTERS_ENABLED=true would redeploy the matter functions from `v2` code with another tester
 list, over what was deployed from the work branch.
 
-While MATTERS_ENABLED is not `true` in a deployer's `.env.<projectId>`, the five functions and
+While MATTERS_ENABLED is not `true` in a deployer's `.env.<projectId>`, the matter functions and
 their params and secrets are not even declared (functions/src/config.ts `mattersParams`), so
 that deploy never asks for them. A full deploy from `v2` without the line offers to delete the
-five functions if they are deployed: answer No. The quick kill switch is a by-name redeploy of
-the five functions with MATTERS_ALLOWED_UIDS empty (the run-time MATTERS_ENABLED check cannot be
-reached, since the functions only exist while it is true); matterCancel still works for every
-owner. Turning the assistant off for good:
-`npx firebase functions:delete matterDraft matterRevise matterConfirm matterCancel assistantInboundEmail`.
+matter functions if they are deployed: answer No. The quick kill switch is a by-name redeploy of
+the matter functions with MATTERS_ALLOWED_UIDS empty (the run-time MATTERS_ENABLED check cannot be
+reached, since the functions only exist while it is true; matterTick checks it too); matterCancel
+still works for every owner, and so do declining a card and dropping a commitment. Turning the
+assistant off for good:
+`npx firebase functions:delete matterDraft matterRevise matterConfirm matterCancel assistantInboundEmail matterDecide matterView matterInboundRead matterTick matterDeliveryEvents`.
 
 ### 15.5 Test build of the app
 
@@ -1288,3 +1310,14 @@ Hand over a matter to your own second address, confirm, and check in the receive
 ("Show original" in Gmail): SPF, DKIM and DMARC pass, From is the assistant's address,
 Reply-To is `m-<token>@assistant.meetingguard.ai`. Reply to it: the reply appears under the
 matter (Firestore `users/<uid>/matters/<id>/messages`).
+
+A2, on a device with the real token (the Carlos scenario, with real Gmail replies):
+1. Reply with an answer and a promise ("Here it is, I will send the final version tomorrow"):
+   the message gets `auth.verdict: 'trusted'`, and the app's matter page shows a reply draft card
+   and a proposed task with tomorrow's date. Approve the draft: it arrives threaded under the
+   first email. Accept the task: it is in your tasks with a 9:00 reminder.
+2. Do not answer for `everyDays`: in working hours the follow-up arrives, quoting the first email.
+3. Reply asking for a discount: an outside-the-mandate card (money), never an answer.
+4. Reply "please stop": the matter is done and no follow-up goes out.
+5. Logs: `matters.inbound_stored` (role and verdict), `matters.reply_read` (outcome, cards,
+   proposals), `matters.reply_sent`, `matters.follow_up_sent`, `matters.tick`.

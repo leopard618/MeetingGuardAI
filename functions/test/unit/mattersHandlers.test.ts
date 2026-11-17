@@ -307,7 +307,14 @@ describe('matterConfirm', () => {
     await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toMatchObject({ outcome: 'unknown' });
     const doc = await store.getMatter('u1', draft.matterId);
     expect(doc).toMatchObject({ firstSendState: 'unknown', firstSentAt: null });
-    expect(store.eventTypes('u1', draft.matterId)).toEqual(['created', 'mandate_confirmed', 'email_unconfirmed']);
+    if (failure.code === 406) {
+      // A2: with one contact, the 406 names that address: recorded like a hard bounce, with one card
+      expect(store.eventTypes('u1', draft.matterId)).toEqual(['created', 'mandate_confirmed', 'email_unconfirmed', 'email_bounced']);
+      expect(await store.getMatter('u1', draft.matterId)).toMatchObject({ bouncedRecipients: ['carlos@example.com'], pendingApprovals: 1 });
+      expect(store.cardList('u1', draft.matterId)).toEqual([expect.objectContaining({ kind: 'bounce', status: 'pending', from: 'carlos@example.com' })]);
+    } else {
+      expect(store.eventTypes('u1', draft.matterId)).toEqual(['created', 'mandate_confirmed', 'email_unconfirmed']);
+    }
     expect(store.messages.get(`u1/${draft.matterId}`)![0]).toMatchObject({ direction: 'outbound', status: 'sending', providerId: null });
     // even once the provider answers again, Retry does not send a second copy
     sender.failWith = null;

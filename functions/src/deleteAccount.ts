@@ -38,7 +38,12 @@ import { HttpsError, onCall } from 'firebase-functions/https';
 import { FUNCTIONS_REGION } from './config';
 import { adminAuth, adminDb } from './firebase';
 import { ACCOUNT_DELETIONS_COLLECTION } from './maintenance/core';
-import { MATTER_ADDRESSES_COLLECTION, MATTER_MESSAGE_IDS_COLLECTION } from './matters/model';
+import {
+  MATTER_ADDRESSES_COLLECTION,
+  MATTER_MESSAGE_IDS_COLLECTION,
+  MATTER_READ_QUEUE_COLLECTION,
+  MATTER_SCHEDULE_COLLECTION,
+} from './matters/model';
 import { MICROSOFT_IDENTITIES_COLLECTION } from './microsoftSignIn';
 import { deleteAccountRequestSchema, type DeleteAccountResponse } from './shared/aiContract';
 import { deleteSummaryDataForUid } from './summaries/accountDeletion';
@@ -168,7 +173,8 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
       await deleteSummaryDataForUid(uid, { db });
     },
     async deleteMatterLookups(uid) {
-      for (const name of [MATTER_ADDRESSES_COLLECTION, MATTER_MESSAGE_IDS_COLLECTION]) {
+      // A2 adds the follow-up schedule and the read retry queue (both carry the uid)
+      for (const name of [MATTER_ADDRESSES_COLLECTION, MATTER_MESSAGE_IDS_COLLECTION, MATTER_SCHEDULE_COLLECTION, MATTER_READ_QUEUE_COLLECTION]) {
         const snapshot = await db.collection(name).where('uid', '==', uid).select().get();
         for (let start = 0; start < snapshot.docs.length; start += 400) {
           const batch = db.batch();
