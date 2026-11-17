@@ -1,5 +1,9 @@
 /**
- * MG Indigo design tokens (owner: shell / Foundation). Single source of truth for every design
+ * MG Indigo design tokens (owner: shell / Foundation). Brand palette (client Brand Guide v1.1,
+ * November 17, 2026): the dark scheme is the brand look and the default for new users (midnight
+ * #090D17 background, deep navy #0E1524 surfaces, cool white #E6E9F2 text, slate #9AA3B8
+ * secondary text, lavender #B3B7FF actions with midnight text, coral #FF4D5E alerts); the light
+ * scheme keeps its backgrounds with matching indigo and coral accents. Single source of truth for every design
  * value in the app - see docs/v1/DESIGN_SYSTEM.md for intent and per-screen application.
  *
  * Pure module: no React, no react-native, no react-native-paper imports, so it can be consumed
@@ -81,7 +85,7 @@ export interface MGAlertLightColors {
 
 export const alertMax: MGAlertMaxColors = {
   bg: '#3D0A12',
-  ring: '#E5484D',
+  ring: '#FF4D5E',
   ringBorder: '#FF8A8F',
   heading: '#FFD3D6',
   title: '#FFFFFF',
@@ -180,10 +184,10 @@ export const chartPalette: Readonly<Record<MGSchemeName, MGChartPalette>> = {
 };
 
 export const lightColors: MGColors = {
-  primary: '#1D5BD6',
+  primary: '#4646D3',
   onPrimary: '#FFFFFF',
-  primaryContainer: '#DCE7FB',
-  onPrimaryContainer: '#0B2F7A',
+  primaryContainer: '#E3E6FC',
+  onPrimaryContainer: '#26268F',
   secondary: '#44566E',
   onSecondary: '#FFFFFF',
   secondaryContainer: '#E3E9F1',
@@ -204,11 +208,11 @@ export const lightColors: MGColors = {
   outlineVariant: '#E1E7EE',
   inverseSurface: '#2A3446',
   inverseOnSurface: '#EEF2F7',
-  inversePrimary: '#8FB4FF',
-  error: '#C62B2B',
+  inversePrimary: '#B3B7FF',
+  error: '#D21F3C',
   onError: '#FFFFFF',
-  errorContainer: '#FBE1E1',
-  onErrorContainer: '#7C1D1D',
+  errorContainer: '#FFE1E4',
+  onErrorContainer: '#7A0F1E',
   success: '#177245',
   onSuccess: '#FFFFFF',
   successContainer: '#D9F2E3',
@@ -242,35 +246,35 @@ export const lightColors: MGColors = {
 };
 
 export const darkColors: MGColors = {
-  primary: '#8FB4FF',
-  onPrimary: '#06255F',
-  primaryContainer: '#1D3F8A',
-  onPrimaryContainer: '#DCE7FB',
-  secondary: '#AEB7C7',
-  onSecondary: '#1F2633',
-  secondaryContainer: '#2A3040',
-  onSecondaryContainer: '#DDE3EE',
+  primary: '#B3B7FF',
+  onPrimary: '#090D17',
+  primaryContainer: '#2A2F66',
+  onPrimaryContainer: '#E1E3FF',
+  secondary: '#9AA3B8',
+  onSecondary: '#0E1524',
+  secondaryContainer: '#232B4A',
+  onSecondaryContainer: '#DDE1F0',
   tertiary: '#3ECFBE',
   onTertiary: '#0A3A34',
   tertiaryContainer: '#0F515F',
   onTertiaryContainer: '#C6EEF6',
-  background: '#0A0C11',
-  onBackground: '#E8EAF0',
-  surface: '#12151D',
-  onSurface: '#E8EAF0',
-  surfaceVariant: '#232833',
-  onSurfaceVariant: '#9CA3B2',
-  surfaceContainerLow: '#161A23',
-  surfaceContainerHigh: '#1E222C',
-  outline: '#606979',
-  outlineVariant: '#262B36',
-  inverseSurface: '#E8EAF0',
-  inverseOnSurface: '#1B1F29',
-  inversePrimary: '#1D5BD6',
-  error: '#FF9F9F',
-  onError: '#4C0F0F',
-  errorContainer: '#7C2222',
-  onErrorContainer: '#FFD9D9',
+  background: '#090D17',
+  onBackground: '#E6E9F2',
+  surface: '#0E1524',
+  onSurface: '#E6E9F2',
+  surfaceVariant: '#1A2236',
+  onSurfaceVariant: '#9AA3B8',
+  surfaceContainerLow: '#111A2B',
+  surfaceContainerHigh: '#18203A',
+  outline: '#5E6884',
+  outlineVariant: '#1F2840',
+  inverseSurface: '#E6E9F2',
+  inverseOnSurface: '#141B2B',
+  inversePrimary: '#4646D3',
+  error: '#FF4D5E',
+  onError: '#090D17',
+  errorContainer: '#5A1620',
+  onErrorContainer: '#FFD7DB',
   success: '#6CD9A0',
   onSuccess: '#0A3D26',
   successContainer: '#14543A',
@@ -284,18 +288,18 @@ export const darkColors: MGColors = {
   infoContainer: '#0D4A75',
   onInfoContainer: '#D3EAFB',
   disabledText: '#646B7A',
-  surfaceDisabled: 'rgba(232,234,240,0.12)',
+  surfaceDisabled: 'rgba(230,233,242,0.12)',
   onSurfaceDisabled: '#646B7A',
   shadow: '#000000',
   scrim: 'rgba(0,0,0,0.60)',
   backdrop: 'rgba(0,0,0,0.52)',
   elevation: {
     level0: 'transparent',
-    level1: '#171B24',
-    level2: '#1B1F29',
-    level3: '#20242F',
-    level4: '#232835',
-    level5: '#272C3A',
+    level1: '#101828',
+    level2: '#121B2D',
+    level3: '#151F33',
+    level4: '#172238',
+    level5: '#1A253C',
   },
   chart: chartPalette.dark,
   alertMax,
@@ -328,21 +332,21 @@ export interface MGGradients {
 
 export const gradients: Readonly<Record<MGSchemeName, MGGradients>> = {
   light: {
-    primary: ['#1D5BD6', '#2F7BF0'],
+    primary: ['#4646D3', '#5B5CE0'],
     hero: ['#E3EBFA', '#CFDDF7'],
-    ai: ['#1D5BD6', '#2F7BF0'],
+    ai: ['#4646D3', '#5B5CE0'],
   },
   dark: {
-    primary: ['#2F6BE6', '#4A8CF5'],
-    hero: ['#0A1458', '#1F3FB5'],
-    ai: ['#2F6BE6', '#4A8CF5'],
+    primary: ['#9EA3FF', '#B3B7FF'],
+    hero: ['#0E1524', '#262B6B'],
+    ai: ['#9EA3FF', '#B3B7FF'],
   },
 };
 
 /** Text and icon color on each gradient. */
 export const onGradient: Readonly<Record<MGSchemeName, Readonly<Record<keyof MGGradients, string>>>> = {
   light: { primary: '#FFFFFF', hero: '#FFFFFF', ai: '#FFFFFF' },
-  dark: { primary: '#FFFFFF', hero: '#FFFFFF', ai: '#FFFFFF' },
+  dark: { primary: '#090D17', hero: '#FFFFFF', ai: '#090D17' },
 };
 
 /**

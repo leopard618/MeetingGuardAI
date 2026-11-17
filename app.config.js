@@ -227,7 +227,8 @@ module.exports = {
           image: './assets/splash.png',
           imageWidth: 200,
           resizeMode: 'contain',
-          backgroundColor: '#ffffff',
+          // Brand midnight (dark is the default theme), so the splash runs straight into the app.
+          backgroundColor: '#090D17',
         },
       ],
       [
