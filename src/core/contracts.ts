@@ -1975,6 +1975,8 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   matterRevise: { request: 'matterReviseRequestSchema', response: 'matterDraftResponseSchema' },
   matterConfirm: { request: 'matterConfirmRequestSchema', response: 'matterConfirmResponseSchema' },
   matterCancel: { request: 'matterCancelRequestSchema', response: 'matterCancelResponseSchema' },
+  matterDecide: { request: 'matterDecideRequestSchema', response: 'matterDecideResponseSchema' },
+  matterView: { request: 'matterViewRequestSchema', response: 'matterViewResponseSchema' },
 };
 
 // =============================================================================================

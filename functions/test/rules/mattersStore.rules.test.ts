@@ -46,6 +46,14 @@ function matter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     createdAt: ISO,
     updatedAt: ISO,
     endedAt: null,
+    stopReason: null,
+    followUpsSent: 0,
+    followUpClaim: null,
+    lastOutboundAt: null,
+    lastInboundAt: null,
+    bouncedRecipients: [],
+    pendingApprovals: 0,
+    dailyCounts: null,
     ...overrides,
   };
 }
@@ -141,5 +149,52 @@ describe('matters store (emulator)', () => {
     await db.doc('users/alice/matters/m2').set({ ...matter(), status: 'archived' });
     await expect(store.getMatter('alice', 'm2')).rejects.toBeInstanceOf(MatterUnreadableError);
     await expect(store.getMatter('alice', 'missing')).resolves.toBeNull();
+  });
+
+  it('A2: claims a read once, and a finished read writes its cards, commitments and queue entry in one transaction', async () => {
+    await store.createMatter('alice', 'm1', matter(), event('created'));
+    await store.addInboundMessage('alice', 'm1', { ...message('<reply-2@example.com>', 'inbound'), readState: 'none' }, event('email_received'), marker('pm-in-3'));
+    const [messageDoc] = (await db.collection('users/alice/matters/m1/messages').get()).docs;
+    const messageId = messageDoc!.id;
+    const claim = { nowIso: ISO, retry: false, staleBeforeIso: '2026-11-12T08:50:00.000Z', maxAttempts: 3 };
+    const [a, b] = await Promise.all([store.claimRead('alice', 'm1', messageId, claim), store.claimRead('alice', 'm1', messageId, claim)]);
+    expect([a.state, b.state].sort()).toEqual(['busy', 'claimed']);
+    expect((await db.doc(`matterReadQueue/m1_${messageId}`).get()).exists).toBe(true);
+    const card = {
+      kind: 'unclear' as const, status: 'pending' as const, reason: null, quote: null, from: null, draft: null, draftHash: null, threading: null,
+      guardFlags: [], sendOutcome: null, sendState: 'none' as const, sendClaimedAt: null, auto: false, sourceMessageId: messageId,
+      createdAt: ISO, updatedAt: ISO, decidedAt: null,
+    };
+    await store.updateMatter('alice', 'm1', () => ({
+      result: null,
+      patch: { pendingApprovals: 1 },
+      cards: [{ id: 'c1', doc: card }],
+      message: { id: messageId, patch: { readState: 'done', readOutcome: 'unclear' } },
+      readQueue: { messageId, doc: null },
+      schedule: { nextActionAt: '2026-11-14T09:00:00.000Z' },
+    }));
+    await expect(store.getCard('alice', 'm1', 'c1')).resolves.toMatchObject({ kind: 'unclear', status: 'pending' });
+    await expect(store.getMessage('alice', 'm1', messageId)).resolves.toMatchObject({ readState: 'done' });
+    expect((await db.doc(`matterReadQueue/m1_${messageId}`).get()).exists).toBe(false);
+    await expect(store.dueSchedules('2026-11-14T09:00:00.000Z', 10)).resolves.toEqual([{ uid: 'alice', matterId: 'm1', nextActionAt: '2026-11-14T09:00:00.000Z' }]);
+    await expect(store.dueSchedules('2026-11-14T08:59:59.000Z', 10)).resolves.toEqual([]);
+  });
+
+  it('A2: an accepted commitment creates its task once, in the same transaction', async () => {
+    await store.createMatter('alice', 'm1', matter(), event('created'));
+    const proposal = {
+      quote: 'I will send it tomorrow.', title: 'Carlos: Send it', owner: null, due: null, status: 'open' as const, taskId: null,
+      sourceMessageId: 'x1', createdAt: ISO, updatedAt: ISO, decidedAt: null,
+    };
+    await store.updateMatter('alice', 'm1', () => ({ result: null, proposals: [{ id: 'mt_' + 'e'.repeat(24), doc: proposal }] }));
+    const accept = () =>
+      store.decideProposal('alice', 'm1', 'mt_' + 'e'.repeat(24), (_m, p, exists) => ({
+        result: exists,
+        proposal: { status: 'accepted', taskId: 'mt_' + 'e'.repeat(24) },
+        ...(exists ? {} : { task: { id: 'mt_' + 'e'.repeat(24), doc: { userId: 'alice', title: p!.title } } }),
+      }));
+    await expect(accept()).resolves.toBe(false);
+    await expect(accept()).resolves.toBe(true);
+    expect((await db.doc(`users/alice/tasks/mt_${'e'.repeat(24)}`).get()).data()).toEqual({ userId: 'alice', title: 'Carlos: Send it' });
   });
 });

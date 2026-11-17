@@ -1801,8 +1801,10 @@ A3 (scheduling, voice, history) build on it.
   to `confirmedHash`, before the end date, with at least one recipient, every To a contact of
   the mandate and every Cc a contact or the owner's own verified email, and no recipient on our
   own mail domain or a subdomain (`own_domain`: it would loop into our own inbound with our own
-  SPF and DKIM). Follow-ups (A2) and
-  meeting confirmations (A3) go through the same check.
+  SPF and DKIM), and no recipient that bounced (`recipient_bounced`, A2). Every A2 send (reply,
+  follow-up) also needs `firstSentAt` (`first_email_not_sent`): a matter whose first email is
+  failed, unknown, sending or a test never gets a second email. Meeting confirmations (A3) go
+  through the same check.
 - **The emails (email.ts).** From `"AI assistant for <Name>" <assistant@<mail domain>>` (ES:
   "Asistente de IA de <Name>"), so the name always says it is an AI, first; the name is the
   account's display name without control, format or bidi characters, at most 40 characters, and
@@ -1824,11 +1826,18 @@ A3 (scheduling, voice, history) build on it.
   recipient (To, Cc, Bcc, OriginalRecipient; at most 5 distinct tokens looked up), else In-Reply-To, then References
   (newest first) in `matterMessageIds`, only for ids of our own form `<matterId.random@<mail
   domain>>` whose index entry names that same matterId, else unmatched (dropped, only the
-  provider id is logged). Mail from our own domain is ignored. A body over 5 MiB is answered 200
-  and logged (`matters.inbound_too_large`, provider id and size), never stored. `matterMessageIds` holds only OUR outgoing Message-IDs, each written with `create()`;
+  provider id is logged). Mail from our own domain is ignored. A body over 30 MiB (A2: under Cloud
+  Run's 32 MiB request limit, now that the raw email with its attachments arrives) is answered
+  200 and logged (`matters.inbound_too_large`, provider id and size), never stored. `matterMessageIds` holds only OUR outgoing Message-IDs, each written with `create()`;
   an inbound email is never indexed, because its sender chooses its Message-ID and could
-  otherwise re-point another user's thread. The stored text is Postmark's StrippedTextReply when present. The sender checks
-  (SPF, DKIM, DMARC from the raw email) and what to do with a reply are A2: `auth` stays null.
+  otherwise re-point another user's thread. The stored text is the NEW part of a reply:
+  Postmark's StrippedTextReply, else the body cut at the quoted older email (EN and ES quote
+  headers, `>` lines), else the visible text of the HTML; an HTML body that hides text
+  (display:none, hidden, font-size 0 and the like) is read from its visible text only, never from
+  TextBody, so an instruction in a quote or in hidden text never reaches the model. A2 stores per
+  email the sender check (`auth`, mailCheck.ts), the sender's role, whether it is an automatic
+  reply, attachment metadata (name, type, size; the bytes are never kept) and `readState`; the
+  model read happens later, in matterInboundRead, never in the webhook.
 - **Statuses.** `draft` (being worked out, nothing sent), `active`, `paused`, `done`,
   `cancelled` (by the user, or the end date passed). `endedAt` marks the last two.
 - **Reads and races.** Writes use the strict `matterDocSchema`; reads use `matterDocReadSchema`
@@ -1838,30 +1847,123 @@ A3 (scheduling, voice, history) build on it.
   `upstream_error`, never `not_found`. `matterRevise` writes only if `mandateVersion` is still the
   one it drafted from (else `stale_draft`), and `matterDraft` creates the matter in a transaction
   that first checks `accountDeletions/{uid}`.
+- **A2: the sender check (mailCheck.ts).** From the raw email (Postmark's "Include raw email
+  content"), with Dusko's shared `functions/src/mail` code: `checkHeaders` (strict From) and
+  `verifyMailAuth` (mailauth, DNS with a hard 32 s bound). `trusted` = a DKIM signature that
+  passes, aligns with the strict From domain, signs From, no l=, a strong key (`isPassSig`);
+  `unverified` = none, no raw email, or the check failed; `malformed` = the headers do not parse
+  strictly or the raw From is not the From Postmark reported. SPF (Postmark's Received-SPF) is a
+  hint only; a valid ARC chain of google.com or microsoft.com is recorded, not deciding. The From
+  domain gets the priority DNS budget only for a contact or the owner. mailCheck.ts loads
+  mailauth, so the webhook requires it on its first request only (genericModules.test.ts).
+- **A2: who may move a matter forward (decided by code).** A mandate contact: read by the
+  model; an automatic reply only when trusted (below). The owner's own address, any verdict:
+  stored and shown, never acted on (the owner instructs only in the app, so a forged "it's me,
+  send the contract" does nothing). Anyone else: stored, one `new_person` card, never answered.
+  An automatic reply (Auto-Submitted, X-Autoreply, Precedence bulk/list/auto_reply, List-Id, an
+  out-of-office subject in EN or ES): stored, never answered, and it never stops the follow-up
+  clock. Our own domain: ignored. The inbound Reply-To is never read.
+- **A2: reading a reply (read.ts, replies.ts handleInboundRead).** `matterInboundRead`, an
+  `onDocumentCreated` trigger on `users/{uid}/matters/{matterId}/messages/{id}` (inbound only),
+  makes one model call with one strict tool, `assess_reply`: the mandate, this matter's thread
+  (newest last, 12,000 characters, 2,000 per email) and the new email, each fenced as data (fence
+  tags inside the data are removed). Nothing else: never the calendar, tasks or other matters. The
+  intent: `answer_within_mandate` (a reply), `asks_to_stop`, `outside_mandate` (money, contract,
+  not covered, a new person, a request to email someone else, a time proposal), `goal_reached`,
+  `nothing_to_do`, `unclear`. Code then decides: every quote must be found verbatim in the new
+  email (`matchVerbatim`); a commitment needs a quote, a title grounded in the quote, the goal or
+  what we may ask for (`groundTitle`, `cleanTitle`, `ownerPrefixed`), and its due date is read by
+  code from the contact's own words (`resolveDue`, from the day the email arrived in the mandate's
+  zone), at most 5 per reply; `asks_to_stop` sets the matter `done` with `stopReason:
+  'contact_asked'` at once; `goal_reached`, `outside_mandate` and `unclear` become cards. The read
+  is idempotent: claimed in a transaction (`readState` none -> reading -> done / failed /
+  skipped, `readAttempts`) with an entry in `matterReadQueue`; the trigger has no platform retry,
+  so matterTick re-reads a stale `reading` claim (10 minutes) or a `failed` read, up to 3
+  attempts in all, after which the reply becomes an `unclear` card (`read_failed`). A newer email
+  of the contact expires older pending `reply_draft` cards. Caps per matter and UTC day: 10 model
+  reads (more are stored unread, one `many_replies` card), and a thread with more than 6 contact
+  emails in a day stops being read until the next day (loop guard, same card). The matter model
+  calls (drafts and reads) go through the assistant's global budget (one unit per started 10,000
+  prompt characters) and the adminStats token accounting.
+- **A2: replies.** To the contact's mandate address only (never the inbound Reply-To), Cc the
+  owner when the mandate copies them, `Re:` subject, In-Reply-To and References to the contact's
+  Message-ID only when it is one `<local@domain>` id of at most 250 characters (else without),
+  our own Message-ID indexed with `create()`, the same From, Reply-To, signature and footer as the
+  first email, and Postmark Metadata `{ matterId, uid }` on every email (also the first) so bounce
+  events find their matter. A draft goes out automatically only when ALL hold: MATTERS_AUTO_REPLY
+  is true (default false: for the pilot every reply is a card), the sender is a trusted contact,
+  the content guard (guard.ts: money, prices and currencies, contracts and signatures, links and
+  bare host names, addresses outside the mandate, length; EN and ES, accents folded) finds
+  nothing, the send check passes, at most 3 automatic replies per matter per day, and the
+  per-user send cap (MATTERS_USER_DAILY_SENDS, default 30 replies and follow-ups per UTC day).
+  Otherwise it is a `reply_draft` card with the exact email, its hash (`draftEmailHash`: the draft
+  and its threading) and the reason. A send that may have gone out is `unknown` and never resent;
+  a send that stored nothing after it went out never makes the reply read (and answered) again.
+- **A2: cards and matterDecide.** `users/{uid}/matters/{matterId}/approvals/{id}`: `kind`
+  (reply_draft, new_person, outside_mandate, time_proposal, goal_reached, unclear, bounce,
+  many_replies), `status` (pending, approved, declined, expired), reason, the contact's sentence,
+  sender, the draft with its hash and threading, guard flags, send state. `proposals/{id}`: the
+  commitment's quote, title, owner and due date in the M11 shapes (`commitmentOwnerSchema`,
+  `commitmentDueSchema`, `COMMITMENT_STATUSES`), id `mt_` plus a hash of matterId, messageId and
+  position (also the task's id). The matter keeps `pendingApprovals` for the list. `matterDecide`:
+  approving a `reply_draft` needs the hash of the draft shown (`stale_draft` otherwise, and for an
+  expired card), runs the send check and claims the send once like matterConfirm (`sending`,
+  `sent`, `failed` claimable again, `unknown`); approving `goal_reached` sets the matter `done`
+  (`stopReason: 'goal_reached'`); the other cards are information ("seen"). Accepting a
+  commitment writes an ordinary 1.6.0 task (`users/{uid}/tasks/{mt_...}`, commitments/taskDoc.ts
+  `buildCommitmentTaskDoc` with `defaultSchedule` in the device zone, an origin line naming the
+  contact and the matter) in the same transaction as the commitment's status; accepting twice
+  never makes two tasks. Declining a card and dropping a commitment work off the tester list
+  (like cancel); approving and accepting need it.
+- **A2: follow-ups and the end date (schedule.ts, replies.ts runMatterTick).** `matterTick`
+  (every 15 minutes, Etc/UTC, one instance) reads `matterSchedule` entries due now (a top-level
+  collection queried on `nextActionAt` alone, so no composite or collection-group index): at the
+  end date the matter becomes `done` (`stopReason: 'ended'`); a follow-up is due `everyDays`
+  after our last email that went out, while no contact answered since, fewer than `maxCount` went
+  out, and only in working hours in the mandate's zone (Monday to Friday, 9:00 to 18:00, DST
+  safe; else the next working morning). The follow-up is a FIXED EN/ES template with our earlier
+  email quoted under it, never the model, sent to the contacts that did not bounce, claimed in a
+  transaction (`followUpClaim`), so overlapping ticks never send twice; one whose fate is unknown
+  counts as sent. matterTick also re-reads the stale and failed reads (`matterReadQueue`). The
+  first follow-up time is set when the first email goes out; a test-token send sets nothing.
+- **A2: bounces (matterDeliveryEvents).** Postmark's outbound webhook (Bounce, SpamComplaint),
+  with the inbound webhook's basic auth, finds the matter by the Metadata we sent. A hard bounce
+  (HardBounce, BadEmailAddress, ManuallyDeactivated, or Inactive) records the contact in
+  `bouncedRecipients` (never emailed again), one `bounce` card and the event `email_bounced`;
+  Postmark's 406 at send time with one recipient takes the same path. A soft bounce is only
+  logged. A spam complaint stops the matter (`stopReason: 'complaint'`).
 - **Data.** All written ONLY by the matter functions through the Admin SDK; the owner reads:
 
   | Path | Content |
   |---|---|
   | `users/{uid}/matters/{matterId}` | `MatterDoc`: status, language, zone, request (with the answers), title, owner name and verified email, mandate, first email, questions, read-back, version, confirmed hash and time, first-sent time, first send state and claim time, reply token |
   | `.../matters/{matterId}/events/{id}` | the timeline: created, drafted, confirmed, email sent / failed / unconfirmed / received, status changes (A2 and A3 add their own types) |
-  | `.../matters/{matterId}/messages/{id}` | every email in and out: Message-ID, In-Reply-To, References, from, to, cc, subject, plain text (cut at 20,000 characters), provider id, and for inbound the SPF, DKIM and DMARC verdicts (A2) |
+  | `.../matters/{matterId}/messages/{id}` | every email in and out: Message-ID, In-Reply-To, References, from, to, cc, subject, plain text (cut at 20,000 characters), provider id; inbound (A2): the sender check, the sender's role, automatic reply, attachment metadata, read state and attempts |
+  | `.../matters/{matterId}/approvals/{id}` | A2 approval cards (see above) |
+  | `.../matters/{matterId}/proposals/{mt_...}` | A2 proposed commitments (see above) |
+  | `matterSchedule/{matterId}` | A2: `{ uid, matterId, nextActionAt }`, the next follow-up or end check, server only |
+  | `matterReadQueue/{matterId_messageId}` | A2: a read claimed or failed, `{ uid, matterId, messageId, claimedAt, attempts }`, server only |
+  | `usage/{uid}/days/{day}.matterSends` | A2: assistant emails (replies, follow-ups) per UTC day (MATTERS_USER_DAILY_SENDS, default 30) |
   | `matterAddresses/{token}` | reply token -> `{ uid, matterId }`, server only |
   | `matterMessageIds/{sha256(Message-ID)}` | every Message-ID WE sent -> `{ uid, matterId }` (create-once; inbound ids are never indexed), server only |
   | `inboundEmails/{providerId}` | inbound dedupe marker `{ receivedAt, expiresAt }`, no personal data, server only |
   | `usage/{uid}/days/{day}.matterDrafts` | drafts and revisions per UTC day (MATTERS_USER_DAILY_LIMIT, default 30) |
 
   Under `users/{uid}`, so deleteAccount's recursive pass removes matters with the account; its
-  `deleteMatterLookups` step removes the two lookup collections by uid. Purging expired
+  `deleteMatterLookups` step removes the lookup collections by uid (A2 adds `matterSchedule` and
+  `matterReadQueue`). Purging expired
   `inboundEmails` markers and the retention rules for emails come with A4.
-- **Switches.** Functions: `MATTERS_ENABLED` (default false) gates the DEPLOYMENT of all five
-  functions, like WHATSAPP_ENABLED, read from process.env at load. The matter params and secrets
+- **Switches.** Functions: `MATTERS_ENABLED` (default false) gates the DEPLOYMENT of all ten
+  functions (A2 adds matterDecide, matterView, matterInboundRead, matterTick and matterDeliveryEvents), like WHATSAPP_ENABLED, read from process.env at load. The matter params and secrets
   are declared only then (config.ts `mattersParams`): firebase-functions puts every declared
   param and secret in the deploy manifest even when no deployed function uses it, so while it
   is false a deploy never asks for `MATTERS_POSTMARK_TOKEN`, `MATTERS_INBOUND_PASSWORD` or a
   `MATTERS_*` line (a test checks the declared names); `MATTERS_ALLOWED_UIDS` (comma-separated uids,
   empty = nobody, `*` = everyone) limits the prototype to its testers; `MATTERS_MAIL_DOMAIN`
-  (default assistant.meetingguard.ai). Each callable binds only the secret it needs (draft and
-  revise OPENAI_API_KEY, confirm MATTERS_POSTMARK_TOKEN, the webhook MATTERS_INBOUND_PASSWORD).
+  (default assistant.meetingguard.ai); A2: `MATTERS_AUTO_REPLY` (default false) and
+  `MATTERS_USER_DAILY_SENDS` (default 30). Each function binds only the secrets it needs (draft and
+  revise OPENAI_API_KEY, confirm and decide MATTERS_POSTMARK_TOKEN, the read trigger and the tick
+  both, the two webhooks MATTERS_INBOUND_PASSWORD).
   Callers need a verified account (email_verified or a trusted provider); the owner's copies
   go only to an email whose token says `email_verified`. `matterCancel` needs only that: an owner can always stop their own matter, even off the tester list. Kill switch:
   a by-name redeploy of the five functions with `MATTERS_ALLOWED_UIDS` empty (the run-time
@@ -1874,8 +1976,8 @@ A3 (scheduling, voice, history) build on it.
   Writer (the matter code takes the owner's email from the sign-in token and never calls Firebase
   Auth); the deploy grants it secretAccessor on `MATTERS_POSTMARK_TOKEN`,
   `MATTERS_INBOUND_PASSWORD` and OPENAI_API_KEY. Without the line they deploy under the default
-  compute account. Still to be decided before `MATTERS_ALLOWED_UIDS='*'`: the global AI budget
-  and adminStats accounting for the matter model calls. App:
+  compute account. matterInboundRead (Eventarc) also needs Eventarc Event Receiver and Cloud Run
+  Invoker for that account. App:
   `EXPO_PUBLIC_MATTERS_ENABLED` shows Settings > AI executive assistant (route `Matters`); off
   in every store build. Owner setup: docs/v1/SETUP.md section 15.
 - **The app (A1).** `src/services/matters` (the four callables, validated with the shared
@@ -1883,14 +1985,25 @@ A3 (scheduling, voice, history) build on it.
   type the matter, answer the questions, read the mandate and the first email, confirm and
   send, change, cancel (also after sending), retry a send that failed; an `unknown` send has no
   retry (its message mentions the owner's copy only when there is one). Strings in the `matters` namespace (EN + ES).
-  The matters list, the timeline, approval cards and voice come with A3 and A5.
-- **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel`, their
+  A2 (test build only): under the new-matter box the open matters (active and paused), each with
+  what waits for the owner, from `matterView` (a callable that reads them for the signed-in owner
+  and sends only the fields the app shows, so the app needs no Firestore rule for the cards); a
+  load error says so with "Try again" (never "no longer available"); a tap opens
+  `MatterPage.tsx`: the pending cards (a reply draft in full, exactly as it would be sent, with
+  what the guard found; approve sends its hash) and the proposed tasks (accept with the device
+  zone, or skip), and cancel. The timeline, settings and voice come with A3 and A5; notifications
+  with A8 (in A2 the owner sees the cards when opening the app).
+- **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel` (A2:
+  `matterDecide` and `matterView`, with the lenient view schemas `matterApprovalViewSchema`,
+  `matterProposalViewSchema`, `matterListItemSchema`), their
   request and response schemas, `MATTER_ERROR_CODES` (not_configured, unauthenticated,
   invalid_request, not_found, stale_draft, not_allowed, rate_limited, upstream_error) and
   `MATTER_CALL_TIMEOUT_MS` in the shared contract (no version bump: new callables only).
 - **Rules.** `users/{uid}/matters/{matterId}` and its `events` and `messages`: owner read, no
   client write (a client that could write could confirm a mandate it never showed, or fake an
-  email). `matterAddresses`, `matterMessageIds`, `inboundEmails`: no client access at all.
+  email). A2: `approvals` and `proposals` the same (the owner decides only through matterDecide).
+  `matterAddresses`, `matterMessageIds`, `inboundEmails`, `matterSchedule`, `matterReadQueue`: no
+  client access at all.
 - **Tests.** functions: `mattersModel.test.ts` (schemas, hash, reply addresses, Message-ID
   keys), `mattersParts.test.ts` (drafting rules, read-back EN/ES, send check, email composing,
   Postmark payload and errors, inbound parsing and matching, whole-address check, repeated
@@ -1899,4 +2012,10 @@ A3 (scheduling, voice, history) build on it.
   claiming, clear refusals as failed and retried, stale hash, cancel, inbound stored once and
   never indexed, unmatched, retry after a failed store, gating), `mattersIndex.test.ts` (deploy gate, secret
   bindings, basic auth), `deleteAccount.test.ts`, and the rules ("executive assistant
-  matters"). App: `matterService.test.ts`, `MattersScreen.test.tsx`.
+  matters"). A2: `mattersReplies.test.ts` (webhook fields, reads, cards, automatic replies and
+  their caps, matterDecide, matterTick timing and claims, bounces), `mattersHostile.test.ts` (16
+  hostile emails in EN and ES with the model assumed fooled, plus own domain, the out-of-office
+  clock and a failed record after a send), `mattersA2Parts.test.ts` (guard, working hours across
+  DST, text helpers, read claim, the sender check with real DKIM signatures on a stub DNS), the
+  emulator store test (read claim, cards and queue in one transaction, the task created once).
+  App: `matterService.test.ts`, `MattersScreen.test.tsx` (the open list and the matter page).

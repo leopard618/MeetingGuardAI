@@ -46,5 +46,80 @@
     "stale": "The draft changed. Check it again before confirming.",
     "notAllowed": "This is outside what you confirmed, so nothing was sent.",
     "unavailable": "The assistant is not available for your account yet."
+  },
+  "open": {
+    "title": "Open matters",
+    "waiting_one": "{{count}} thing waiting for you",
+    "waiting_other": "{{count}} things waiting for you",
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "paused": "Paused",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    }
+  },
+  "page": {
+    "back": "Back to my matters",
+    "cardsTitle": "Waiting for you",
+    "noCards": "Nothing is waiting for you.",
+    "proposalsTitle": "Proposed tasks",
+    "proposalDue": "Due: {{value}}",
+    "accept": "Add to my tasks",
+    "drop": "Skip",
+    "accepted": "Added to your tasks.",
+    "sent": "Reply sent.",
+    "sending": "This reply is being sent right now. Open the matter again in a moment to see how it went.",
+    "notSent": "The reply could not be sent yet. Try again in a moment.",
+    "unknown": "We could not confirm that the reply went out. It may have been sent, so it will not be sent again.",
+    "notFound": "This matter is no longer available.",
+    "loadFailed": "This matter could not be loaded right now. Check your connection and try again."
+  },
+  "card": {
+    "from": "From: {{value}}",
+    "address": "Address: {{value}}",
+    "quote": "They wrote: \"{{value}}\"",
+    "kind": {
+      "reply_draft": "Reply ready to send",
+      "new_person": "Someone new wrote or was copied in",
+      "outside_mandate": "This needs your decision",
+      "time_proposal": "They proposed a time",
+      "goal_reached": "The goal looks reached",
+      "unclear": "I could not tell what this reply wants",
+      "bounce": "An email could not be delivered",
+      "many_replies": "Many replies today"
+    },
+    "reason": {
+      "money": "It is about money or prices, which I never handle.",
+      "contract": "It is about a contract or a signature, which I never handle.",
+      "not_covered": "It asks for something outside what you confirmed.",
+      "new_person": "It involves someone who is not part of this matter.",
+      "asks_other_contact": "It asks me to write to someone else.",
+      "auto_reply_off": "Replies go out only after you approve them.",
+      "unverified_sender": "I could not verify the sender, so I ask you first.",
+      "content_guard": "The draft mentions something I never send on my own.",
+      "cap_reached": "Today's limit for this matter was reached. More replies are kept unread.",
+      "read_failed": "I could not read this reply. Please read it in your copy.",
+      "loop": "This thread went back and forth many times today, so I stopped reading it until tomorrow.",
+      "other": "I ask you first."
+    },
+    "guard": {
+      "title": "Check before sending, it mentions:",
+      "money": "money or prices",
+      "contract": "a contract or signature",
+      "link": "a link",
+      "address": "another email address",
+      "length": "a very long text"
+    },
+    "approve": {
+      "reply_draft": "Send this reply",
+      "goal_reached": "Mark the matter as done",
+      "default": "OK"
+    },
+    "decline": {
+      "reply_draft": "Do not send",
+      "goal_reached": "Not yet",
+      "default": "Dismiss"
+    }
   }
 }

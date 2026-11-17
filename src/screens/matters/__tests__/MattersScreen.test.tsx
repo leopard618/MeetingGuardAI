@@ -41,6 +41,9 @@ const mockDraft = jest.fn();
 const mockRevise = jest.fn();
 const mockConfirm = jest.fn();
 const mockCancel = jest.fn();
+const mockDecide = jest.fn();
+const mockListOpen = jest.fn();
+const mockGetPage = jest.fn();
 jest.mock('../../../services/matters', () => ({
   matterService: {
     isEnabled: () => mockEnabled,
@@ -48,8 +51,58 @@ jest.mock('../../../services/matters', () => ({
     revise: (...args: unknown[]): Promise<unknown> => mockRevise(...args) as Promise<unknown>,
     confirm: (...args: unknown[]): Promise<unknown> => mockConfirm(...args) as Promise<unknown>,
     cancel: (...args: unknown[]): Promise<unknown> => mockCancel(...args) as Promise<unknown>,
+    decide: (...args: unknown[]): Promise<unknown> => mockDecide(...args) as Promise<unknown>,
+    listOpen: (...args: unknown[]): Promise<unknown> => mockListOpen(...args) as Promise<unknown>,
+    getPage: (...args: unknown[]): Promise<unknown> => mockGetPage(...args) as Promise<unknown>,
   },
 }));
+
+const DRAFT_HASH = 'c'.repeat(64);
+const PAGE = {
+  matter: { matterId: 'm1', status: 'active', title: 'Proposal from Carlos', updatedAt: '2026-11-12T10:00:00.000Z', pendingApprovals: 2 },
+  approvals: [
+    {
+      id: 'c1',
+      kind: 'reply_draft',
+      status: 'pending',
+      reason: 'auto_reply_off',
+      quote: null,
+      from: 'Carlos Ruiz <carlos@example.com>',
+      draft: { to: ['carlos@example.com'], cc: ['ana@example.com'], subject: 'Re: Updated proposal', text: 'Hello Carlos,\n\nThank you, received.\n\nBest,\nAI assistant for Ana' },
+      draftHash: DRAFT_HASH,
+      guardFlags: ['money'],
+      sendOutcome: null,
+      auto: false,
+      createdAt: '2026-11-12T10:00:00.000Z',
+    },
+    {
+      id: 'c2',
+      kind: 'goal_reached',
+      status: 'pending',
+      reason: null,
+      quote: 'Here is the final version.',
+      from: 'Carlos Ruiz <carlos@example.com>',
+      draft: null,
+      draftHash: null,
+      guardFlags: [],
+      sendOutcome: null,
+      auto: false,
+      createdAt: '2026-11-12T09:00:00.000Z',
+    },
+  ],
+  proposals: [
+    {
+      id: 'mt_' + 'a'.repeat(24),
+      quote: 'I will send it tomorrow.',
+      title: 'Carlos Ruiz: Send the updated proposal',
+      owner: { name: 'Carlos Ruiz', isUser: false, guess: false },
+      due: { date: '2026-11-13', time: null, zone: null, quote: 'tomorrow', overdue: false },
+      status: 'open',
+      taskId: null,
+      createdAt: '2026-11-12T10:00:00.000Z',
+    },
+  ],
+};
 
 async function renderScreen(): Promise<void> {
   await render(
@@ -70,6 +123,7 @@ async function press(testID: string): Promise<void> {
 beforeEach(async () => {
   mockEnabled = true;
   jest.clearAllMocks();
+  mockListOpen.mockResolvedValue([]);
   await i18n.changeLanguage('en');
 });
 
@@ -230,6 +284,65 @@ describe('MattersScreen', () => {
     await renderScreen();
     expect(screen.getByTestId('matters-off')).toBeTruthy();
     expect(screen.queryByTestId('matters-request')).toBeNull();
+  });
+
+  it('A2: lists the open matters with what waits for the owner, and opens one', async () => {
+    mockListOpen.mockResolvedValue([PAGE.matter]);
+    mockGetPage.mockResolvedValue(PAGE);
+    await renderScreen();
+    expect(screen.getByTestId('matters-open-list')).toBeTruthy();
+    expect(screen.getByText('2 things waiting for you')).toBeTruthy();
+    await press('matters-open-m1');
+    expect(mockGetPage).toHaveBeenCalledWith('m1');
+    expect(screen.getByText('Reply ready to send')).toBeTruthy();
+    expect(screen.getByText('Replies go out only after you approve them.')).toBeTruthy();
+    // the whole draft, exactly as it would be sent, and what the guard found in it
+    expect(screen.getByText(PAGE.approvals[0]!.draft!.text)).toBeTruthy();
+    expect(screen.getByText('To: carlos@example.com')).toBeTruthy();
+    expect(screen.getByText('Check before sending, it mentions: money or prices')).toBeTruthy();
+    expect(screen.getByText('They wrote: "Here is the final version."')).toBeTruthy();
+    expect(screen.getByText('Carlos Ruiz: Send the updated proposal')).toBeTruthy();
+    expect(screen.getByText('Due: 2026-11-13')).toBeTruthy();
+  });
+
+  it('A2: approves a reply with the hash it showed, and adds a commitment with the device zone', async () => {
+    mockListOpen.mockResolvedValue([PAGE.matter]);
+    mockGetPage.mockResolvedValue(PAGE);
+    mockDecide
+      .mockResolvedValueOnce({ matterId: 'm1', id: 'c1', status: 'approved', outcome: 'sent', taskId: null, matterStatus: 'active' })
+      .mockResolvedValueOnce({ matterId: 'm1', id: PAGE.proposals[0]!.id, status: 'accepted', outcome: null, taskId: PAGE.proposals[0]!.id, matterStatus: 'active' });
+    await renderScreen();
+    await press('matters-open-m1');
+    await press('matters-card-approve-c1');
+    expect(mockDecide).toHaveBeenNthCalledWith(1, { matterId: 'm1', target: 'approval', id: 'c1', action: 'approve', draftHash: DRAFT_HASH });
+    expect(Toast.show).toHaveBeenCalledWith({ type: 'success', text1: 'Reply sent.' });
+    await press(`matters-proposal-accept-${PAGE.proposals[0]!.id}`);
+    expect(mockDecide).toHaveBeenNthCalledWith(2, { matterId: 'm1', target: 'proposal', id: PAGE.proposals[0]!.id, action: 'accept', timeZone: expect.any(String) });
+    expect(Toast.show).toHaveBeenCalledWith({ type: 'success', text1: 'Added to your tasks.' });
+    expect(mockGetPage).toHaveBeenCalledTimes(3); // reloaded after each decision
+  });
+
+  it('A2: declines a card without a hash, and goes back to the list', async () => {
+    mockListOpen.mockResolvedValue([PAGE.matter]);
+    mockGetPage.mockResolvedValue(PAGE);
+    mockDecide.mockResolvedValueOnce({ matterId: 'm1', id: 'c2', status: 'declined', outcome: null, taskId: null, matterStatus: 'active' });
+    await renderScreen();
+    await press('matters-open-m1');
+    await press('matters-card-decline-c2');
+    expect(mockDecide).toHaveBeenCalledWith({ matterId: 'm1', target: 'approval', id: 'c2', action: 'decline' });
+    await press('matters-back');
+    expect(screen.getByTestId('matters-open-list')).toBeTruthy();
+  });
+
+  it('A2: a page that cannot be loaded says so and offers to try again (never "no longer available")', async () => {
+    mockListOpen.mockResolvedValue([PAGE.matter]);
+    mockGetPage.mockRejectedValueOnce(new AppError('permission_denied', 'denied')).mockResolvedValueOnce(PAGE);
+    await renderScreen();
+    await press('matters-open-m1');
+    expect(screen.getByTestId('matters-page-error')).toBeTruthy();
+    expect(screen.queryByTestId('matters-page-missing')).toBeNull();
+    await press('matters-page-retry');
+    expect(screen.getByText('Reply ready to send')).toBeTruthy();
   });
 
   it('words each server reason', () => {

@@ -3,4 +3,4 @@
  * docs/v1/ARCHITECTURE.md section 36). Switched off unless EXPO_PUBLIC_MATTERS_ENABLED.
  */
 export { matterService, createMatterService, mapMatterError } from './matterService';
-export type { MatterService, MatterTransport } from './matterService';
+export type { MatterOpenItem, MatterPage, MatterService, MatterTransport } from './matterService';

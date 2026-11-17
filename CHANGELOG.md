@@ -80,6 +80,32 @@ to users: the assistant stays switched off in every release until its beta (A10)
     `MATTERS_SERVICE_ACCOUNT` line in `functions/.env.<projectId>`), and the Postmark secret is
     renamed to MATTERS_POSTMARK_TOKEN (the old POSTMARK_SERVER_TOKEN is deleted only after this is
     in `v2`).
+- **A2, replies, follow-ups and safety** (November 16), switched off like A1 (MATTERS_ENABLED, the
+  tester list) and with automatic replies off for the pilot (MATTERS_AUTO_REPLY false):
+  - replies: the webhook checks the sender from the raw email (DKIM aligned with From, with the
+    shared `functions/src/mail` code) and stores the new part of the reply only (never a quote or
+    hidden HTML text); a new trigger, matterInboundRead, has the model read it against the mandate
+    and this matter's thread only, and code decides: a reply draft card, proposed tasks from the
+    contact's own words (dates read by code), a stop when the contact asks, cards for money,
+    contracts, new people, time proposals, a reached goal or anything unclear;
+  - who may move a matter: the owner's own address never acts (a forged "it's me" does nothing),
+    anyone outside the mandate gets a card and no answer, automatic replies are never answered;
+  - matterDecide: approve a reply draft (exactly the hashed version shown, sent once), decline,
+    mark a matter done, add a proposed task to the user's tasks (an ordinary task with its
+    reminder) or skip it;
+  - follow-ups: matterTick (every 15 minutes) sends a fixed EN/ES follow-up with the earlier email
+    quoted, only in working hours in the mandate's zone, claimed once, and closes matters at their
+    end date; it also retries replies whose read failed (3 attempts, then a card);
+  - safety: a content guard (money, contracts, links, other addresses) keeps a draft from going
+    out on its own; caps per matter (3 automatic replies, 10 reads a day, a loop guard) and per
+    user (MATTERS_USER_DAILY_SENDS); the matter model calls count against the global AI budget and
+    the admin stats; bounces and spam complaints (matterDeliveryEvents, and a 406 at send time)
+    stop emails to that address or stop the matter;
+  - the app (test build): an "Open matters" list and a matter page with the cards and the
+    proposed tasks, both from a new matterView callable that reads them for the owner (no new
+    Firestore rule needed by the app);
+  - tests: replies, decisions, timing across DST, the sender check with real DKIM signatures, and
+    a hostile suite of 16 emails in EN and ES that assumes the model is fooled.
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 

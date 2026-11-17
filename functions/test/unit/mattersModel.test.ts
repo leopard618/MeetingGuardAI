@@ -137,10 +137,10 @@ describe('matters model: the matter and its emails', () => {
       text: 'Here it is.',
       at: ISO,
       providerId: 'pm-123',
-      auth: { spf: 'pass', dkim: 'pass', dmarc: 'pass' },
+      auth: { verdict: 'trusted', fromAligned: true, spf: 'pass', arcTrusted: false, reason: null },
     };
     expect(matterMessageSchema.safeParse(message).success).toBe(true);
-    expect(matterMessageSchema.safeParse({ ...message, auth: { spf: 'pass', dkim: 'ok', dmarc: 'pass' } }).success).toBe(false);
+    expect(matterMessageSchema.safeParse({ ...message, auth: { verdict: 'ok', fromAligned: true, spf: 'pass', arcTrusted: false, reason: null } }).success).toBe(false);
   });
 
   it('builds the document paths under the owner', () => {
