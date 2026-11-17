@@ -31,8 +31,8 @@
   },
   "errorBoundary": {
     "title": "Etwas ist schiefgelaufen",
-    "message": "Bei Meeting Guard ist ein unerwartetes Problem aufgetreten. Versuchen Sie es erneut. Wenn es weiterhin auftritt, schließen Sie die App und öffnen Sie sie erneut.",
-    "retryHint": "Lädt Meeting Guard neu",
+    "message": "Bei Meeting Guard AI ist ein unerwartetes Problem aufgetreten. Versuchen Sie es erneut. Wenn es weiterhin auftritt, schließen Sie die App und öffnen Sie sie erneut.",
+    "retryHint": "Lädt Meeting Guard AI neu",
     "screenMessage": "Auf diesem Bildschirm ist ein unerwartetes Problem aufgetreten. Versuchen Sie es erneut oder gehen Sie zurück. Wenn es weiterhin auftritt, schließen Sie die App und öffnen Sie sie erneut.",
     "screenRetryHint": "Lädt den Bildschirm neu"
   }

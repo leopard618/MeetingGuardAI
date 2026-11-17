@@ -20,6 +20,7 @@
     "cancel": "Cancelar",
     "close": "Fechar",
     "copyFailed": "Não foi possível copiar. Mantenha o texto pressionado para copiá-lo.",
+    "shareCopied": "Não é possível compartilhar aqui, então o texto foi copiado. Cole-o em uma mensagem.",
     "origin": {
       "vendor": "Escrito pelo seu assistente de anotações ({{domain}}), recebido {{time}}. Assinatura verificada.",
       "vendorNoDomain": "Escrito pelo seu assistente de anotações, recebido {{time}}. Assinatura verificada.",

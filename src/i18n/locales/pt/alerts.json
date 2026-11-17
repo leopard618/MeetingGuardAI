@@ -14,7 +14,7 @@
     "empty": "Nenhuma reunião e nenhuma tarefa para hoje. Aproveite o dia livre."
   },
   "status": {
-    "title": "Meeting Guard está ativo",
+    "title": "Meeting Guard AI está ativo",
     "next": "Próxima: {{title}} às {{time}}",
     "idle": "Nenhuma reunião próxima. Seus alertas estão ativados."
   },
@@ -126,7 +126,7 @@
   },
   "refill": {
     "title": "Mantenha seus alertas de reunião atualizados",
-    "body": "Abra o Meeting Guard para que ele agende seus próximos alertas."
+    "body": "Abra o Meeting Guard AI para que ele agende seus próximos alertas."
   },
   "settings": {
     "voiceNeedsApp": "A leitura em voz alta funciona dentro do app. No Android, o alarme em tela cheia abre o app e lê a reunião; no iPhone, abra o alerta para ouvi-la. Com o app fechado, o som da notificação toca primeiro.",
@@ -171,7 +171,7 @@
     "dnd": {
       "title": "Não perturbe",
       "androidDescription": "Os alertas máximos só podem tocar durante o Não perturbe se você permitir: abra as configurações dos alertas máximos e ative \"Ignorar Não perturbe\".",
-      "iosDescription": "Para receber alertas durante um Foco, adicione o Meeting Guard aos apps permitidos do Foco em Ajustes > Foco.",
+      "iosDescription": "Para receber alertas durante um Foco, adicione o Meeting Guard AI aos apps permitidos do Foco em Ajustes > Foco.",
       "open": "Permitir que os alertas máximos ignorem o Não perturbe"
     }
   }

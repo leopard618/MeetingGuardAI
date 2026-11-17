@@ -7,11 +7,11 @@
   },
   "calendars": {
     "title": "Connectez vos calendriers",
-    "subtitle": "Meeting Guard vous alerte des réunions de vos calendriers et garde tout synchronisé.",
+    "subtitle": "Meeting Guard AI vous alerte des réunions de vos calendriers et garde tout synchronisé.",
     "later": "Vous pourrez modifier cela plus tard dans les Paramètres.",
     "google": {
       "title": "Google Calendar",
-      "description": "Synchronisation bidirectionnelle : les réunions créées ici apparaissent dans Google Calendar, et vos événements Google reçoivent les alertes Meeting Guard.",
+      "description": "Synchronisation bidirectionnelle : les réunions créées ici apparaissent dans Google Calendar, et vos événements Google reçoivent les alertes Meeting Guard AI.",
       "connect": "Connecter Google Calendar",
       "connected": "Connecté",
       "success": "Google Calendar est connecté.",
@@ -20,7 +20,7 @@
     },
     "outlook": {
       "title": "Calendrier Outlook",
-      "description": "Synchronisation bidirectionnelle avec le calendrier de votre compte Microsoft (Outlook, Microsoft 365). Les réunions créées ici apparaissent dans Outlook, et vos événements Outlook reçoivent les alertes Meeting Guard.",
+      "description": "Synchronisation bidirectionnelle avec le calendrier de votre compte Microsoft (Outlook, Microsoft 365). Les réunions créées ici apparaissent dans Outlook, et vos événements Outlook reçoivent les alertes Meeting Guard AI.",
       "microsoftHint": "Vous vous êtes connecté avec Microsoft. Connectez le même compte pour voir vos réunions Outlook ici.",
       "connect": "Connecter Outlook",
       "connected": "Connecté",
@@ -39,7 +39,7 @@
   },
   "alerts": {
     "title": "Comment devons-nous vous alerter ?",
-    "subtitle": "Choisissez avec quelle insistance Meeting Guard attire votre attention avant une réunion.",
+    "subtitle": "Choisissez avec quelle insistance Meeting Guard AI attire votre attention avant une réunion.",
     "enabled": "Alertes de réunion",
     "intensity": {
       "label": "Intensité des alertes",
@@ -84,7 +84,7 @@
     },
     "permission": {
       "title": "Notifications",
-      "description": "Meeting Guard a besoin des notifications pour vous alerter, même lorsque l'application est fermée.",
+      "description": "Meeting Guard AI a besoin des notifications pour vous alerter, même lorsque l'application est fermée.",
       "allow": "Autoriser les notifications",
       "granted": "Les notifications sont activées.",
       "denied": "Les notifications sont désactivées. Activez-les dans les paramètres de votre appareil pour que les alertes vous parviennent.",
@@ -92,12 +92,12 @@
     },
     "exactAlarms": {
       "title": "Alarmes exactes (Android)",
-      "description": "Android peut retarder les alertes si Meeting Guard n'est pas autorisé à utiliser les alarmes exactes. Activez \"Alarmes et rappels\" pour Meeting Guard afin que les alertes sonnent à l'heure précise.",
+      "description": "Android peut retarder les alertes si Meeting Guard AI n'est pas autorisé à utiliser les alarmes exactes. Activez \"Alarmes et rappels\" pour Meeting Guard AI afin que les alertes sonnent à l'heure précise.",
       "open": "Ouvrir les paramètres d'alarme"
     },
     "timeSensitive": {
       "title": "Alertes urgentes (iPhone)",
-      "description": "Les alertes de réunion sont marquées comme urgentes pour pouvoir passer outre les modes de concentration. Si vous utilisez un mode de concentration, autorisez les notifications urgentes pour Meeting Guard."
+      "description": "Les alertes de réunion sont marquées comme urgentes pour pouvoir passer outre les modes de concentration. Si vous utilisez un mode de concentration, autorisez les notifications urgentes pour Meeting Guard AI."
     }
   },
   "assistant": {

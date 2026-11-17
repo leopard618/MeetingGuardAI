@@ -52,8 +52,8 @@ interface BotStrings {
 }
 
 const EN: BotStrings = {
-  linkSuccess: 'Your WhatsApp is now linked to Meeting Guard. Ask me about your meetings, for example "What do I have tomorrow?"',
-  linkPrompt: 'Hi! To use the Meeting Guard assistant here, open the app, go to Settings > WhatsApp, and send me the 6 digit code it shows you.',
+  linkSuccess: 'Your WhatsApp is now linked to Meeting Guard AI. Ask me about your meetings, for example "What do I have tomorrow?"',
+  linkPrompt: 'Hi! To use the Meeting Guard AI assistant here, open the app, go to Settings > WhatsApp, and send me the 6 digit code it shows you.',
   codeExpired: 'That code is not valid anymore. Open the app and generate a new one.',
   // M11 (docs/v2/M11-DESIGN.md section 4.2): the allowance wording of ALLOWANCES-2026-11-05.md, not a daily limit.
   quotaExceeded: `You reached your AI action limit for now. The free allowance is ${AI_ALLOWANCES.free.total} actions in your first ${AI_ALLOWANCES.free.windowDays} days, up to ${AI_ALLOWANCES.free.perDay} a day; Pro and Premium renew each month on the day you subscribed. See your usage in the app.`,
@@ -74,8 +74,8 @@ const EN: BotStrings = {
 };
 
 const ES: BotStrings = {
-  linkSuccess: 'Tu WhatsApp quedó vinculado a Meeting Guard. Pregúntame por tus reuniones, por ejemplo «¿Qué tengo mañana?»',
-  linkPrompt: '¡Hola! Para usar el asistente de Meeting Guard aquí, abre la app, entra en Ajustes > WhatsApp y envíame el código de 6 dígitos que te muestra.',
+  linkSuccess: 'Tu WhatsApp quedó vinculado a Meeting Guard AI. Pregúntame por tus reuniones, por ejemplo «¿Qué tengo mañana?»',
+  linkPrompt: '¡Hola! Para usar el asistente de Meeting Guard AI aquí, abre la app, entra en Ajustes > WhatsApp y envíame el código de 6 dígitos que te muestra.',
   codeExpired: 'Ese código ya no es válido. Abre la app y genera uno nuevo.',
   quotaExceeded: `Alcanzaste tu límite de acciones de IA por ahora. La asignación gratuita es de ${AI_ALLOWANCES.free.total} acciones en tus primeros ${AI_ALLOWANCES.free.windowDays} días, hasta ${AI_ALLOWANCES.free.perDay} al día; Pro y Premium se renuevan cada mes el día en que te suscribiste. Consulta tu uso en la app.`,
   confirmPrompt: '¿Lo aplico? Responde 1 para confirmar o 2 para cancelar.',

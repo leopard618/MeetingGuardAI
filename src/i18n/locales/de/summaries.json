@@ -20,6 +20,7 @@
     "cancel": "Abbrechen",
     "close": "Schließen",
     "copyFailed": "Kopieren nicht möglich. Halten Sie stattdessen den Text gedrückt, um ihn zu kopieren.",
+    "shareCopied": "Teilen ist hier nicht verfügbar, daher wurde der Text kopiert. Fügen Sie ihn in eine Nachricht ein.",
     "origin": {
       "vendor": "Von Ihrem Notizassistenten ({{domain}}) verfasst, empfangen am {{time}}. Signatur geprüft.",
       "vendorNoDomain": "Von Ihrem Notizassistenten verfasst, empfangen am {{time}}. Signatur geprüft.",

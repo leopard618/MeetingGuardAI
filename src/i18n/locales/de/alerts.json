@@ -14,7 +14,7 @@
     "empty": "Heute keine Besprechungen und keine fälligen Aufgaben. Genießen Sie den freien Tag."
   },
   "status": {
-    "title": "Meeting Guard ist aktiv",
+    "title": "Meeting Guard AI ist aktiv",
     "next": "Als Nächstes: {{title}} um {{time}}",
     "idle": "Keine anstehenden Besprechungen. Ihre Alarme sind aktiv."
   },
@@ -126,7 +126,7 @@
   },
   "refill": {
     "title": "Halten Sie Ihre Besprechungsalarme aktuell",
-    "body": "Öffnen Sie Meeting Guard, damit die nächsten Alarme geplant werden können."
+    "body": "Öffnen Sie Meeting Guard AI, damit die nächsten Alarme geplant werden können."
   },
   "settings": {
     "voiceNeedsApp": "Die Sprachausgabe läuft in der App. Unter Android öffnet der Vollbildalarm die App und liest die Besprechung vor; auf dem iPhone öffnen Sie den Alarm, um sie zu hören. Bei geschlossener App ertönt zuerst der Benachrichtigungston.",
@@ -171,7 +171,7 @@
     "dnd": {
       "title": "Bitte nicht stören",
       "androidDescription": "Maximale Alarme können bei \"Bitte nicht stören\" nur klingeln, wenn Sie es erlauben: Öffnen Sie die Einstellungen der maximalen Alarme und aktivieren Sie \"Bitte nicht stören ignorieren\".",
-      "iosDescription": "Um Alarme während eines Fokus zu erhalten, fügen Sie Meeting Guard unter Einstellungen > Fokus zu den erlaubten Apps des Fokus hinzu.",
+      "iosDescription": "Um Alarme während eines Fokus zu erhalten, fügen Sie Meeting Guard AI unter Einstellungen > Fokus zu den erlaubten Apps des Fokus hinzu.",
       "open": "Maximale Alarme bei \"Bitte nicht stören\" erlauben"
     }
   }

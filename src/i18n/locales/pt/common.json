@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Meeting Guard AI",
-    "shortName": "Meeting Guard"
+    "shortName": "Meeting Guard AI"
   },
   "actions": {
     "continue": "Continuar",
@@ -66,8 +66,8 @@
     "unsupported": "Esta ação não é compatível.",
     "pending_writes": "Algumas alterações ainda não foram sincronizadas.",
     "google_not_signed_in": "Entre com o Google para usar este recurso.",
-    "calendar_scope_missing": "O Meeting Guard precisa de permissão para acessar seu Google Calendar.",
-    "tasks_scope_missing": "O Meeting Guard precisa de permissão para acessar seu Google Tasks.",
+    "calendar_scope_missing": "O Meeting Guard AI precisa de permissão para acessar seu Google Calendar.",
+    "tasks_scope_missing": "O Meeting Guard AI precisa de permissão para acessar seu Google Tasks.",
     "calendar_not_connected": "O Google Calendar não está conectado.",
     "calendar_permission_denied": "O acesso ao calendário foi negado. Você pode permiti-lo nas configurações do dispositivo.",
     "notification_permission_denied": "As notificações estão desativadas. Ative-as nas configurações do dispositivo para nunca perder uma reunião.",

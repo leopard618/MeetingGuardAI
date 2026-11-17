@@ -7,11 +7,11 @@
   },
   "calendars": {
     "title": "Kalender verbinden",
-    "subtitle": "Meeting Guard alarmiert Sie bei den Besprechungen in Ihren Kalendern und hält alles synchron.",
+    "subtitle": "Meeting Guard AI alarmiert Sie bei den Besprechungen in Ihren Kalendern und hält alles synchron.",
     "later": "Sie können das später in den Einstellungen ändern.",
     "google": {
       "title": "Google Calendar",
-      "description": "Synchronisierung in beide Richtungen: Besprechungen, die Sie hier erstellen, erscheinen in Google Calendar, und Ihre Google-Termine erhalten Alarme von Meeting Guard.",
+      "description": "Synchronisierung in beide Richtungen: Besprechungen, die Sie hier erstellen, erscheinen in Google Calendar, und Ihre Google-Termine erhalten Alarme von Meeting Guard AI.",
       "connect": "Google Calendar verbinden",
       "connected": "Verbunden",
       "success": "Google Calendar ist verbunden.",
@@ -20,7 +20,7 @@
     },
     "outlook": {
       "title": "Outlook-Kalender",
-      "description": "Synchronisierung in beide Richtungen mit dem Kalender Ihres Microsoft-Kontos (Outlook, Microsoft 365). Besprechungen, die Sie hier erstellen, erscheinen in Outlook, und Ihre Outlook-Termine erhalten Alarme von Meeting Guard.",
+      "description": "Synchronisierung in beide Richtungen mit dem Kalender Ihres Microsoft-Kontos (Outlook, Microsoft 365). Besprechungen, die Sie hier erstellen, erscheinen in Outlook, und Ihre Outlook-Termine erhalten Alarme von Meeting Guard AI.",
       "microsoftHint": "Sie haben sich mit Microsoft angemeldet. Verbinden Sie dasselbe Konto, um Ihre Outlook-Besprechungen hier zu sehen.",
       "connect": "Outlook verbinden",
       "connected": "Verbunden",
@@ -39,7 +39,7 @@
   },
   "alerts": {
     "title": "Wie sollen wir Sie alarmieren?",
-    "subtitle": "Wählen Sie, wie nachdrücklich Meeting Guard Sie vor einer Besprechung auf sich aufmerksam macht.",
+    "subtitle": "Wählen Sie, wie nachdrücklich Meeting Guard AI Sie vor einer Besprechung auf sich aufmerksam macht.",
     "enabled": "Besprechungsalarme",
     "intensity": {
       "label": "Alarmintensität",
@@ -84,7 +84,7 @@
     },
     "permission": {
       "title": "Benachrichtigungen",
-      "description": "Meeting Guard braucht Benachrichtigungen, um Sie zu alarmieren, auch wenn die App geschlossen ist.",
+      "description": "Meeting Guard AI braucht Benachrichtigungen, um Sie zu alarmieren, auch wenn die App geschlossen ist.",
       "allow": "Benachrichtigungen erlauben",
       "granted": "Benachrichtigungen sind aktiviert.",
       "denied": "Benachrichtigungen sind deaktiviert. Aktivieren Sie sie in den Geräteeinstellungen, damit Alarme Sie erreichen.",
@@ -92,12 +92,12 @@
     },
     "exactAlarms": {
       "title": "Exakte Alarme (Android)",
-      "description": "Android kann Alarme verzögern, wenn Meeting Guard keine exakten Alarme verwenden darf. Aktivieren Sie \"Wecker und Erinnerungen\" für Meeting Guard, damit Alarme pünktlich klingeln.",
+      "description": "Android kann Alarme verzögern, wenn Meeting Guard AI keine exakten Alarme verwenden darf. Aktivieren Sie \"Wecker und Erinnerungen\" für Meeting Guard AI, damit Alarme pünktlich klingeln.",
       "open": "Wecker-Einstellungen öffnen"
     },
     "timeSensitive": {
       "title": "Zeitkritische Alarme (iPhone)",
-      "description": "Besprechungsalarme sind als zeitkritisch markiert, damit sie einen Fokus durchbrechen können. Wenn Sie Fokus verwenden, erlauben Sie zeitkritische Mitteilungen für Meeting Guard."
+      "description": "Besprechungsalarme sind als zeitkritisch markiert, damit sie einen Fokus durchbrechen können. Wenn Sie Fokus verwenden, erlauben Sie zeitkritische Mitteilungen für Meeting Guard AI."
     }
   },
   "assistant": {

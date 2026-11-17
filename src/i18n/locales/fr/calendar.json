@@ -1,6 +1,6 @@
 {
   "screen": {
-    "subtitle": "Gardez Meeting Guard synchronisé avec vos calendriers connectés et les calendriers de ce téléphone."
+    "subtitle": "Gardez Meeting Guard AI synchronisé avec vos calendriers connectés et les calendriers de ce téléphone."
   },
   "status": {
     "lastSynced": "Dernière synchronisation {{time}}",
@@ -9,23 +9,23 @@
   },
   "google": {
     "title": "Google Calendar",
-    "description": "Synchronisation bidirectionnelle avec votre Google Calendar principal. Les réunions que vous créez ici apparaissent dans Google Calendar (avec des invitations pour les participants), et vos événements Google reçoivent les alertes Meeting Guard.",
+    "description": "Synchronisation bidirectionnelle avec votre Google Calendar principal. Les réunions que vous créez ici apparaissent dans Google Calendar (avec des invitations pour les participants), et vos événements Google reçoivent les alertes Meeting Guard AI.",
     "state": {
       "connected": "Connecté",
       "notConnected": "Non connecté",
       "permissionNeeded": "Accès au calendrier requis"
     },
-    "permissionNeededHint": "Meeting Guard n'a plus accès à votre Google Calendar. Accordez de nouveau l'accès pour continuer la synchronisation.",
+    "permissionNeededHint": "Meeting Guard AI n'a plus accès à votre Google Calendar. Accordez de nouveau l'accès pour continuer la synchronisation.",
     "twoWaySync": "Synchronisation bidirectionnelle",
     "connect": "Connecter Google Calendar",
     "connecting": "Connexion...",
     "grantAccess": "Autoriser l'accès au calendrier",
     "connectedTitle": "Google Calendar connecté",
     "firstSyncSummary": "{{created}} événements importés et {{pushed}} réunions envoyées à Google Calendar.",
-    "firstSyncFailed": "Connecté, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard réessaiera automatiquement.",
+    "firstSyncFailed": "Connecté, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard AI réessaiera automatiquement.",
     "scopeDenied": "L'accès au calendrier n'a pas été accordé. Vous pouvez vous reconnecter à tout moment.",
     "disconnectTitle": "Arrêter la synchronisation Google Calendar ?",
-    "disconnectMessage": "Les événements importés de Google Calendar seront retirés de Meeting Guard. Rien n'est supprimé de votre Google Calendar.",
+    "disconnectMessage": "Les événements importés de Google Calendar seront retirés de Meeting Guard AI. Rien n'est supprimé de votre Google Calendar.",
     "disconnect": "Arrêter la synchronisation",
     "disconnectAndRevoke": "Arrêter la synchronisation et retirer l'accès",
     "disconnecting": "Arrêt de la synchronisation...",
@@ -34,7 +34,7 @@
   },
   "outlook": {
     "title": "Calendrier Outlook",
-    "description": "Synchronisation bidirectionnelle avec le calendrier de votre compte Microsoft (Outlook, Microsoft 365). Les réunions que vous créez ici apparaissent dans Outlook, y compris les réunions récurrentes, et vos événements Outlook reçoivent les alertes Meeting Guard.",
+    "description": "Synchronisation bidirectionnelle avec le calendrier de votre compte Microsoft (Outlook, Microsoft 365). Les réunions que vous créez ici apparaissent dans Outlook, y compris les réunions récurrentes, et vos événements Outlook reçoivent les alertes Meeting Guard AI.",
     "state": {
       "connected": "Connecté",
       "notConnected": "Non connecté"
@@ -45,10 +45,10 @@
     "connecting": "Connexion...",
     "connectedTitle": "Outlook connecté",
     "firstSyncSummary": "{{created}} événements importés et {{pushed}} réunions envoyées à Outlook.",
-    "firstSyncFailed": "Connecté, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard réessaiera automatiquement.",
+    "firstSyncFailed": "Connecté, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard AI réessaiera automatiquement.",
     "connectFailed": "La connexion Microsoft n'a pas abouti. Réessayez.",
     "disconnectTitle": "Arrêter la synchronisation Outlook ?",
-    "disconnectMessage": "Les événements importés d'Outlook seront retirés de Meeting Guard. Rien n'est supprimé de votre calendrier Outlook.",
+    "disconnectMessage": "Les événements importés d'Outlook seront retirés de Meeting Guard AI. Rien n'est supprimé de votre calendrier Outlook.",
     "disconnect": "Arrêter la synchronisation",
     "disconnectAndRevoke": "Arrêter la synchronisation et vérifier l'accès",
     "disconnecting": "Arrêt de la synchronisation...",
@@ -78,9 +78,9 @@
     "chooseListAction": "Choisir une liste",
     "enabledTitle": "Microsoft To Do connecté",
     "firstSyncSummary": "{{created}} tâches importées et {{pushed}} tâches envoyées à To Do.",
-    "firstSyncFailed": "Activée, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard réessaiera automatiquement.",
+    "firstSyncFailed": "Activée, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard AI réessaiera automatiquement.",
     "disableTitle": "Arrêter la synchronisation To Do ?",
-    "disableMessage": "Les tâches importées de To Do seront retirées de Meeting Guard. Rien n'est supprimé dans Microsoft To Do.",
+    "disableMessage": "Les tâches importées de To Do seront retirées de Meeting Guard AI. Rien n'est supprimé dans Microsoft To Do.",
     "disable": "Arrêter la synchronisation",
     "disabling": "Arrêt de la synchronisation...",
     "disabledTitle": "La synchronisation To Do est désactivée",
@@ -109,10 +109,10 @@
     "chooseListAction": "Choisir une liste",
     "enabledTitle": "Google Tasks connecté",
     "firstSyncSummary": "{{created}} tâches importées et {{pushed}} tâches envoyées à Google Tasks.",
-    "firstSyncFailed": "Activée, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard réessaiera automatiquement.",
+    "firstSyncFailed": "Activée, mais la première synchronisation n'a pas abouti : {{error}} Meeting Guard AI réessaiera automatiquement.",
     "scopeDenied": "L'accès à Google Tasks n'a pas été accordé. La synchronisation reste désactivée tant que vous ne l'autorisez pas.",
     "disableTitle": "Arrêter la synchronisation Google Tasks ?",
-    "disableMessage": "Les tâches importées de Google Tasks seront retirées de Meeting Guard. Rien n'est supprimé dans Google Tasks.",
+    "disableMessage": "Les tâches importées de Google Tasks seront retirées de Meeting Guard AI. Rien n'est supprimé dans Google Tasks.",
     "disable": "Arrêter la synchronisation",
     "disabling": "Arrêt de la synchronisation...",
     "disabledTitle": "La synchronisation Google Tasks est désactivée",
@@ -120,10 +120,10 @@
   },
   "device": {
     "title": "Calendriers de ce téléphone",
-    "description": "Importez les événements des calendriers de ce téléphone et, si vous le souhaitez, ajoutez vos réunions Meeting Guard à l'un d'eux.",
+    "description": "Importez les événements des calendriers de ce téléphone et, si vous le souhaitez, ajoutez vos réunions Meeting Guard AI à l'un d'eux.",
     "permission": {
       "request": "Autoriser l'accès au calendrier",
-      "denied": "L'accès au calendrier est désactivé pour Meeting Guard.",
+      "denied": "L'accès au calendrier est désactivé pour Meeting Guard AI.",
       "openSettings": "Ouvrir les réglages"
     },
     "loading": "Chargement des calendriers...",
@@ -135,9 +135,9 @@
       "a11y": "Importer les événements de {{calendar}}"
     },
     "export": {
-      "title": "Ajouter les réunions Meeting Guard à",
+      "title": "Ajouter les réunions Meeting Guard AI à",
       "none": "Ne pas les ajouter à un calendrier du téléphone",
-      "hint": "Seules les réunions Meeting Guard sont ajoutées, sans rappels de calendrier (Meeting Guard vous alerte). Les réunions récurrentes ne sont pas ajoutées dans cette version."
+      "hint": "Seules les réunions Meeting Guard AI sont ajoutées, sans rappels de calendrier (Meeting Guard AI vous alerte). Les réunions récurrentes ne sont pas ajoutées dans cette version."
     }
   },
   "sync": {

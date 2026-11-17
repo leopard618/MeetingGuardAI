@@ -405,7 +405,7 @@ export async function handleMicrosoftSignIn(data: unknown, ports: MicrosoftSignI
       } else if (parsed.data.signInOnly === true) {
         // The website signs in existing app users only: no account, no creation, nothing written.
         logger.info('microsoftSignIn.user_not_found', { consumer: identity.tid === CONSUMER_TENANT_ID });
-        throw reasonError('not-found', 'No Meeting Guard account uses this Microsoft account yet. Install the app and sign in there first.', 'microsoft_user_not_found');
+        throw reasonError('not-found', 'No Meeting Guard AI account uses this Microsoft account yet. Install the app and sign in there first.', 'microsoft_user_not_found');
       } else {
         uid = microsoftUid(identity.oid);
         try {

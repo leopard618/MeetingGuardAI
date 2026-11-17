@@ -1,5 +1,5 @@
 {
-  "subtitle": "Auf diesem Gerät aus den Besprechungen in Meeting Guard berechnet. Es wird nichts gesendet, außer Sie fragen den Assistenten.",
+  "subtitle": "Auf diesem Gerät aus den Besprechungen in Meeting Guard AI berechnet. Es wird nichts gesendet, außer Sie fragen den Assistenten.",
   "period": {
     "week": "Diese Woche",
     "month": "Dieser Monat"
@@ -46,7 +46,7 @@
   },
   "sources": {
     "title": "Woher Ihre Besprechungen kommen",
-    "manual": "In Meeting Guard erstellt",
+    "manual": "In Meeting Guard AI erstellt",
     "ai_chat": "KI-Assistent",
     "whatsapp": "WhatsApp",
     "google": "Google Calendar",

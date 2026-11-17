@@ -14,7 +14,7 @@
     "empty": "Aucune réunion ni tâche prévue aujourd'hui. Profitez de cette journée libre."
   },
   "status": {
-    "title": "Meeting Guard est actif",
+    "title": "Meeting Guard AI est actif",
     "next": "Prochaine réunion : {{title}} à {{time}}",
     "idle": "Aucune réunion à venir. Vos alertes sont activées."
   },
@@ -126,7 +126,7 @@
   },
   "refill": {
     "title": "Gardez vos alertes de réunion à jour",
-    "body": "Ouvrez Meeting Guard pour qu'il programme vos prochaines alertes."
+    "body": "Ouvrez Meeting Guard AI pour qu'il programme vos prochaines alertes."
   },
   "settings": {
     "voiceNeedsApp": "La lecture vocale se fait dans l'application. Sur Android, l'alarme plein écran ouvre l'application et lit la réunion à voix haute ; sur iPhone, ouvrez l'alerte pour l'entendre. Lorsque l'application est fermée, le son de notification retentit d'abord.",
@@ -171,7 +171,7 @@
     "dnd": {
       "title": "Ne pas déranger",
       "androidDescription": "Les alertes maximales ne peuvent sonner en mode Ne pas déranger que si vous l'autorisez : ouvrez les paramètres des alertes maximales et activez \"Ignorer le mode Ne pas déranger\".",
-      "iosDescription": "Pour recevoir les alertes pendant un mode de concentration, ajoutez Meeting Guard aux apps autorisées de ce mode dans Réglages > Concentration.",
+      "iosDescription": "Pour recevoir les alertes pendant un mode de concentration, ajoutez Meeting Guard AI aux apps autorisées de ce mode dans Réglages > Concentration.",
       "open": "Autoriser les alertes maximales à ignorer Ne pas déranger"
     }
   }

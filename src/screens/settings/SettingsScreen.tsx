@@ -5,6 +5,7 @@
  * - Alerts: summary + Settings > Alerts (every alert preference after onboarding).
  * - Appearance (theme), language (instant; a radio list of the five UI languages), time format (12 h / 24 h / automatic, used for
  *   every time the app shows), calendars, the WhatsApp bot link (route WhatsAppConnect, §27),
+ *   (M10: Meeting summaries is in the sidebar, src/components/MobileSidebar.tsx, not here),
  *   legal pages, version (and the OTA update id / channel when an EAS update is running, for
  *   support and rollback checks).
  * Every string comes from the "settings" namespace (plus shared auth / onboarding / whatsapp keys).
@@ -27,7 +28,6 @@ import { createLogger } from '../../core/logger';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { usePreferences } from '../../services/data';
-import { useSummaryStatus } from '../../services/summaries';
 import { getUpdateInfo, shortUpdateLabel } from '../../services/updates';
 import { spacing, useAppTheme } from '../../theme';
 import { alertTimeLabel } from '../onboarding/alertOptions';
@@ -55,9 +55,6 @@ export function SettingsScreen(): ReactElement {
   const { language, setLanguage, supportedLanguages } = useLanguage();
   const { themeMode, setThemeMode } = useTheme();
   const deletion = useDeleteAccountFlow();
-  // M10: the "Meeting summaries" row shows only when the feature is on and this user is in the pilot.
-  // Asked again on focus when stale, so "N waiting for a meeting" follows new mail.
-  const summaries = useSummaryStatus({ refreshOnFocus: true });
 
   const alertSummary = preferences.alertEnabled
     ? t('settings:alerts.summaryOn', {
@@ -195,22 +192,6 @@ export function SettingsScreen(): ReactElement {
           accessibilityRole="button"
           testID="settings-whatsapp"
         />
-        {/* M10: set up first; once an address exists the inbox is where summaries wait. */}
-        {summaries.available && summaries.status ? (
-          <ListRow
-            icon="email-outline"
-            title={t('summaries:row.title')}
-            supporting={
-              summaries.status.inboxCount > 0
-                ? t('summaries:row.waiting', { count: summaries.status.inboxCount })
-                : t('summaries:row.subtitle')
-            }
-            trailing="chevron"
-            onPress={() => navigation.navigate(summaries.status?.address ? 'SummaryInbox' : 'SummaryConnect')}
-            accessibilityRole="button"
-            testID="settings-summaries"
-          />
-        ) : null}
       </ListGroup>
 
       {env.mattersEnabled ? (

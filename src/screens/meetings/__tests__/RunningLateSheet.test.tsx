@@ -169,7 +169,7 @@ it('on Android the message is only known to be handed over', async () => {
     fireEvent.press(screen.getByTestId('running-late-share'));
   });
   expect(screen.getByTestId('running-late-outcome-handed_over').props.children).toBe(
-    'The message went to the app you chose. Meeting Guard cannot see whether it was sent.',
+    'The message went to the app you chose. Meeting Guard AI cannot see whether it was sent.',
   );
 });
 

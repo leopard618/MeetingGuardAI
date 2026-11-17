@@ -215,6 +215,21 @@ describe('the address', () => {
     expect(Share.share).toHaveBeenCalledWith({ message: `My Meeting Guard AI address for meeting summaries: ${ADDRESS}` });
   });
 
+  it('copies the text instead when the device cannot open the share sheet', async () => {
+    await renderScreen();
+    (Share.share as jest.Mock).mockRejectedValueOnce(new Error('no chooser'));
+    await press('summary-connect-share');
+    expect(mockCopyText).toHaveBeenCalledWith(`My Meeting Guard AI address for meeting summaries: ${ADDRESS}`);
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'info', text1: 'Sharing is not available here, so the text is copied. Paste it into a message.' }),
+    );
+
+    (Share.share as jest.Mock).mockRejectedValueOnce(new Error('no chooser'));
+    mockCopyText.mockReturnValueOnce(false);
+    await press('summary-connect-share');
+    expect(Toast.show).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'error' }));
+  });
+
   it('lists the notetakers that file by themselves and copies a sender address', async () => {
     mockStatus = { ...CONNECTED, notetakers: [{ name: 'Fathom', sender: 'no-reply@fathom.video' }] };
     await renderScreen();

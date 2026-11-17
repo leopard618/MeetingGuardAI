@@ -87,16 +87,16 @@ describe('pure helpers', () => {
 });
 
 describe('ThemeProvider', () => {
-  it('opens in light on a fresh install and follows the OS scheme once asked to', async () => {
-    mockColorScheme.mockReturnValue('dark');
+  it('opens in dark (the brand palette) on a fresh install and follows the OS scheme once asked to', async () => {
+    mockColorScheme.mockReturnValue('light');
     await renderProbe();
-    expect(screen.getByTestId('state').props.children).toBe('light|light|true|dark');
-    expect(screen.getByTestId('background').props.children).toBe(APP_COLORS.light.background);
+    expect(screen.getByTestId('state').props.children).toBe('dark|dark|true|light');
+    expect(screen.getByTestId('background').props.children).toBe(APP_COLORS.dark.background);
     await act(async () => {
       fireEvent.press(screen.getByTestId('system'));
     });
-    expect(screen.getByTestId('state').props.children).toBe('system|dark|true|light');
-    expect(screen.getByTestId('background').props.children).toBe(APP_COLORS.dark.background);
+    expect(screen.getByTestId('state').props.children).toBe('system|light|true|dark');
+    expect(screen.getByTestId('background').props.children).toBe(APP_COLORS.light.background);
   });
 
   it('applies the stored choice', async () => {
@@ -110,8 +110,8 @@ describe('ThemeProvider', () => {
     await act(async () => {
       fireEvent.press(screen.getByTestId('toggle'));
     });
-    expect(screen.getByTestId('state').props.children).toBe('dark|dark|true|light');
-    await expect(AsyncStorage.getItem(THEME_STORAGE_KEY)).resolves.toBe('dark');
+    expect(screen.getByTestId('state').props.children).toBe('light|light|true|dark');
+    await expect(AsyncStorage.getItem(THEME_STORAGE_KEY)).resolves.toBe('light');
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('system'));
@@ -121,14 +121,14 @@ describe('ThemeProvider', () => {
   });
 
   it('keeps a choice made while the stored one is still loading', async () => {
-    await AsyncStorage.setItem(THEME_STORAGE_KEY, 'light');
+    await AsyncStorage.setItem(THEME_STORAGE_KEY, 'dark');
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
     const getItem = jest.spyOn(AsyncStorage, 'getItem').mockImplementationOnce(async () => {
       await gate;
-      return 'light';
+      return 'dark';
     });
     await render(
       <ThemeProvider>
@@ -141,8 +141,8 @@ describe('ThemeProvider', () => {
     await act(async () => {
       release();
     });
-    // The toggle (light -> dark) made before the stored "light" arrived still wins.
-    expect(screen.getByTestId('state').props.children).toBe('dark|dark|true|light');
+    // The toggle (dark -> light) made before the stored "dark" arrived still wins.
+    expect(screen.getByTestId('state').props.children).toBe('light|light|true|dark');
     getItem.mockRestore();
   });
 

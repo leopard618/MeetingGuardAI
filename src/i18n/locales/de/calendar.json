@@ -1,6 +1,6 @@
 {
   "screen": {
-    "subtitle": "Halten Sie Meeting Guard mit Ihren verbundenen Kalendern und den Kalendern auf diesem Telefon synchron."
+    "subtitle": "Halten Sie Meeting Guard AI mit Ihren verbundenen Kalendern und den Kalendern auf diesem Telefon synchron."
   },
   "status": {
     "lastSynced": "Zuletzt synchronisiert: {{time}}",
@@ -9,23 +9,23 @@
   },
   "google": {
     "title": "Google Calendar",
-    "description": "Synchronisierung in beide Richtungen mit Ihrem primären Google Calendar. Besprechungen, die Sie hier erstellen, erscheinen in Google Calendar (mit Einladungen für die Teilnehmer), und Ihre Google-Termine erhalten Alarme von Meeting Guard.",
+    "description": "Synchronisierung in beide Richtungen mit Ihrem primären Google Calendar. Besprechungen, die Sie hier erstellen, erscheinen in Google Calendar (mit Einladungen für die Teilnehmer), und Ihre Google-Termine erhalten Alarme von Meeting Guard AI.",
     "state": {
       "connected": "Verbunden",
       "notConnected": "Nicht verbunden",
       "permissionNeeded": "Kalenderzugriff nötig"
     },
-    "permissionNeededHint": "Meeting Guard hat keinen Zugriff mehr auf Ihren Google Calendar. Erteilen Sie den Zugriff erneut, um weiter zu synchronisieren.",
+    "permissionNeededHint": "Meeting Guard AI hat keinen Zugriff mehr auf Ihren Google Calendar. Erteilen Sie den Zugriff erneut, um weiter zu synchronisieren.",
     "twoWaySync": "Synchronisierung in beide Richtungen",
     "connect": "Google Calendar verbinden",
     "connecting": "Wird verbunden...",
     "grantAccess": "Kalenderzugriff erteilen",
     "connectedTitle": "Google Calendar verbunden",
     "firstSyncSummary": "{{created}} Termine importiert und {{pushed}} Besprechungen an Google Calendar gesendet.",
-    "firstSyncFailed": "Verbunden, aber die erste Synchronisierung wurde nicht abgeschlossen: {{error}} Meeting Guard versucht es automatisch erneut.",
+    "firstSyncFailed": "Verbunden, aber die erste Synchronisierung wurde nicht abgeschlossen: {{error}} Meeting Guard AI versucht es automatisch erneut.",
     "scopeDenied": "Der Kalenderzugriff wurde nicht erteilt. Sie können sich jederzeit erneut verbinden.",
     "disconnectTitle": "Synchronisierung mit Google Calendar beenden?",
-    "disconnectMessage": "Aus Google Calendar importierte Termine werden aus Meeting Guard entfernt. In Ihrem Google Calendar wird nichts gelöscht.",
+    "disconnectMessage": "Aus Google Calendar importierte Termine werden aus Meeting Guard AI entfernt. In Ihrem Google Calendar wird nichts gelöscht.",
     "disconnect": "Synchronisierung beenden",
     "disconnectAndRevoke": "Beenden und Zugriff entfernen",
     "disconnecting": "Synchronisierung wird beendet...",
@@ -34,7 +34,7 @@
   },
   "outlook": {
     "title": "Outlook-Kalender",
-    "description": "Synchronisierung in beide Richtungen mit dem Kalender Ihres Microsoft-Kontos (Outlook, Microsoft 365). Besprechungen, die Sie hier erstellen, erscheinen in Outlook, auch wiederkehrende, und Ihre Outlook-Termine erhalten Alarme von Meeting Guard.",
+    "description": "Synchronisierung in beide Richtungen mit dem Kalender Ihres Microsoft-Kontos (Outlook, Microsoft 365). Besprechungen, die Sie hier erstellen, erscheinen in Outlook, auch wiederkehrende, und Ihre Outlook-Termine erhalten Alarme von Meeting Guard AI.",
     "state": {
       "connected": "Verbunden",
       "notConnected": "Nicht verbunden"
@@ -45,10 +45,10 @@
     "connecting": "Wird verbunden...",
     "connectedTitle": "Outlook verbunden",
     "firstSyncSummary": "{{created}} Termine importiert und {{pushed}} Besprechungen an Outlook gesendet.",
-    "firstSyncFailed": "Verbunden, aber die erste Synchronisierung wurde nicht abgeschlossen: {{error}} Meeting Guard versucht es automatisch erneut.",
+    "firstSyncFailed": "Verbunden, aber die erste Synchronisierung wurde nicht abgeschlossen: {{error}} Meeting Guard AI versucht es automatisch erneut.",
     "connectFailed": "Die Microsoft-Anmeldung wurde nicht abgeschlossen. Bitte versuchen Sie es erneut.",
     "disconnectTitle": "Synchronisierung mit Outlook beenden?",
-    "disconnectMessage": "Aus Outlook importierte Termine werden aus Meeting Guard entfernt. In Ihrem Outlook-Kalender wird nichts gelöscht.",
+    "disconnectMessage": "Aus Outlook importierte Termine werden aus Meeting Guard AI entfernt. In Ihrem Outlook-Kalender wird nichts gelöscht.",
     "disconnect": "Synchronisierung beenden",
     "disconnectAndRevoke": "Beenden und Zugriff prüfen",
     "disconnecting": "Synchronisierung wird beendet...",
@@ -78,9 +78,9 @@
     "chooseListAction": "Liste wählen",
     "enabledTitle": "Microsoft To Do verbunden",
     "firstSyncSummary": "{{created}} Aufgaben importiert und {{pushed}} Aufgaben an To Do gesendet.",
-    "firstSyncFailed": "Eingeschaltet, aber die erste Synchronisierung wurde nicht abgeschlossen: {{error}} Meeting Guard versucht es automatisch erneut.",
+    "firstSyncFailed": "Eingeschaltet, aber die erste Synchronisierung wurde nicht abgeschlossen: {{error}} Meeting Guard AI versucht es automatisch erneut.",
     "disableTitle": "Synchronisierung mit To Do beenden?",
-    "disableMessage": "Aus To Do importierte Aufgaben werden aus Meeting Guard entfernt. In Microsoft To Do wird nichts gelöscht.",
+    "disableMessage": "Aus To Do importierte Aufgaben werden aus Meeting Guard AI entfernt. In Microsoft To Do wird nichts gelöscht.",
     "disable": "Synchronisierung beenden",
     "disabling": "Synchronisierung wird beendet...",
     "disabledTitle": "Synchronisierung mit To Do ist aus",
@@ -109,10 +109,10 @@
     "chooseListAction": "Liste wählen",
     "enabledTitle": "Google Tasks verbunden",
     "firstSyncSummary": "{{created}} Aufgaben importiert und {{pushed}} Aufgaben an Google Tasks gesendet.",
-    "firstSyncFailed": "Eingeschaltet, aber die erste Synchronisierung wurde nicht abgeschlossen: {{error}} Meeting Guard versucht es automatisch erneut.",
+    "firstSyncFailed": "Eingeschaltet, aber die erste Synchronisierung wurde nicht abgeschlossen: {{error}} Meeting Guard AI versucht es automatisch erneut.",
     "scopeDenied": "Der Zugriff auf Google Tasks wurde nicht erteilt. Die Synchronisierung bleibt aus, bis Sie ihn erlauben.",
     "disableTitle": "Synchronisierung mit Google Tasks beenden?",
-    "disableMessage": "Aus Google Tasks importierte Aufgaben werden aus Meeting Guard entfernt. In Google Tasks wird nichts gelöscht.",
+    "disableMessage": "Aus Google Tasks importierte Aufgaben werden aus Meeting Guard AI entfernt. In Google Tasks wird nichts gelöscht.",
     "disable": "Synchronisierung beenden",
     "disabling": "Synchronisierung wird beendet...",
     "disabledTitle": "Synchronisierung mit Google Tasks ist aus",
@@ -120,10 +120,10 @@
   },
   "device": {
     "title": "Kalender auf diesem Telefon",
-    "description": "Importieren Sie Termine aus den Kalendern auf diesem Telefon und fügen Sie Ihre Besprechungen aus Meeting Guard bei Bedarf einem davon hinzu.",
+    "description": "Importieren Sie Termine aus den Kalendern auf diesem Telefon und fügen Sie Ihre Besprechungen aus Meeting Guard AI bei Bedarf einem davon hinzu.",
     "permission": {
       "request": "Kalenderzugriff erlauben",
-      "denied": "Der Kalenderzugriff ist für Meeting Guard ausgeschaltet.",
+      "denied": "Der Kalenderzugriff ist für Meeting Guard AI ausgeschaltet.",
       "openSettings": "Einstellungen öffnen"
     },
     "loading": "Kalender werden geladen...",
@@ -135,9 +135,9 @@
       "a11y": "Termine aus {{calendar}} importieren"
     },
     "export": {
-      "title": "Besprechungen aus Meeting Guard hinzufügen zu",
+      "title": "Besprechungen aus Meeting Guard AI hinzufügen zu",
       "none": "Keinem Telefonkalender hinzufügen",
-      "hint": "Nur Besprechungen aus Meeting Guard werden hinzugefügt, ohne Kalendererinnerungen (Meeting Guard alarmiert Sie). Wiederkehrende Besprechungen werden in dieser Version nicht hinzugefügt."
+      "hint": "Nur Besprechungen aus Meeting Guard AI werden hinzugefügt, ohne Kalendererinnerungen (Meeting Guard AI alarmiert Sie). Wiederkehrende Besprechungen werden in dieser Version nicht hinzugefügt."
     }
   },
   "sync": {

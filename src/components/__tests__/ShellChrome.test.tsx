@@ -33,6 +33,17 @@ jest.mock('../../services/auth', () => ({
   }),
 }));
 
+// M10: the sidebar's "Meeting summaries" entry reads summaryStatus (null = unknown).
+let mockSummaryStatus: { enabled: boolean; allowed: boolean; address: string | null; inboxCount: number } | null = null;
+jest.mock('../../services/summaries', () => ({
+  useSummaryStatus: () => ({
+    status: mockSummaryStatus,
+    available: mockSummaryStatus !== null && mockSummaryStatus.enabled && mockSummaryStatus.allowed,
+    error: null,
+    refresh: jest.fn(),
+  }),
+}));
+
 async function renderWithProviders(element: ReactElement) {
   await render(
     <I18nProvider>
@@ -47,6 +58,7 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
   mockNavigateToTopLevel.mockReset();
   mockStartSignOut.mockReset();
+  mockSummaryStatus = null;
 });
 
 describe('CustomHeader', () => {
@@ -171,6 +183,44 @@ describe('MobileSidebar', () => {
     });
     expect(onClose).toHaveBeenCalled();
     expect(mockStartSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists Meeting summaries after Tasks only for users the feature is open to (M10)', async () => {
+    for (const status of [null, { enabled: false, allowed: false, address: null, inboxCount: 0 }, { enabled: true, allowed: false, address: null, inboxCount: 0 }]) {
+      mockSummaryStatus = status;
+      await renderWithProviders(<MobileSidebar visible onClose={jest.fn()} />);
+      expect(screen.queryByTestId('sidebar-item-Summaries')).toBeNull();
+    }
+
+    mockSummaryStatus = { enabled: true, allowed: true, address: null, inboxCount: 0 };
+    await renderWithProviders(<MobileSidebar visible onClose={jest.fn()} />);
+    const ids = screen.getAllByRole('menuitem').map((item) => item.props.testID as string);
+    expect(ids.indexOf('sidebar-item-Summaries')).toBe(ids.indexOf('sidebar-item-Tasks') + 1);
+    expect(screen.getByText('Meeting summaries')).toBeTruthy();
+    expect(screen.queryByTestId('sidebar-item-Summaries-badge')).toBeNull();
+  });
+
+  it('opens setup without an address, the inbox with one, and shows the waiting count (M10)', async () => {
+    const onClose = jest.fn();
+    mockSummaryStatus = { enabled: true, allowed: true, address: null, inboxCount: 0 };
+    await renderWithProviders(<MobileSidebar visible onClose={onClose} />);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('sidebar-item-Summaries'));
+    });
+    expect(onClose).toHaveBeenCalled();
+    expect(mockNavigateToTopLevel).toHaveBeenLastCalledWith('SummaryConnect');
+
+    mockSummaryStatus = { enabled: true, allowed: true, address: 'abc@summaries.example.com', inboxCount: 3 };
+    await renderWithProviders(<MobileSidebar visible onClose={jest.fn()} currentRouteName="SummaryInbox" />);
+    const item = screen.getByTestId('sidebar-item-Summaries');
+    expect(item.props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+    expect(item.props.accessibilityLabel).toBe('Meeting summaries, 3 waiting for a meeting');
+    expect(screen.getByTestId('sidebar-item-Summaries-badge')).toBeTruthy();
+    expect(screen.getByText('3')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(item);
+    });
+    expect(mockNavigateToTopLevel).toHaveBeenLastCalledWith('SummaryInbox');
   });
 
   it('renders nothing while closed', async () => {

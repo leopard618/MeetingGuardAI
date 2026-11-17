@@ -20,6 +20,7 @@
     "cancel": "Cancel",
     "close": "Close",
     "copyFailed": "Could not copy. Press and hold the text to copy it instead.",
+    "shareCopied": "Sharing is not available here, so the text is copied. Paste it into a message.",
     "origin": {
       "vendor": "Written by your notetaker ({{domain}}), received {{time}}. Signature checked.",
       "vendorNoDomain": "Written by your notetaker, received {{time}}. Signature checked.",

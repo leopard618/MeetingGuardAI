@@ -285,7 +285,10 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
     try {
       await Share.share(title === undefined ? { message } : { message, title });
     } catch {
-      Toast.show({ type: 'error', text1: t('summaries:errors.generic') });
+      // No share sheet on this device (some emulators and launchers refuse to open it): copy the
+      // text instead, so the user can still paste it into a message.
+      if (copyText(message)) Toast.show({ type: 'info', text1: t('summaries:common.shareCopied') });
+      else Toast.show({ type: 'error', text1: t('summaries:errors.generic') });
     }
   }
 

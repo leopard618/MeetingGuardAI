@@ -33,7 +33,7 @@ export function DashboardTopBar({ scrolled, testID = 'dashboard-top-bar' }: Dash
 
   // On the hero: white in dark mode, dark on the pale light artwork. Scrolled: page colors.
   const fg = scrolled ? colors.onSurface : isDark ? '#FFFFFF' : colors.onBackground;
-  const pillBackground = scrolled ? colors.surfaceVariant : isDark ? withAlpha('#061A4F', 0.6) : withAlpha('#FFFFFF', 0.72);
+  const pillBackground = scrolled ? colors.surfaceVariant : isDark ? withAlpha(colors.background, 0.6) : withAlpha('#FFFFFF', 0.72);
   const pillBorder = scrolled ? 'transparent' : withAlpha(isDark ? '#FFFFFF' : colors.primary, 0.28);
 
   return (

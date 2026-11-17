@@ -102,7 +102,7 @@ export function DashboardHero({ salute, name, dateText, testID = 'dashboard-hero
         <Text style={[styles.date, { color: onHeroMuted }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
           {dateText}
         </Text>
-        <View style={[styles.accentBar, { backgroundColor: isDark ? '#5B8DEF' : colors.primary }]} />
+        <View style={[styles.accentBar, { backgroundColor: colors.primary }]} />
       </View>
     </LinearGradient>
   );

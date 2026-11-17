@@ -54,6 +54,11 @@ jest.mock('../../../services/data', () => {
 });
 
 const mockSyncNow = jest.fn();
+// The sidebar's M10 'Meeting summaries' entry reads summaryStatus: closed to this user here.
+jest.mock('../../../services/summaries', () => ({
+  useSummaryStatus: () => ({ status: null, available: false, error: null, refresh: jest.fn() }),
+}));
+
 jest.mock('../../../services/calendar', () => ({
   calendarSyncEngine: { syncNow: (...args: unknown[]) => mockSyncNow(...args) },
   useCalendarStatus: () => mockCalendarStatus,
