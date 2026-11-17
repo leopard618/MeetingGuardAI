@@ -26,7 +26,7 @@
     },
     "connect_calendar": {
       "title": "Kalender verbinden",
-      "body": "Verbinden Sie Google Calendar oder Outlook: Ihre Besprechungen erhalten Alarme von Meeting Guard, und die hier erstellten gelangen mit Einladungen in Ihren Kalender.",
+      "body": "Verbinden Sie Google Calendar oder Outlook: Ihre Besprechungen erhalten Alarme von Meeting Guard AI, und die hier erstellten gelangen mit Einladungen in Ihren Kalender.",
       "action": "Kalender verbinden"
     },
     "sync_tasks": {

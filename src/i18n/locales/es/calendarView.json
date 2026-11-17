@@ -14,7 +14,7 @@
   "noMeetings": "Sin reuniones",
   "legend": {
     "label": "Colores de los puntos: {{sources}}",
-    "meetingguard": "Meeting Guard",
+    "meetingguard": "Meeting Guard AI",
     "google": "Google Calendar",
     "outlook": "Outlook",
     "device": "Calendario del dispositivo",

@@ -31,8 +31,8 @@
   },
   "errorBoundary": {
     "title": "Algo deu errado",
-    "message": "O Meeting Guard encontrou um problema inesperado. Tente novamente. Se continuar acontecendo, feche e abra o app de novo.",
-    "retryHint": "Recarrega o Meeting Guard",
+    "message": "O Meeting Guard AI encontrou um problema inesperado. Tente novamente. Se continuar acontecendo, feche e abra o app de novo.",
+    "retryHint": "Recarrega o Meeting Guard AI",
     "screenMessage": "Esta tela encontrou um problema inesperado. Tente novamente ou volte. Se continuar acontecendo, feche e abra o app de novo.",
     "screenRetryHint": "Recarrega a tela"
   }

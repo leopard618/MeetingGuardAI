@@ -26,7 +26,7 @@
     },
     "connect_calendar": {
       "title": "Connect your calendar",
-      "body": "Connect Google Calendar or Outlook: your meetings get Meeting Guard alerts, and the ones you create here reach your calendar with invitations.",
+      "body": "Connect Google Calendar or Outlook: your meetings get Meeting Guard AI alerts, and the ones you create here reach your calendar with invitations.",
       "action": "Connect a calendar"
     },
     "sync_tasks": {

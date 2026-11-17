@@ -26,7 +26,7 @@
     },
     "connect_calendar": {
       "title": "Conecte seu calendário",
-      "body": "Conecte o Google Calendar ou o Outlook: suas reuniões recebem alertas do Meeting Guard, e as que você cria aqui chegam ao seu calendário com convites.",
+      "body": "Conecte o Google Calendar ou o Outlook: suas reuniões recebem alertas do Meeting Guard AI, e as que você cria aqui chegam ao seu calendário com convites.",
       "action": "Conectar um calendário"
     },
     "sync_tasks": {

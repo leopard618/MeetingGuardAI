@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Meeting Guard AI",
-    "shortName": "Meeting Guard"
+    "shortName": "Meeting Guard AI"
   },
   "actions": {
     "continue": "Weiter",
@@ -66,8 +66,8 @@
     "unsupported": "Diese Aktion wird nicht unterstützt.",
     "pending_writes": "Einige Änderungen wurden noch nicht synchronisiert.",
     "google_not_signed_in": "Melden Sie sich mit Google an, um diese Funktion zu nutzen.",
-    "calendar_scope_missing": "Meeting Guard benötigt die Berechtigung, auf Ihren Google Calendar zuzugreifen.",
-    "tasks_scope_missing": "Meeting Guard benötigt die Berechtigung, auf Ihre Google Tasks zuzugreifen.",
+    "calendar_scope_missing": "Meeting Guard AI benötigt die Berechtigung, auf Ihren Google Calendar zuzugreifen.",
+    "tasks_scope_missing": "Meeting Guard AI benötigt die Berechtigung, auf Ihre Google Tasks zuzugreifen.",
     "calendar_not_connected": "Google Calendar ist nicht verbunden.",
     "calendar_permission_denied": "Der Kalenderzugriff wurde verweigert. Sie können ihn in den Einstellungen Ihres Geräts erlauben.",
     "notification_permission_denied": "Benachrichtigungen sind deaktiviert. Aktivieren Sie sie in den Einstellungen Ihres Geräts, damit Sie keine Besprechung verpassen.",

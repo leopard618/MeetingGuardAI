@@ -31,8 +31,8 @@
   },
   "errorBoundary": {
     "title": "Un problème est survenu",
-    "message": "Meeting Guard a rencontré un problème inattendu. Réessayez. Si le problème persiste, fermez puis rouvrez l'application.",
-    "retryHint": "Recharge Meeting Guard",
+    "message": "Meeting Guard AI a rencontré un problème inattendu. Réessayez. Si le problème persiste, fermez puis rouvrez l'application.",
+    "retryHint": "Recharge Meeting Guard AI",
     "screenMessage": "Cet écran a rencontré un problème inattendu. Réessayez ou revenez en arrière. Si le problème persiste, fermez puis rouvrez l'application.",
     "screenRetryHint": "Recharge l'écran"
   }
