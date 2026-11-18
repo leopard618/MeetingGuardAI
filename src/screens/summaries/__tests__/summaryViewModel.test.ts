@@ -400,6 +400,10 @@ describe('items, links and length', () => {
       warningKey: null,
     });
     expect(summaryItemView(third)).toEqual({ checkKey: null, meta: [], warningKey: 'summaries:view.flag.possible_instruction' });
+    // A line that is only "Due: Wednesday" does not repeat it underneath; a task with a due does.
+    const dueOnly = { checked: null, owner: null, dueText: 'Wednesday', flags: [] };
+    expect(summaryItemView({ ...dueOnly, text: 'Due: Wednesday' }).meta).toEqual([]);
+    expect(summaryItemView({ ...dueOnly, text: 'Fix the login page (due: Wednesday)' }).meta).toEqual([{ key: 'summaries:view.due', params: { due: 'Wednesday' } }]);
   });
 
   it('notices links (shown as plain text) and a summary the server cut', () => {

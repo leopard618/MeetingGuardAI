@@ -355,10 +355,20 @@ export interface SummaryItemView {
   warningKey: string | null;
 }
 
-export function summaryItemView(item: Pick<SummaryItem, 'checked' | 'owner' | 'dueText' | 'flags'>): SummaryItemView {
+/** A line that is only a due label and its value ("Due: Wednesday", "Fecha limite: viernes"): the meta would repeat it. */
+const DUE_ONLY_LINE = /^[ \t]*(?:due(?:[ \t]+date)?|deadline|fecha[ \t]+l[i\u00ED]mite|vencimiento|vence|plazo)[ \t]*:?[ \t]*/iu;
+
+function isDueOnlyLine(text: string | undefined, dueText: string): boolean {
+  if (text === undefined) return false;
+  const rest = text.replace(DUE_ONLY_LINE, '').replace(/[\s.,]+$/, '').trim();
+  return rest !== text.trim() && rest.toLowerCase() === dueText.toLowerCase();
+}
+
+export function summaryItemView(item: Pick<SummaryItem, 'checked' | 'owner' | 'dueText' | 'flags'> & { text?: string }): SummaryItemView {
   const meta: TextRef[] = [];
   if (item.owner !== null && item.owner.trim() !== '') meta.push({ key: 'summaries:view.owner', params: { owner: item.owner.trim() } });
-  if (item.dueText !== null && item.dueText.trim() !== '') meta.push({ key: 'summaries:view.due', params: { due: item.dueText.trim() } });
+  if (item.dueText !== null && item.dueText.trim() !== '' && !isDueOnlyLine(item.text, item.dueText.trim()))
+    meta.push({ key: 'summaries:view.due', params: { due: item.dueText.trim() } });
   return {
     checkKey: item.checked === null ? null : item.checked ? 'summaries:view.checkbox.done' : 'summaries:view.checkbox.open',
     meta,
