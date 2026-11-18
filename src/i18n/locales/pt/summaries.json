@@ -3,7 +3,9 @@
     "title": "Resumos de reuniões",
     "subtitle": "Os resumos do seu assistente de anotações, arquivados nas suas reuniões",
     "waiting_one": "{{count}} aguardando uma reunião",
-    "waiting_other": "{{count}} aguardando uma reunião"
+    "waiting_other": "{{count}} aguardando uma reunião",
+    "section": "Assistente de anotações",
+    "settingsSubtitle": "Conecte o Fathom ou outro assistente de anotações"
   },
   "common": {
     "productLine": "O Meeting Guard AI não entra, não grava e não escuta as suas reuniões.",

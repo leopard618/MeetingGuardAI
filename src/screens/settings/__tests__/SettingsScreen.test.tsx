@@ -54,7 +54,7 @@ jest.mock('../../../services/data', () => {
   };
 });
 
-// M10: summaryStatus (null = unknown); Settings no longer reads it (the entry is in the sidebar).
+// M10: summaryStatus (null = unknown); Settings shows Meeting summaries only while it is open to the user.
 let mockSummaryStatus: { enabled: boolean; allowed: boolean; address: string | null; inboxCount: number } | null = null;
 const mockSummaryStatusOptions: unknown[] = [];
 jest.mock('../../../services/summaries', () => ({
@@ -280,12 +280,27 @@ it('offers the WhatsApp bot link under Integrations (§27)', async () => {
   expect(screen.getByText('Link your account to the WhatsApp bot')).toBeTruthy();
 });
 
-it('no longer lists Meeting summaries: it moved to the sidebar (M10)', async () => {
+it('lists Meeting summaries (the notetaker settings) for users the feature is open to, and opens them', async () => {
   mockSummaryStatus = { enabled: true, allowed: true, address: 'abc@summaries.example.com', inboxCount: 2 };
   await renderSettings();
-  expect(screen.getByTestId('settings-whatsapp')).toBeTruthy();
-  expect(screen.queryByTestId('settings-summaries')).toBeNull();
-  expect(screen.queryByText('Meeting summaries')).toBeNull();
+  expect(screen.getByText('Notetaker')).toBeTruthy();
+  expect(screen.getByText('Meeting summaries')).toBeTruthy();
+  expect(screen.getByText('Connect Fathom or another notetaker')).toBeTruthy();
+  // Always the settings, never the inbox (that is the sidebar's job).
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('settings-summaries'));
+  });
+  expect(await screen.findByTestId('summary-connect-screen')).toBeTruthy();
+  mockSummaryStatus = null;
+});
+
+it('shows no Meeting summaries row while the feature is not open to the user', async () => {
+  for (const status of [null, { enabled: true, allowed: false, address: null, inboxCount: 0 }, { enabled: false, allowed: true, address: null, inboxCount: 0 }]) {
+    mockSummaryStatus = status;
+    await renderSettings();
+    expect(screen.getByTestId('settings-whatsapp')).toBeTruthy();
+    expect(screen.queryByTestId('settings-summaries')).toBeNull();
+  }
   mockSummaryStatus = null;
 });
 

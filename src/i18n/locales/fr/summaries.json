@@ -3,7 +3,9 @@
     "title": "Comptes rendus de réunion",
     "subtitle": "Les comptes rendus de votre assistant de prise de notes, classés sous vos réunions",
     "waiting_one": "{{count}} en attente d'une réunion",
-    "waiting_other": "{{count}} en attente d'une réunion"
+    "waiting_other": "{{count}} en attente d'une réunion",
+    "section": "Assistant de prise de notes",
+    "settingsSubtitle": "Connectez Fathom ou un autre assistant de prise de notes"
   },
   "common": {
     "productLine": "Meeting Guard AI ne rejoint pas, n'enregistre pas et n'écoute pas vos réunions.",

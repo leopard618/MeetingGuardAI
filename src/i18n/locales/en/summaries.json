@@ -3,7 +3,9 @@
     "title": "Meeting summaries",
     "subtitle": "Your notetaker's summaries, filed under your meetings",
     "waiting_one": "{{count}} waiting for a meeting",
-    "waiting_other": "{{count}} waiting for a meeting"
+    "waiting_other": "{{count}} waiting for a meeting",
+    "section": "Notetaker",
+    "settingsSubtitle": "Connect Fathom or another notetaker"
   },
   "common": {
     "productLine": "Meeting Guard AI does not join, record or listen to your meetings.",
