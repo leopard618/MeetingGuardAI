@@ -73,6 +73,23 @@ jest.mock('../../../services/summaries', () => ({
   commitmentsService: { clearSessionCache: () => mockClearCommitments() },
 }));
 
+// Connect Fathom: unavailable by default, so every email test sees the screen as before.
+type MockFathomStatus = { available: boolean; connected: boolean; connectedAt: string | null; lastEventAt: string | null };
+const FATHOM_OFF: MockFathomStatus = { available: false, connected: false, connectedAt: null, lastEventAt: null };
+let mockFathomStatus: MockFathomStatus = FATHOM_OFF;
+const mockFathomConnect = jest.fn(async () => ({ result: 'connected' as const }) as { result: 'connected' | 'cancelled' | 'error'; reason?: string | null });
+const mockFathomDisconnect = jest.fn(async () => ({ remoteRemoved: true as boolean | null }));
+jest.mock('../../../services/summaries/useFathomConnection', () => ({
+  useFathomConnection: () => ({
+    status: mockFathomStatus,
+    error: null,
+    busy: null,
+    refresh: async () => undefined,
+    connect: () => mockFathomConnect(),
+    disconnect: () => mockFathomDisconnect(),
+  }),
+}));
+
 const mockCopyText: jest.Mock<boolean, [string]> = jest.fn((_text: string) => true);
 jest.mock('../../settings/whatsappConnectModel', () => ({
   copyText: (text: string): boolean => mockCopyText(text) as boolean,
@@ -128,6 +145,9 @@ beforeEach(async () => {
   mockClearCommitments.mockClear();
   mockCopyText.mockClear();
   (Toast.show as jest.Mock).mockClear();
+  mockFathomStatus = FATHOM_OFF;
+  mockFathomConnect.mockClear();
+  mockFathomDisconnect.mockClear();
 });
 
 afterEach(() => {
@@ -746,5 +766,82 @@ describe('Microsoft 365 hint dated by the address (M11)', () => {
     await renderScreen();
     // Nothing ever reached the address: its age is unknown, so no hint (the M10 behaviour).
     expect(screen.queryByTestId('summary-connect-microsoft-hint')).toBeNull();
+  });
+});
+
+describe('Connect Fathom', () => {
+  it('without Fathom on the server, the screen is the email setup as before', async () => {
+    mockStatus = AVAILABLE;
+    await renderScreen();
+    expect(screen.queryByTestId('fathom-card')).toBeNull();
+    expect(screen.queryByTestId('summary-connect-email')).toBeNull();
+    expect(screen.getByTestId('summary-connect-create-button')).toBeTruthy();
+  });
+
+  it('offered: Connect Fathom leads, the email setup waits behind Other notetakers', async () => {
+    mockStatus = AVAILABLE;
+    mockFathomStatus = { ...FATHOM_OFF, available: true };
+    await renderScreen();
+    expect(screen.getByTestId('fathom-card')).toBeTruthy();
+    expect(screen.getAllByText('Connect Fathom')).toHaveLength(2);
+    expect(screen.queryByTestId('summary-connect-create-button')).toBeNull();
+    await press('summary-connect-email-toggle');
+    expect(screen.getByTestId('summary-connect-create-button')).toBeTruthy();
+  });
+
+  it('a connection says so and asks the summaries status again', async () => {
+    mockStatus = AVAILABLE;
+    mockFathomStatus = { ...FATHOM_OFF, available: true };
+    await renderScreen();
+    mockRefresh.mockClear();
+    await press('fathom-card-connect');
+    expect(mockFathomConnect).toHaveBeenCalledTimes(1);
+    expect(Toast.show).toHaveBeenCalledWith({ type: 'success', text1: 'Fathom is connected.' });
+    expect(mockRefresh).toHaveBeenCalled();
+  });
+
+  it('a failed connection shows the reason', async () => {
+    mockStatus = AVAILABLE;
+    mockFathomStatus = { ...FATHOM_OFF, available: true };
+    mockFathomConnect.mockResolvedValueOnce({ result: 'error', reason: 'expired' });
+    await renderScreen();
+    await press('fathom-card-connect');
+    expect(Toast.show).toHaveBeenCalledWith({ type: 'error', text1: 'The Fathom sign-in took too long. Try again.' });
+  });
+
+  it('connected: the status card, the email setup closed, and Stop receiving summaries disconnects Fathom first', async () => {
+    mockStatus = RECEIVED;
+    mockFathomStatus = { available: true, connected: true, connectedAt: '2026-11-12T09:00:00.000Z', lastEventAt: '2026-11-12T09:30:00.000Z' };
+    mockDisconnect.mockResolvedValueOnce(answer({ ...AVAILABLE }));
+    await renderScreen();
+    expect(screen.getByTestId('fathom-card-connected')).toBeTruthy();
+    expect(screen.queryByTestId('summary-connect-address')).toBeNull();
+    expect(screen.getByTestId('summary-connect-activity')).toBeTruthy();
+    await press('summary-connect-disconnect');
+    await press('summary-disconnect-keep');
+    expect(mockFathomDisconnect).toHaveBeenCalledTimes(1);
+    expect(mockDisconnect).toHaveBeenCalledWith(false);
+  });
+
+  it('someone already receiving summaries by email without Fathom keeps the email setup open', async () => {
+    mockStatus = RECEIVED;
+    mockFathomStatus = { ...FATHOM_OFF, available: true };
+    await renderScreen();
+    expect(screen.getByTestId('fathom-card')).toBeTruthy();
+    expect(screen.getByTestId('summary-connect-address')).toBeTruthy();
+  });
+
+  it('Disconnect Fathom asks first, then disconnects', async () => {
+    mockStatus = RECEIVED;
+    mockFathomStatus = { available: true, connected: true, connectedAt: '2026-11-12T09:00:00.000Z', lastEventAt: null };
+    await renderScreen();
+    expect(screen.getByText('No summary yet. The next meeting Fathom records shows up here.')).toBeTruthy();
+    await press('fathom-card-disconnect');
+    const buttons = (Alert.alert as jest.Mock).mock.calls[0]?.[2] as AlertButton[];
+    await act(async () => {
+      buttons.find((button) => button.style === 'destructive')?.onPress?.();
+    });
+    expect(mockFathomDisconnect).toHaveBeenCalledTimes(1);
+    expect(Toast.show).toHaveBeenCalledWith({ type: 'success', text1: 'Fathom is disconnected.' });
   });
 });

@@ -1717,6 +1717,54 @@ export const SUMMARY_ERROR_HTTPS_CODES = {
 export const summaryErrorDetailsSchema = z.object({ reason: z.enum(SUMMARY_ERROR_CODES) });
 export type SummaryErrorDetails = z.infer<typeof summaryErrorDetailsSchema>;
 
+// ---- fathomConnect (Connect Fathom, docs/v2/FATHOM-CONNECT.md) -------------------------------
+//
+// One gated callable with three ops. status: whether Fathom can be connected here and whether it
+// is. start: makes sure the caller has a private summary address (the commit re-checks it), then
+// answers the Fathom authorize URL the app opens in an auth session. disconnect: removes the
+// webhook in Fathom (best effort) and the connection. Errors are the summary* errors
+// (SUMMARY_ERROR_CODES in details.reason). Fathom returns to fathomOAuth, which sends the browser
+// on to FATHOM_RETURN_URL?result=<FATHOM_RETURN_RESULTS>[&reason=<FATHOM_RETURN_REASONS>].
+
+export const FATHOM_CONNECT_CALLABLE = 'fathomConnect';
+/** Where fathomOAuth sends the browser back to (the app scheme in app.config.js). */
+export const FATHOM_RETURN_URL = 'meetingguardai://fathom';
+export const FATHOM_RETURN_RESULTS = ['connected', 'cancelled', 'error'] as const;
+export type FathomReturnResult = (typeof FATHOM_RETURN_RESULTS)[number];
+/** Why a connection failed (fixed codes; the app maps them to its own copy). */
+export const FATHOM_RETURN_REASONS = ['expired', 'not_allowed', 'fathom_refused', 'fathom_unavailable', 'server_error'] as const;
+export type FathomReturnReason = (typeof FATHOM_RETURN_REASONS)[number];
+
+export const fathomConnectRequestSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('status') }),
+  z.object({ op: z.literal('start') }),
+  z.object({ op: z.literal('disconnect') }),
+]);
+export type FathomConnectRequest = z.infer<typeof fathomConnectRequestSchema>;
+
+export const fathomConnectionStatusSchema = z.object({
+  /** Fathom can be connected for this caller (switched on, allowed, address template set). */
+  available: z.boolean(),
+  connected: z.boolean(),
+  connectedAt: isoDateTimeSchema.nullable(),
+  /** The last summary Fathom delivered and we stored. */
+  lastEventAt: isoDateTimeSchema.nullable(),
+});
+export type FathomConnectionStatus = z.infer<typeof fathomConnectionStatusSchema>;
+
+export const fathomConnectResponseSchema = z.object({
+  status: fathomConnectionStatusSchema,
+  /** start only: the URL to open. */
+  authorizeUrl: z
+    .string()
+    .max(4096)
+    .regex(/^https:\/\//)
+    .nullable(),
+  /** disconnect only: false when Fathom could not be told (the user may remove it in Fathom settings). */
+  remoteRemoved: z.boolean().nullable(),
+});
+export type FathomConnectResponse = z.infer<typeof fathomConnectResponseSchema>;
+
 // ---- summaryCommitments (M11, docs/v2/M11-DESIGN.md sections 2 to 4 and 6) -------------------
 //
 // One gated callable (SUMMARY_COMMITMENTS_CALLABLE), deployed like summaryRead, with three ops:

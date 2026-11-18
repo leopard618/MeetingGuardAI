@@ -277,6 +277,12 @@
       "deleting": "Löschen: sofort aus unserer Live-Datenbank, aus Backups innerhalb von 21 Tagen; die Kopie unseres E-Mail-Anbieters nach {{providerDays}} Tagen; das Original bleibt in Ihrem Postfach.",
       "openai": "Wenn Sie Vorschläge anfordern, wird der Text des Protokolls über unseren Server an OpenAI gesendet.",
       "copies": "Kopien außerhalb unserer Datenbank: Die Erinnerung einer Aufgabe zeigt wie bei jeder Aufgabe deren Titel auf Ihrem Sperrbildschirm; auf WhatsApp bleiben die Liste und die darin zitierten Sätze in Ihrem Chat, in den Benachrichtigungsvorschauen und in Ihren WhatsApp-Backups, bis Sie sie dort löschen; eine Synchronisierung mit To Do oder Google Tasks kopiert die Aufgabe. Das Löschen des Protokolls oder das Trennen der Verbindung erreicht diese Kopien nicht."
+    },
+    "email": {
+      "title": "Andere Notizassistenten (E-Mail)",
+      "body": "Otter und andere Notizassistenten: Leiten Sie die Protokoll-E-Mail, die sie Ihnen schicken, an Ihre private Adresse weiter.",
+      "show": "E-Mail-Einrichtung anzeigen",
+      "hide": "E-Mail-Einrichtung ausblenden"
     }
   },
   "inbox": {
@@ -672,6 +678,34 @@
       "notFiled": "Dieses Protokoll wartet auf eine Besprechung. Legen Sie es zuerst ab oder behalten Sie es, und prüfen Sie dann seine Zusagen.",
       "generic": "Etwas ist schiefgelaufen. Versuchen Sie es erneut.",
       "retry": "Erneut versuchen"
+    }
+  },
+  "fathom": {
+    "title": "Fathom verbinden",
+    "recommended": "Empfohlen",
+    "body": "Melden Sie sich einmal bei Fathom an. Nach jeder Besprechung, die Fathom aufzeichnet, kommt das Protokoll von selbst hier an und wird unter der richtigen Besprechung abgelegt.",
+    "connect": "Fathom verbinden",
+    "note": "Wir lesen nur das Protokoll und die Aufgaben, nie die Aufzeichnung oder das Transkript. Fathom schreibt seine Protokolle auf Englisch.",
+    "connectedTitle": "Fathom ist verbunden",
+    "connectedBody": "Neue Protokolle kommen nach jeder Besprechung, die Fathom aufzeichnet, von selbst an.",
+    "connectedSince": "Verbunden {{time}}",
+    "lastSummary": "Letztes Protokoll {{time}}",
+    "noSummaryYet": "Noch kein Protokoll. Die nächste Besprechung, die Fathom aufzeichnet, erscheint hier.",
+    "forwardHint": "Wenn Sie Fathom-E-Mails an Ihre private Adresse weiterleiten, können Sie damit aufhören: Fathom-Protokolle kommen von selbst an.",
+    "disconnect": "Fathom trennen",
+    "disconnectTitle": "Fathom trennen?",
+    "disconnectBody": "Neue Fathom-Protokolle kommen nicht mehr an. Die Protokolle, die Sie schon haben, bleiben.",
+    "disconnectConfirm": "Trennen",
+    "cancel": "Abbrechen",
+    "connected": "Fathom ist verbunden.",
+    "disconnected": "Fathom ist getrennt.",
+    "remoteNotRemoved": "Wir konnten Fathom nicht erreichen. Sie können den Webhook in den Fathom-Einstellungen unter API Access entfernen.",
+    "errors": {
+      "expired": "Die Anmeldung bei Fathom hat zu lange gedauert. Versuchen Sie es erneut.",
+      "not_allowed": "Fathom verbinden ist für dieses Konto noch nicht verfügbar.",
+      "fathom_refused": "Fathom hat die Anmeldung nicht angenommen. Versuchen Sie es erneut.",
+      "fathom_unavailable": "Fathom antwortet gerade nicht. Versuchen Sie es später erneut.",
+      "server_error": "Beim Verbinden mit Fathom ist etwas schiefgelaufen. Versuchen Sie es erneut."
     }
   }
 }

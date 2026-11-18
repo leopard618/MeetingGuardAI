@@ -71,6 +71,10 @@ export { summaryCommitments } from './summaries';
 // WHATSAPP_ENABLED are true AND the summaries service account and SUMMARIES_WHATSAPP_INVOKER are set
 // and differ at deploy time (src/summaries/whatsappFunction.ts, docs/v2/M11-DESIGN.md section 4.3).
 export { summaryWhatsApp } from './summaries';
+// Connect Fathom: fathomConnect, fathomOAuth and fathomWebhook are `undefined` unless
+// SUMMARIES_ENABLED is true AND FATHOM_CLIENT_ID is set at deploy time; FATHOM_CLIENT_SECRET is
+// declared only then (src/summaries/fathom/functions.ts, docs/v2/FATHOM-CONNECT.md).
+export { fathomConnect, fathomOAuth, fathomWebhook } from './summaries';
 // Executive assistant (ARCHITECTURE section 36): every export is `undefined` while MATTERS_ENABLED
 // is false at deploy time, and its params and secrets are not even declared then (config.ts
 // mattersParams), so a deploy without the MATTERS_* secrets never asks for them. With the

@@ -26,6 +26,7 @@ import * as logger from 'firebase-functions/logger';
 import type { Firestore } from 'firebase-admin/firestore';
 
 import { SUMMARY_ADDRESSES_COLLECTION, deleteAddressDocs, type AddressLogger } from './address';
+import { deleteConnectionDocs } from './fathom/store';
 
 /** summaryAddresses documents read and deleted per page (Firestore allows 500 writes per batch). */
 export const STRAY_INDEX_PAGE_SIZE = 100;
@@ -68,6 +69,10 @@ export async function deleteSummaryDataForUid(uid: string, deps: SummaryAccountD
   if (deps.now !== undefined) addressDeps.now = deps.now;
   // Throws on a malformed uid before anything is read, so the query below never sees one.
   const removed = await deleteAddressDocs(uid, addressDeps, { mode: 'account_deletion' });
+  // Connect Fathom: the connection (sealed tokens) and its hook. No Fathom call here (no secret);
+  // a webhook left in Fathom then posts to a hook that maps to nobody and is ignored.
+  const fathomRemoved = await deleteConnectionDocs(deps.db, uid);
+  if (fathomRemoved) log.info('summaries.account_deletion.fathom_removed', { uid });
 
   const db = deps.db;
   let stray = 0;

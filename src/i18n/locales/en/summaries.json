@@ -277,6 +277,12 @@
       "deleting": "Deleting: at once from our live database, from backups within 21 days; our email provider's copy after {{providerDays}} days; the original stays in your mailbox.",
       "openai": "When you ask for suggestions, the summary text is sent to OpenAI through our server.",
       "copies": "Copies outside our database: a task's reminder shows its title on your lock screen like any task; on WhatsApp the list and the sentences it quotes stay in your chat, its notification previews and your WhatsApp backups until you delete them there; a To Do or Google Tasks sync copies the task. Deleting the summary or disconnecting does not reach those copies."
+    },
+    "email": {
+      "title": "Other notetakers (email)",
+      "body": "Otter and other notetakers: forward the summary email they send you to your private address.",
+      "show": "Show the email setup",
+      "hide": "Hide the email setup"
     }
   },
   "inbox": {
@@ -672,6 +678,34 @@
       "notFiled": "This summary is waiting for a meeting. File it or keep it first, then review its commitments.",
       "generic": "Something went wrong. Try again.",
       "retry": "Try again"
+    }
+  },
+  "fathom": {
+    "title": "Connect Fathom",
+    "recommended": "Recommended",
+    "body": "Sign in to Fathom once. After each meeting Fathom records, the summary arrives here on its own and is filed under the right meeting.",
+    "connect": "Connect Fathom",
+    "note": "We read only the summary and the action items, never the recording or the transcript. Fathom writes its summaries in English.",
+    "connectedTitle": "Fathom is connected",
+    "connectedBody": "New summaries arrive on their own after each meeting Fathom records.",
+    "connectedSince": "Connected {{time}}",
+    "lastSummary": "Last summary {{time}}",
+    "noSummaryYet": "No summary yet. The next meeting Fathom records shows up here.",
+    "forwardHint": "If you forward Fathom emails to your private address, you can stop now: Fathom summaries arrive on their own.",
+    "disconnect": "Disconnect Fathom",
+    "disconnectTitle": "Disconnect Fathom?",
+    "disconnectBody": "New Fathom summaries stop arriving. The summaries you already have stay.",
+    "disconnectConfirm": "Disconnect",
+    "cancel": "Cancel",
+    "connected": "Fathom is connected.",
+    "disconnected": "Fathom is disconnected.",
+    "remoteNotRemoved": "We could not reach Fathom. You can remove the webhook under API Access in your Fathom settings.",
+    "errors": {
+      "expired": "The Fathom sign-in took too long. Try again.",
+      "not_allowed": "Connect Fathom is not available for this account yet.",
+      "fathom_refused": "Fathom did not accept the sign-in. Try again.",
+      "fathom_unavailable": "Fathom is not responding right now. Try again later.",
+      "server_error": "Something went wrong while connecting Fathom. Try again."
     }
   }
 }
