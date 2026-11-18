@@ -31,7 +31,7 @@
           "Suscripciones: si compras Pro o Premium, App Store o Google Play gestionan el pago y nunca recibimos los datos de tu tarjeta ni de tu banco. RevenueCat, que gestiona las suscripciones en nuestro nombre, envía a nuestro servidor un registro de cada evento de la suscripción, como una compra, una renovación, un cambio de plan, un problema de cobro, una cancelación o un vencimiento (el plan, la tienda, el producto, el precio y la moneda, las fechas y, en una cancelación o un vencimiento, su motivo), para que sepamos qué plan tienes y cuándo se renueva o termina.",
           "Informes de fallos y errores, y mediciones de rendimiento de una parte de las sesiones de la app, cuando están activados en tu versión de la app: modelo del dispositivo, sistema operativo, versión de la app, datos técnicos del error y cuánto tardan las pantallas y las peticiones de red. Los diseñamos para que no incluyan tus reuniones, notas ni mensajes, y las direcciones de correo se eliminan de los informes de errores antes del envío.",
           "WhatsApp: si vinculas tu número de WhatsApp, guardamos ese número de teléfono, tu nombre de perfil de WhatsApp, la fecha en que lo vinculaste y el estado de la conversación: los últimos 10 mensajes del chat, tuyos y del asistente, y cualquier propuesta pendiente de tu confirmación (consulta \"Asistente de WhatsApp\").",
-          "Minutas de reuniones: si las activas, guardamos tu dirección privada de minutas, los buzones que indicas, las minutas que llegan a esa dirección y las tareas sugeridas a partir de ellas (consulta \"Minutas de reuniones por correo\")."
+          "Minutas de reuniones: si las activas, guardamos tu dirección privada de minutas, los buzones que indicas, las minutas que llegan a esa dirección y las tareas sugeridas a partir de ellas (consulta \"Minutas de reuniones por correo\"). Si conectas Fathom, también las claves de esa conexión, cifradas (consulta \"Minutas de reuniones desde Fathom\")."
         ]
       },
       "device": {
@@ -138,6 +138,15 @@
           "Las copias fuera de nuestra base de datos, como un recordatorio en la pantalla de bloqueo, tu chat de WhatsApp o una tarea copiada a Microsoft To Do o Google Tasks, no se ven afectadas cuando eliminas una minuta o desconectas: elimínalas allí."
         ]
       },
+      "fathom": {
+        "title": "Minutas de reuniones desde Fathom",
+        "body": [
+          "Si usas Fathom, puedes conectarlo en lugar de reenviar sus correos: toca Conectar Fathom en Minutas de reuniones y aprueba el acceso en Fathom. Al conectarlo también obtienes tu dirección privada de minutas (consulta \"Minutas de reuniones por correo\"), porque cada minuta se guarda asociada a ella.",
+          "Después de cada reunión que Fathom graba para ti, Fathom envía a nuestro servidor (Google Cloud Functions) el título de esa reunión, sus horarios, su enlace de videollamada, la minuta de Fathom y sus tareas, con los nombres y las direcciones de correo de las personas a las que están asignadas. Nuestro servidor también puede pedirle a Fathom tus grabaciones de los últimos 7 días, para recuperar alguna que no haya llegado. Solo recibimos tus propias grabaciones, y nunca la grabación en sí, su video ni su transcripción.",
+          "Para mantener la conexión, guardamos las claves que Fathom nos da para tu cuenta (una clave de acceso, una clave para renovarla y la clave que firma los envíos de Fathom), cifradas con nuestra propia clave guardada en Google Secret Manager, junto con cuándo te conectaste y cuándo llegó la última minuta. Después, una minuta de Fathom se guarda, se cifra, se archiva y se conserva exactamente igual que una minuta por correo, con las mismas reglas y durante el mismo tiempo.",
+          "Puedes desconectar Fathom cuando quieras en Minutas de reuniones: le pedimos a Fathom que deje de enviar minutas y eliminamos las claves de inmediato. Desconectar las minutas de reuniones o eliminar tu cuenta también desconecta Fathom. Si en ese momento no se puede contactar con Fathom, puedes quitar la conexión en tu configuración de Fathom. Fathom trata tus reuniones según su propia política de privacidad."
+        ]
+      },
       "notifications": {
         "title": "Notificaciones",
         "body": [
@@ -153,6 +162,7 @@
           "Google (Firebase Authentication, Cloud Firestore y Cloud Functions), que aloja tu cuenta y tus datos y ejecuta el código de nuestro servidor.",
           "OpenAI, que procesa tus consultas al asistente de IA y, cuando las pides, las tareas sugeridas de una minuta.",
           "Postmark, nuestro proveedor de correo, cuando activas las minutas de reuniones: recibe los correos enviados a tu dirección privada de minutas, los trata en Estados Unidos y conserva su copia durante {{summaryProviderDays}} días.",
+          "Fathom, cuando lo conectas: recibimos tus minutas de reuniones desde Fathom y solo le enviamos las solicitudes necesarias para mantener esa conexión, nunca otros datos de tu cuenta de Meeting Guard AI.",
           "Microsoft, cuando inicias sesión con Microsoft o conectas Outlook o To Do.",
           "Apple, cuando inicias sesión con Apple.",
           "El servicio de reconocimiento de voz de tu teléfono (Apple en un iPhone y, normalmente, Google en Android), cuando usas la entrada por voz: puede recibir el audio para convertirlo en texto.",
@@ -181,7 +191,7 @@
           "Guardamos tu información mientras tu cuenta exista."
         ],
         "items": [
-          "Puedes eliminar tu cuenta en cualquier momento desde la app: Ajustes → Cuenta → Eliminar cuenta. Así se borran para siempre de nuestros servidores tu cuenta, reuniones, tareas, notas, preferencias, minutas de reuniones y dirección privada de minutas, registros de uso del asistente, estado de suscripción, vínculo de WhatsApp y registro de inicio de sesión con Microsoft, se cierra tu sesión y se retira el acceso de la app a tu cuenta de Google o a tu cuenta de Apple. Eliminar tu cuenta no cancela una suscripción comprada en App Store o Google Play: cancélala allí.",
+          "Puedes eliminar tu cuenta en cualquier momento desde la app: Ajustes → Cuenta → Eliminar cuenta. Así se borran para siempre de nuestros servidores tu cuenta, reuniones, tareas, notas, preferencias, minutas de reuniones y dirección privada de minutas, conexión con Fathom, registros de uso del asistente, estado de suscripción, vínculo de WhatsApp y registro de inicio de sesión con Microsoft, se cierra tu sesión y se retira el acceso de la app a tu cuenta de Google o a tu cuenta de Apple. Eliminar tu cuenta no cancela una suscripción comprada en App Store o Google Play: cancélala allí.",
           "Si ya no puedes iniciar sesión, escribe a {{email}} desde el correo de tu cuenta y pídenos que la eliminemos.",
           "Cuando borras una reunión, se conserva hasta 60 días un registro mínimo sin su contenido (identificadores y hora) para que el borrado llegue a tus otros dispositivos y calendarios; después nuestro servidor lo elimina automáticamente.",
           "Los eventos que la app añadió a Google Calendar, a Outlook o al calendario de tu teléfono, y las tareas que añadió a Google Tasks o a Microsoft To Do, siguen allí hasta que los borres.",
@@ -211,7 +221,7 @@
           "Acceder a tus datos personales y obtener una copia.",
           "Corregir datos inexactos. Puedes editar tus reuniones, tareas, notas y ajustes en la app.",
           "Borrar tus datos (consulta el apartado anterior).",
-          "Oponerte a algunos tratamientos o limitarlos, y retirar tu consentimiento en cualquier momento, por ejemplo desconectando Google Calendar, Google Tasks, Outlook o Microsoft To Do, desvinculando WhatsApp, desconectando las minutas de reuniones, desactivando el acceso al calendario o dejando de usar el asistente de IA.",
+          "Oponerte a algunos tratamientos o limitarlos, y retirar tu consentimiento en cualquier momento, por ejemplo desconectando Google Calendar, Google Tasks, Outlook o Microsoft To Do, desvinculando WhatsApp, desconectando Fathom o las minutas de reuniones, desactivando el acceso al calendario o dejando de usar el asistente de IA.",
           "Recibir tus datos en un formato portable.",
           "Presentar una reclamación ante la autoridad de protección de datos de tu país."
         ],

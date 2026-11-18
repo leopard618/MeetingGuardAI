@@ -12,7 +12,7 @@ import { SUMMARY_PROVIDER_RETENTION_DAYS } from '../summaries/summaryText';
 export type LegalDocumentId = 'privacy' | 'terms';
 
 /** Date shown as "Last updated" (a calendar date, formatted in the UI language). */
-export const LEGAL_LAST_UPDATED = '2026-11-06';
+export const LEGAL_LAST_UPDATED = '2026-11-18';
 
 /** Legal entity that provides the app. */
 export const LEGAL_ENTITY = {
@@ -34,6 +34,7 @@ export const LEGAL_SECTIONS: Readonly<Record<LegalDocumentId, readonly string[]>
     'whatsapp',
     'ai',
     'summaries',
+    'fathom',
     'notifications',
     'sharing',
     'transfers',

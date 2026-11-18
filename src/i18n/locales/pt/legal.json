@@ -31,7 +31,7 @@
           "Assinaturas: se você compra o Pro ou o Premium, a App Store ou o Google Play cuida do pagamento e nunca recebemos os dados do seu cartão ou banco. A RevenueCat, que gerencia as assinaturas em nosso nome, envia ao nosso servidor um registro de cada evento da assinatura, como compra, renovação, mudança de plano, problema de cobrança, cancelamento ou expiração (o plano, a loja, o produto, o preço e a moeda, as datas e, no caso de cancelamento ou expiração, o motivo), para que saibamos qual plano você tem e quando ele é renovado ou termina.",
           "Relatórios de falhas e erros, e medições de desempenho de uma amostra de sessões do app, quando o relatório de falhas está ativado na sua versão do app: modelo do dispositivo, sistema operacional, versão do app, detalhes técnicos do erro e quanto tempo levam as telas e as solicitações de rede. Projetamos esses relatórios para não incluir suas reuniões, notas e mensagens, e os endereços de e-mail são removidos dos relatórios de erros antes do envio.",
           "WhatsApp: se você vincula seu número de WhatsApp, armazenamos esse número de telefone, seu nome de perfil do WhatsApp, a data do vínculo e o estado da conversa: as últimas 10 mensagens do chat, suas e do assistente, e qualquer proposta que aguarda sua confirmação (veja \"Assistente do WhatsApp\").",
-          "Resumos de reuniões: se você os ativa, armazenamos seu endereço privado de resumos, as caixas de e-mail que você informa, os resumos de reuniões que chegam a esse endereço e as tarefas sugeridas a partir deles (veja \"Resumos de reuniões por e-mail\")."
+          "Resumos de reuniões: se você os ativa, armazenamos seu endereço privado de resumos, as caixas de e-mail que você informa, os resumos de reuniões que chegam a esse endereço e as tarefas sugeridas a partir deles (veja \"Resumos de reuniões por e-mail\"). Se você conecta o Fathom, também as chaves dessa conexão, criptografadas (veja \"Resumos de reuniões do Fathom\")."
         ]
       },
       "device": {
@@ -138,6 +138,15 @@
           "Cópias fora do nosso banco de dados, como um lembrete na sua tela de bloqueio, seu chat do WhatsApp ou uma tarefa copiada para o Microsoft To Do ou o Google Tasks, não são atingidas quando você exclui um resumo ou desconecta: exclua-as lá."
         ]
       },
+      "fathom": {
+        "title": "Resumos de reuniões do Fathom",
+        "body": [
+          "Se você usa o Fathom, pode conectá-lo em vez de encaminhar os e-mails dele: toque em Conectar o Fathom em Resumos de reuniões e aprove o acesso no Fathom. Ao conectar, você também recebe seu endereço privado de resumos (veja \"Resumos de reuniões por e-mail\"), porque cada resumo fica guardado vinculado a ele.",
+          "Depois de cada reunião que o Fathom grava para você, o Fathom envia ao nosso servidor (Google Cloud Functions) o título dessa reunião, seus horários, seu link de videochamada, o resumo do Fathom e as tarefas dele, com os nomes e os endereços de e-mail das pessoas a quem foram atribuídas. Nosso servidor também pode pedir ao Fathom suas gravações dos últimos 7 dias, para recuperar alguma que não tenha chegado. Só recebemos suas próprias gravações, e nunca a gravação em si, o vídeo ou a transcrição.",
+          "Para manter a conexão, armazenamos as chaves que o Fathom nos dá para a sua conta (uma chave de acesso, uma chave para renová-la e a chave que assina os envios do Fathom), criptografadas com a nossa própria chave guardada no Google Secret Manager, junto com quando você conectou e quando chegou o último resumo. Depois, um resumo do Fathom é armazenado, criptografado, arquivado e mantido exatamente como um resumo por e-mail, com as mesmas regras e pelo mesmo tempo.",
+          "Você pode desconectar o Fathom a qualquer momento em Resumos de reuniões: pedimos ao Fathom que pare de enviar resumos e excluímos as chaves na hora. Desconectar os resumos de reuniões ou excluir sua conta também desconecta o Fathom. Se não for possível contatar o Fathom nesse momento, você pode remover a conexão nas configurações do Fathom. O Fathom trata suas reuniões segundo a própria política de privacidade."
+        ]
+      },
       "notifications": {
         "title": "Notificações",
         "body": [
@@ -153,6 +162,7 @@
           "Google (Firebase Authentication, Cloud Firestore e Cloud Functions), que hospeda sua conta e seus dados e executa o código do nosso servidor.",
           "OpenAI, que processa suas solicitações ao assistente de IA e, quando você pede, as tarefas sugeridas a partir de um resumo de reunião.",
           "Postmark, nosso provedor de e-mail, quando você ativa os resumos de reuniões: ela recebe os e-mails enviados ao seu endereço privado de resumos, processa-os nos Estados Unidos e guarda sua cópia por {{summaryProviderDays}} dias.",
+          "Fathom, quando você o conecta: recebemos seus resumos de reuniões dele e só enviamos a ele as solicitações necessárias para manter essa conexão, nunca outros dados da sua conta do Meeting Guard AI.",
           "Microsoft, quando você entra com Microsoft ou conecta o Outlook ou o To Do.",
           "Apple, quando você entra com Apple.",
           "O serviço de reconhecimento de fala do seu celular (o da Apple no iPhone, normalmente o do Google no Android), quando você usa a entrada por voz: ele pode receber o áudio para transformá-lo em texto.",
@@ -181,7 +191,7 @@
           "Guardamos suas informações enquanto sua conta existir."
         ],
         "items": [
-          "Você pode excluir sua conta a qualquer momento no app: Configurações → Conta → Excluir conta. Isso exclui permanentemente dos nossos servidores sua conta, reuniões, tarefas, notas, preferências, resumos de reuniões e endereço privado de resumos, registros de uso do assistente, status da assinatura, vínculo com o WhatsApp e registro de login com a Microsoft, encerra sua sessão e remove o acesso do app à sua conta do Google ou à sua conta Apple. Excluir sua conta não cancela uma assinatura comprada na App Store ou no Google Play: cancele-a lá.",
+          "Você pode excluir sua conta a qualquer momento no app: Configurações → Conta → Excluir conta. Isso exclui permanentemente dos nossos servidores sua conta, reuniões, tarefas, notas, preferências, resumos de reuniões e endereço privado de resumos, conexão com o Fathom, registros de uso do assistente, status da assinatura, vínculo com o WhatsApp e registro de login com a Microsoft, encerra sua sessão e remove o acesso do app à sua conta do Google ou à sua conta Apple. Excluir sua conta não cancela uma assinatura comprada na App Store ou no Google Play: cancele-a lá.",
           "Se você não conseguir mais entrar, escreva para {{email}} a partir do endereço de e-mail da sua conta e peça que a excluamos.",
           "Quando você exclui uma reunião, um registro mínimo sem o conteúdo dela (identificadores e horário) é guardado por até 60 dias para que a exclusão chegue aos seus outros dispositivos e calendários; depois disso, nosso servidor o apaga automaticamente.",
           "Os eventos que o app adicionou ao Google Calendar, ao Outlook ou ao calendário do seu celular, e as tarefas que ele adicionou ao Google Tasks ou ao Microsoft To Do, ficam lá até que você os exclua.",
@@ -211,7 +221,7 @@
           "Acessar seus dados pessoais e obter uma cópia deles.",
           "Corrigir dados incorretos. Você pode editar suas reuniões, tarefas, notas e configurações no app.",
           "Excluir seus dados (veja acima).",
-          "Opor-se a alguns tratamentos ou restringi-los, e retirar seu consentimento a qualquer momento, por exemplo desconectando o Google Calendar, o Google Tasks, o Outlook ou o Microsoft To Do, desvinculando o WhatsApp, desconectando os resumos de reuniões, desativando o acesso ao calendário ou não usando o assistente de IA.",
+          "Opor-se a alguns tratamentos ou restringi-los, e retirar seu consentimento a qualquer momento, por exemplo desconectando o Google Calendar, o Google Tasks, o Outlook ou o Microsoft To Do, desvinculando o WhatsApp, desconectando o Fathom ou os resumos de reuniões, desativando o acesso ao calendário ou não usando o assistente de IA.",
           "Receber seus dados em um formato portátil.",
           "Apresentar uma reclamação à autoridade de proteção de dados do seu país."
         ],

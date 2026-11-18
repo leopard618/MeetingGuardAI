@@ -26,13 +26,13 @@ jest.mock('expo-localization', () => ({
 
 type Section = { title?: unknown; body?: unknown; items?: unknown; note?: unknown };
 
-function sectionsOf(language: 'en' | 'es', document: LegalDocumentId): Record<string, Section> {
+function sectionsOf(language: 'en' | 'es' | 'pt' | 'fr' | 'de', document: LegalDocumentId): Record<string, Section> {
   const legal = RESOURCES[language].legal as Record<string, { sections: Record<string, Section> }>;
   return legal[document]!.sections;
 }
 
 /** Title, body, items and notes of one section as one string (raw JSON values). */
-function sectionText(language: 'en' | 'es', document: LegalDocumentId, id: string): string {
+function sectionText(language: 'en' | 'es' | 'pt' | 'fr' | 'de', document: LegalDocumentId, id: string): string {
   const section = sectionsOf(language, document)[id]!;
   const parts: unknown[] = [section.title];
   for (const field of ['body', 'items', 'note'] as const) {
@@ -91,6 +91,15 @@ describe('legal content', () => {
     }
     expect(sectionText('en', 'terms', 'plans')).not.toContain('cannot be purchased');
     expect(sectionText('es', 'terms', 'plans')).not.toContain('no se pueden comprar');
+  });
+
+  it('covers Connect Fathom in every language: what is received, never the recording or transcript, encrypted keys, disconnect', async () => {
+    const never = { en: 'transcript', es: 'transcripción', pt: 'transcrição', fr: 'transcription', de: 'Transkript' } as const;
+    for (const language of ['en', 'es', 'pt', 'fr', 'de'] as const) {
+      const fathom = sectionText(language, 'privacy', 'fathom');
+      for (const fact of ['Fathom', 'Google Cloud Functions', 'Google Secret Manager', '7', never[language]]) expect([language, fact, fathom.includes(fact)]).toEqual([language, fact, true]);
+      for (const id of ['collect', 'sharing', 'retention', 'rights']) expect([language, id, sectionText(language, 'privacy', id).includes('Fathom')]).toEqual([language, id, true]);
+    }
   });
 
   it('covers meeting summaries by email: Postmark, encryption, retention and OpenAI (M10, M11)', async () => {
@@ -170,7 +179,7 @@ describe('legal screens', () => {
 
   it('renders the privacy policy with the localized date', async () => {
     await renderWith('Privacy', PrivacyScreen);
-    expect(screen.getByText('Last updated: November 6th, 2026')).toBeTruthy();
+    expect(screen.getByText('Last updated: November 18th, 2026')).toBeTruthy();
     expect(screen.getByText('Who is responsible for your data')).toBeTruthy();
     expect(screen.getByTestId('legal-privacy')).toBeTruthy();
   });
