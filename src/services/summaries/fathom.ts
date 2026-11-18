@@ -56,7 +56,8 @@ export interface FathomService {
 /** The outcome a FATHOM_RETURN_URL redirect carries (pure). Anything else is an error without a reason. */
 export function parseFathomReturn(url: string): FathomConnectOutcome {
   if (typeof url !== 'string' || !url.startsWith(FATHOM_RETURN_URL)) return { result: 'error', reason: null };
-  const query = url.slice(FATHOM_RETURN_URL.length).replace(/^\?/, '');
+  // A browser may normalize the return URL to meetingguardai://fathom/?result=...: accept both.
+  const query = url.slice(FATHOM_RETURN_URL.length).replace(/^\/?\?/, '');
   const params = new Map<string, string>();
   for (const pair of query.split('&')) {
     const [key = '', value = ''] = pair.split('=', 2);

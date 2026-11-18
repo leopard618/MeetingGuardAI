@@ -27,6 +27,7 @@ describe('parseFathomReturn', () => {
     expect(parseFathomReturn('meetingguardai://fathom?result=connected')).toEqual({ result: 'connected' });
     expect(parseFathomReturn('meetingguardai://fathom?result=cancelled')).toEqual({ result: 'cancelled' });
     expect(parseFathomReturn('meetingguardai://fathom?result=error&reason=expired')).toEqual({ result: 'error', reason: 'expired' });
+    expect(parseFathomReturn('meetingguardai://fathom/?result=connected')).toEqual({ result: 'connected' });
   });
 
   it('an unknown reason or another URL is an error without a reason', () => {
