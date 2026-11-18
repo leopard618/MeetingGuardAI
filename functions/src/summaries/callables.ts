@@ -68,6 +68,7 @@ import {
   type BulkDeleteLimits,
   type SummaryOpResult,
 } from './actions';
+import { deleteConnectionDocs } from './fathom/store';
 import { isPilotUid } from './gate';
 import { notetakersOf } from './notetakers';
 import { utcDayOf } from './model';
@@ -398,6 +399,10 @@ async function runOp(caller: SummaryCaller, request: SummaryActionRequest, deps:
     case 'disconnect': {
       // The address goes first, so no new summary lands while the summaries are deleted.
       const removed = await deleteAddressDocs(uid, addressDeps(deps), { mode: 'disconnect' });
+      // Connect Fathom: stop routing Fathom deliveries too. This callable binds no secret, so it
+      // cannot reach Fathom; the app calls fathomConnect disconnect first, which removes the
+      // webhook there. This only drops our side (a leftover webhook then maps to nobody).
+      const fathomRemoved = await deleteConnectionDocs(db, uid);
       let summariesDeleted = 0;
       if (request.deleteSummaries) {
         const bulk = await deleteAllSummaries(db, uid, deps.deleteLimits ?? SUMMARY_BULK_DELETE_LIMITS);
@@ -407,8 +412,8 @@ async function runOp(caller: SummaryCaller, request: SummaryActionRequest, deps:
           throw summaryError('upstream_error', MESSAGES.deleteIncomplete);
         }
       }
-      logOf(deps).info('summaries.action.disconnected', { uid, addressDeleted: removed.deleted, summariesDeleted });
-      return { changed: removed.deleted || summariesDeleted > 0, summary: null };
+      logOf(deps).info('summaries.action.disconnected', { uid, addressDeleted: removed.deleted, fathomRemoved, summariesDeleted });
+      return { changed: removed.deleted || fathomRemoved || summariesDeleted > 0, summary: null };
     }
   }
 }

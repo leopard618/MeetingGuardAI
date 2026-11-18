@@ -11,13 +11,15 @@
  *   with "Steps for your administrator" to share, the Microsoft 365 hint, activity (last received,
  *   last refused and what to do, today's refusals and the capped notice), "What we check" and the
  *   privacy wording of section 14.
+ * Kept short on purpose: the explanations (the product line, Connect Fathom details, what we check,
+ * privacy and "How long we keep summaries") sit in the help sheet behind the question mark in the
+ * header (SummaryHelpSheet), and "Summary inbox" is one row with the last summary and the count.
  * The status is asked again on open, then every SUMMARY_STATUS_POLL_MS while the screen is focused
  * and waits for the first summary or a Gmail code (summaryConnectModel.shouldPollStatus).
  * JavaScript only (core Clipboard through copyText, Share, Linking, plain Text), so it can ride an
  * update to runtime 1.6.0. Privacy: nothing from the status (address, mailboxes, codes) is ever
  * logged; failures reach the user as mapped messages only.
  * M11 (M11-DESIGN.md section 5), in the `footer` spot at the bottom:
- * - "How long we keep summaries" (SummaryRetentionSection) on every view of the pilot;
  * - with an address, Disconnect (destructive, last), opening the "Stop receiving summaries" sheet
  *   (DisconnectSheet: Keep them, or Delete them after a second confirmation; tasks added from
  *   summaries stay). It runs summaryAction disconnect {deleteSummaries} through the M10 service,
@@ -32,12 +34,13 @@
  */
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { Alert, Linking, Share, StyleSheet, View } from 'react-native';
 import { Chip, HelperText, IconButton, Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import { Banner, Card, ErrorState, Icon, LoadingState, MGButton } from '../../components/ui';
+import { HeaderIconButton } from '../../components/CustomHeader';
+import { Banner, Card, ErrorState, Icon, ListGroup, ListRow, LoadingState, MGButton } from '../../components/ui';
 import { SUMMARY_LIMITS } from '../../core/aiContract';
 import type { RootStackParamList } from '../../core/contracts';
 import { toAppError } from '../../core/errors';
@@ -48,8 +51,10 @@ import { copyText } from '../settings/whatsappConnectModel';
 import { ScreenBody, Section } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
 import { useLiveNow } from '../shared/useLiveNow';
+import { useFathomConnection } from '../../services/summaries/useFathomConnection';
 import { DisconnectSheet } from './DisconnectSheet';
-import { SummaryRetentionSection } from './SummaryRetention';
+import { FathomConnectCard } from './FathomConnectCard';
+import { SummaryHelpSheet } from './SummaryHelpSheet';
 import {
   CACHED_SUMMARY_LIST_VIEWS,
   createViewCopy,
@@ -96,18 +101,14 @@ const COPIED_RESET_MS = 2_000;
 /** The 24 h hint and the Gmail wait need minutes, not seconds. */
 const NOW_TICK_MS = 60_000;
 
-const CHECK_KEYS = ['signature', 'sender', 'mailbox', 'fresh', 'match', 'refused'] as const;
-/** Section 14 wording; 'refused' carries the caveat that a real summary sent straight here waits for an OK. */
-const PRIVACY_KEYS = ['encrypted', 'yoursOnly', 'deletable', 'refused'] as const;
-
 type CopiedTarget = 'address' | `code:${string}` | `sender:${string}`;
 type Busy = 'create' | 'regenerate' | 'mailboxes' | `dismiss:${string}`;
 
 export interface SummaryConnectScreenProps {
   /**
-   * The spot last on the screen. undefined (the default, as the route renders it): M11's "How
-   * long we keep summaries" card and, with an address, Disconnect (M11-DESIGN.md section 5).
-   * Anything else replaces both; null renders nothing there.
+   * The spot last on the screen. undefined (the default, as the route renders it): with an
+   * address, Disconnect (M11-DESIGN.md section 5). Anything else replaces it; null renders
+   * nothing there.
    */
   footer?: ReactNode;
 }
@@ -116,37 +117,6 @@ export interface SummaryConnectScreenProps {
 function StatusPoller(): null {
   useSummaryStatus({ pollMs: SUMMARY_STATUS_POLL_MS });
   return null;
-}
-
-function ChecksSection(): ReactElement {
-  const t = useT();
-  const { colors } = useAppTheme();
-  return (
-    <Section title={t('summaries:connect.checks.title')} testID="summary-connect-checks">
-      {CHECK_KEYS.map((key) => (
-        <View key={key} style={styles.bulletRow}>
-          <Icon name="checkCircle" size={componentMetrics.iconInline} color={colors.primary} />
-          <Text variant="bodyMedium" style={styles.flex}>
-            {t(`summaries:connect.checks.${key}`)}
-          </Text>
-        </View>
-      ))}
-    </Section>
-  );
-}
-
-function PrivacySection(): ReactElement {
-  const t = useT();
-  const { colors } = useAppTheme();
-  return (
-    <Section title={t('summaries:common.privacy.title')} testID="summary-connect-privacy">
-      {PRIVACY_KEYS.map((key) => (
-        <Text key={key} variant="bodySmall" style={[styles.paragraph, { color: colors.onSurfaceVariant }]}>
-          {t(`summaries:common.privacy.${key}`, { providerDays: SUMMARY_PROVIDER_RETENTION_DAYS })}
-        </Text>
-      ))}
-    </Section>
-  );
 }
 
 export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): ReactElement {
@@ -168,12 +138,19 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [disconnecting, setDisconnecting] = useState<DisconnectChoice | null>(null);
   const [disconnected, setDisconnected] = useState<DisconnectChoice | null>(null);
+  // Connect Fathom (docs/v2/FATHOM-CONNECT.md section 7): the main way in when the server offers
+  // it; the email setup then sits behind "Other notetakers (email)". null = the default below.
+  // A sync that stored new summaries changes the activity row: ask the status again.
+  const fathom = useFathomConnection(undefined, () => {
+    void refresh();
+  });
+  const [emailOpen, setEmailOpen] = useState<boolean | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // The cached status can be minutes old (Settings asked first): ask again on open.
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
 
   useEffect(() => {
     if (copied === null) return undefined;
@@ -186,6 +163,17 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   const saved = status?.mailboxes ?? [];
   const list = draft ?? saved;
   const muted = { color: colors.onSurfaceVariant };
+
+  // Help: the question mark next to the language menu, on every view of the pilot.
+  const helpAvailable = view !== 'loading' && view !== 'error' && view !== 'unavailable' && status !== null;
+  const helpLabel = t('summaries:help.open');
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: helpAvailable
+        ? () => <HeaderIconButton icon="help" label={helpLabel} onPress={() => setHelpOpen(true)} testID="summary-connect-help" />
+        : undefined,
+    });
+  }, [navigation, helpAvailable, helpLabel]);
 
   function showError(caught: unknown): void {
     const appError = toAppError(caught);
@@ -225,6 +213,15 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
     // "Delete them" drops every cached list: note which ones a screen below this one shows.
     const cachedBefore = CACHED_SUMMARY_LIST_VIEWS.filter((listView) => summariesService.getKnownList(listView) !== null);
     setDisconnecting(choice);
+    // Connect Fathom: stop the deliveries in Fathom first (only fathomConnect can reach Fathom).
+    // A failure here never blocks the stop: summaryAction disconnect drops our side anyway.
+    if (fathom.status?.connected === true) {
+      try {
+        await fathom.disconnect();
+      } catch {
+        // Best effort; see above.
+      }
+    }
     try {
       await summariesService.disconnect(choice === 'delete');
     } catch (caught: unknown) {
@@ -382,15 +379,6 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
     );
   }
 
-  const productLine = (
-    <View style={styles.intro} testID="summary-connect-product-line">
-      <Text variant="titleMedium">{t('summaries:common.productLine')}</Text>
-      <Text variant="bodyMedium" style={muted}>
-        {t('summaries:common.productLineMore')}
-      </Text>
-    </View>
-  );
-
   // A later ask failed: the last answer stays on screen with a notice.
   const staleNotice =
     error !== null ? (
@@ -408,19 +396,49 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
       />
     ) : null;
 
-  // M11 (M11-DESIGN.md section 5): "How long we keep summaries" renders here, last; with an
-  // address, Disconnect follows it (the connected view below). A `footer` prop replaces both.
-  const m11Footer = footer !== undefined ? footer : <SummaryRetentionSection />;
+  // Connect Fathom: the email setup is the alternative. Open by default when Fathom is not offered
+  // (the screen as before), when a Gmail code waits, or for someone already receiving summaries
+  // by email without Fathom; closed otherwise, so the main screen is one tap to connect.
+  const fathomOffered = fathom.status?.available === true;
+  const fathomConnected = fathom.status?.connected === true;
+  const emailDefault =
+    !fathomOffered || (status.gmailRequests ?? []).length > 0 || (!fathomConnected && address !== null && status.lastReceivedAt !== null);
+  const emailExpanded = emailOpen ?? emailDefault;
+  const fathomCard = (
+    <FathomConnectCard
+      fathom={fathom}
+      onConnected={() => {
+        void refresh();
+      }}
+    />
+  );
+  // One row; what "email" means for Otter and others is in the help sheet.
+  const emailToggle = fathomOffered ? (
+    <ListGroup style={styles.block} testID="summary-connect-email">
+      <ListRow
+        icon="email-fast-outline"
+        title={t('summaries:connect.email.title')}
+        trailing={<Icon name={emailExpanded ? 'chevronUp' : 'chevronDown'} size={componentMetrics.iconInline} color={colors.onSurfaceVariant} />}
+        onPress={() => setEmailOpen(!emailExpanded)}
+        accessibilityLabel={emailExpanded ? t('summaries:connect.email.hide') : t('summaries:connect.email.show')}
+        accessibilityState={{ expanded: emailExpanded }}
+        testID="summary-connect-email-toggle"
+      />
+    </ListGroup>
+  ) : null;
+
+  // M11 (M11-DESIGN.md section 5): with an address, Disconnect renders last (the connected view
+  // below); a `footer` prop replaces it. "How long we keep summaries" is in the help sheet.
+  const m11Footer = footer !== undefined ? footer : null;
+  const helpSheet = <SummaryHelpSheet visible={helpOpen} fathomOffered={fathomOffered} onDismiss={() => setHelpOpen(false)} />;
 
   if (view === 'not_ready') {
     return (
       <ScreenBody>
-        {productLine}
         {staleNotice}
         <Banner tone="info" text={t('summaries:connect.notReady')} style={styles.block} testID="summary-connect-not-ready" />
-        <ChecksSection />
-        <PrivacySection />
         {m11Footer}
+        {helpSheet}
       </ScreenBody>
     );
   }
@@ -432,33 +450,36 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
     const keptSummaries = disconnected === 'keep' || status.inboxCount > 0;
     return (
       <ScreenBody>
-        {productLine}
         {staleNotice}
-        <Section testID="summary-connect-create">
-          {copy.noticeKey !== null ? (
-            <Text variant="bodyMedium" style={styles.disconnectedNotice} testID="summary-connect-disconnected">
-              {t(copy.noticeKey, { providerDays: SUMMARY_PROVIDER_RETENTION_DAYS })}
-            </Text>
-          ) : null}
-          <Text variant="bodyMedium">{t('summaries:connect.intro')}</Text>
-          <MGButton
-            style={styles.action}
-            icon="email-plus-outline"
-            onPress={() => {
-              void createAddress();
-            }}
-            loading={busy === 'create'}
-            disabled={busy !== null}
-            testID="summary-connect-create-button"
-          >
-            {t(copy.buttonKey)}
-          </MGButton>
-          {copy.hintKeys.map((key) => (
-            <Text key={key} variant="bodySmall" style={[styles.paragraph, muted]}>
-              {t(key)}
-            </Text>
-          ))}
-        </Section>
+        {fathomCard}
+        {emailToggle}
+        {emailExpanded ? (
+          <Section testID="summary-connect-create">
+            {copy.noticeKey !== null ? (
+              <Text variant="bodyMedium" style={styles.disconnectedNotice} testID="summary-connect-disconnected">
+                {t(copy.noticeKey, { providerDays: SUMMARY_PROVIDER_RETENTION_DAYS })}
+              </Text>
+            ) : null}
+            <Text variant="bodyMedium">{t('summaries:connect.intro')}</Text>
+            <MGButton
+              style={styles.action}
+              icon="email-plus-outline"
+              onPress={() => {
+                void createAddress();
+              }}
+              loading={busy === 'create'}
+              disabled={busy !== null}
+              testID="summary-connect-create-button"
+            >
+              {t(copy.buttonKey)}
+            </MGButton>
+            {copy.hintKeys.map((key) => (
+              <Text key={key} variant="bodySmall" style={[styles.paragraph, muted]}>
+                {t(key)}
+              </Text>
+            ))}
+          </Section>
+        ) : null}
         {keptSummaries ? (
           <Section testID="summary-connect-kept">
             {status.inboxCount > 0 ? (
@@ -477,9 +498,8 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
             </MGButton>
           </Section>
         ) : null}
-        <ChecksSection />
-        <PrivacySection />
         {m11Footer}
+        {helpSheet}
       </ScreenBody>
     );
   }
@@ -502,400 +522,391 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   return (
     <ScreenBody>
       {polling ? <StatusPoller /> : null}
-      {productLine}
       {staleNotice}
+      {fathomCard}
+      {emailToggle}
 
-      {cards.map((card) =>
-        card.prominent ? (
-          <Card key={card.key} accent="primary" style={styles.block} testID="summary-connect-gmail-card">
-            <Text variant="titleMedium" style={{ color: colors.onPrimaryContainer }} accessibilityRole="header">
-              {t('summaries:connect.gmail.title')}
+      {emailExpanded ? (
+        <>
+          {cards.map((card) =>
+            card.prominent ? (
+              <Card key={card.key} accent="primary" style={styles.block} testID="summary-connect-gmail-card">
+                <Text variant="titleMedium" style={{ color: colors.onPrimaryContainer }} accessibilityRole="header">
+                  {t('summaries:connect.gmail.title')}
+                </Text>
+                <Text variant="bodyMedium" style={[styles.paragraph, { color: colors.onPrimaryContainer }]}>
+                  {t('summaries:connect.gmail.body', { address: card.request.gmailAddress })}
+                </Text>
+                <Text
+                  variant="displaySmall"
+                  selectable
+                  style={[styles.code, { color: colors.onPrimaryContainer }]}
+                  accessibilityLabel={t('summaries:connect.gmail.code', { code: card.request.code })}
+                  testID="summary-connect-gmail-code"
+                >
+                  {card.request.code}
+                </Text>
+                <Text variant="bodySmall" style={{ color: colors.onPrimaryContainer }}>
+                  {t('summaries:connect.gmail.received', { time: fmt.dateTime(card.request.receivedAt) })}
+                </Text>
+                <View style={styles.buttonColumn}>
+                  <MGButton
+                    icon="content-copy"
+                    onPress={() => copy(`code:${card.key}`, card.request.code)}
+                    testID="summary-connect-gmail-copy"
+                  >
+                    {copied === `code:${card.key}` ? t('summaries:connect.gmail.copied') : t('summaries:connect.gmail.copy')}
+                  </MGButton>
+                  <MGButton
+                    variant="outline"
+                    icon="open-in-new"
+                    onPress={() => {
+                      void openPage(SUMMARY_SETUP_LINKS.gmailForwarding);
+                    }}
+                    testID="summary-connect-gmail-open"
+                  >
+                    {t('summaries:connect.gmail.open')}
+                  </MGButton>
+                  <MGButton
+                    variant="ghost"
+                    onPress={() => {
+                      void dismissGmail(card.request.gmailAddress);
+                    }}
+                    loading={busy === `dismiss:${card.request.gmailAddress}`}
+                    disabled={busy !== null}
+                    testID="summary-connect-gmail-dismiss"
+                  >
+                    {t('summaries:connect.gmail.dismiss')}
+                  </MGButton>
+                </View>
+              </Card>
+            ) : (
+              <Section key={card.key} title={t('summaries:connect.gmail.otherTitle')} testID="summary-connect-gmail-other">
+                <Text variant="bodyMedium" style={muted}>
+                  {t('summaries:connect.gmail.otherBody', { address: card.request.gmailAddress })}
+                </Text>
+                <MGButton
+                  variant="outline"
+                  size="sm"
+                  style={styles.alignStart}
+                  onPress={() => {
+                    void dismissGmail(card.request.gmailAddress);
+                  }}
+                  loading={busy === `dismiss:${card.request.gmailAddress}`}
+                  disabled={busy !== null}
+                  testID="summary-connect-gmail-other-dismiss"
+                >
+                  {t('summaries:connect.gmail.dismiss')}
+                </MGButton>
+              </Section>
+            ),
+          )}
+
+          <Section title={t('summaries:connect.address.title')} testID="summary-connect-address">
+            <Text variant="titleMedium" selectable style={styles.address} testID="summary-connect-address-value">
+              {address}
             </Text>
-            <Text variant="bodyMedium" style={[styles.paragraph, { color: colors.onPrimaryContainer }]}>
-              {t('summaries:connect.gmail.body', { address: card.request.gmailAddress })}
+            <Text variant="bodySmall" style={muted}>
+              {t('summaries:connect.address.hint')}
             </Text>
-            <Text
-              variant="displaySmall"
-              selectable
-              style={[styles.code, { color: colors.onPrimaryContainer }]}
-              accessibilityLabel={t('summaries:connect.gmail.code', { code: card.request.code })}
-              testID="summary-connect-gmail-code"
-            >
-              {card.request.code}
-            </Text>
-            <Text variant="bodySmall" style={{ color: colors.onPrimaryContainer }}>
-              {t('summaries:connect.gmail.received', { time: fmt.dateTime(card.request.receivedAt) })}
-            </Text>
-            <View style={styles.buttonColumn}>
-              <MGButton
-                icon="content-copy"
-                onPress={() => copy(`code:${card.key}`, card.request.code)}
-                testID="summary-connect-gmail-copy"
-              >
-                {copied === `code:${card.key}` ? t('summaries:connect.gmail.copied') : t('summaries:connect.gmail.copy')}
+            {status.refusedToday?.capped ? (
+              <Banner
+                tone="warning"
+                text={t('summaries:connect.address.capped')}
+                action={{ label: t('summaries:connect.address.regenerate'), onPress: confirmRegenerate }}
+                style={styles.paragraph}
+                testID="summary-connect-capped"
+              />
+            ) : null}
+            <View style={styles.buttonRow}>
+              <MGButton variant="tonal" icon="content-copy" style={styles.flex} onPress={() => copy('address', address)} testID="summary-connect-copy">
+                {copied === 'address' ? t('summaries:connect.address.copied') : t('summaries:connect.address.copy')}
               </MGButton>
               <MGButton
                 variant="outline"
-                icon="open-in-new"
+                icon="share-variant"
+                style={styles.flex}
                 onPress={() => {
-                  void openPage(SUMMARY_SETUP_LINKS.gmailForwarding);
+                  void share(t('summaries:connect.address.shareMessage', { address }));
                 }}
-                testID="summary-connect-gmail-open"
+                testID="summary-connect-share"
               >
-                {t('summaries:connect.gmail.open')}
-              </MGButton>
-              <MGButton
-                variant="ghost"
-                onPress={() => {
-                  void dismissGmail(card.request.gmailAddress);
-                }}
-                loading={busy === `dismiss:${card.request.gmailAddress}`}
-                disabled={busy !== null}
-                testID="summary-connect-gmail-dismiss"
-              >
-                {t('summaries:connect.gmail.dismiss')}
+                {t('summaries:connect.address.share')}
               </MGButton>
             </View>
-          </Card>
-        ) : (
-          <Section key={card.key} title={t('summaries:connect.gmail.otherTitle')} testID="summary-connect-gmail-other">
-            <Text variant="bodyMedium" style={muted}>
-              {t('summaries:connect.gmail.otherBody', { address: card.request.gmailAddress })}
-            </Text>
-            <MGButton
-              variant="outline"
-              size="sm"
-              style={styles.alignStart}
-              onPress={() => {
-                void dismissGmail(card.request.gmailAddress);
-              }}
-              loading={busy === `dismiss:${card.request.gmailAddress}`}
-              disabled={busy !== null}
-              testID="summary-connect-gmail-other-dismiss"
-            >
-              {t('summaries:connect.gmail.dismiss')}
-            </MGButton>
-          </Section>
-        ),
-      )}
-
-      <Section title={t('summaries:connect.address.title')} testID="summary-connect-address">
-        <Text variant="titleMedium" selectable style={styles.address} testID="summary-connect-address-value">
-          {address}
-        </Text>
-        <Text variant="bodySmall" style={muted}>
-          {t('summaries:connect.address.hint')}
-        </Text>
-        {status.refusedToday?.capped ? (
-          <Banner
-            tone="warning"
-            text={t('summaries:connect.address.capped')}
-            action={{ label: t('summaries:connect.address.regenerate'), onPress: confirmRegenerate }}
-            style={styles.paragraph}
-            testID="summary-connect-capped"
-          />
-        ) : null}
-        <View style={styles.buttonRow}>
-          <MGButton variant="tonal" icon="content-copy" style={styles.flex} onPress={() => copy('address', address)} testID="summary-connect-copy">
-            {copied === 'address' ? t('summaries:connect.address.copied') : t('summaries:connect.address.copy')}
-          </MGButton>
-          <MGButton
-            variant="outline"
-            icon="share-variant"
-            style={styles.flex}
-            onPress={() => {
-              void share(t('summaries:connect.address.shareMessage', { address }));
-            }}
-            testID="summary-connect-share"
-          >
-            {t('summaries:connect.address.share')}
-          </MGButton>
-        </View>
-        <MGButton
-          variant="ghost"
-          size="sm"
-          icon="refresh"
-          style={styles.alignStart}
-          onPress={confirmRegenerate}
-          loading={busy === 'regenerate'}
-          disabled={busy !== null}
-          testID="summary-connect-regenerate"
-        >
-          {t('summaries:connect.address.regenerate')}
-        </MGButton>
-      </Section>
-
-      <Section title={t('summaries:connect.mailboxes.title')} testID="summary-connect-mailboxes">
-        <Text variant="bodyMedium" style={muted}>
-          {t('summaries:connect.mailboxes.hint')}
-        </Text>
-        {list.length === 0 ? (
-          <Text variant="bodyMedium" style={styles.paragraph} testID="summary-connect-mailboxes-empty">
-            {t('summaries:connect.mailboxes.empty')}
-          </Text>
-        ) : (
-          <View style={styles.paragraph}>
-            {list.map((mailbox) => (
-              <View key={mailbox} style={[styles.mailboxRow, { borderBottomColor: colors.outlineVariant }]} testID="summary-connect-mailbox">
-                <Icon name="mail" size={componentMetrics.iconInline} color={colors.onSurfaceVariant} />
-                <Text variant="bodyLarge" style={styles.flex} selectable>
-                  {mailbox}
-                </Text>
-                <IconButton
-                  icon="close"
-                  accessibilityLabel={t('summaries:connect.mailboxes.remove', { address: mailbox })}
-                  onPress={() => removeMailbox(mailbox)}
-                  disabled={busy !== null}
-                  testID={`summary-connect-mailbox-remove-${mailbox}`}
-                />
-              </View>
-            ))}
-          </View>
-        )}
-        {full ? (
-          <HelperText type="info" visible testID="summary-connect-mailboxes-full">
-            {t('summaries:connect.mailboxes.maxReached', { max })}
-          </HelperText>
-        ) : (
-          <>
-            <TextInput
-              mode="outlined"
-              outlineStyle={styles.inputOutline}
-              dense
-              style={styles.input}
-              label={t('summaries:connect.mailboxes.label')}
-              placeholder={t('summaries:connect.mailboxes.placeholder')}
-              value={input}
-              onChangeText={(value) => {
-                setInput(value);
-                setProblem(null);
-              }}
-              onSubmitEditing={addMailbox}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              returnKeyType="done"
-              error={problem !== null}
-              testID="summary-connect-mailbox-input"
-            />
             <MGButton
               variant="ghost"
               size="sm"
-              icon="plus"
+              icon="refresh"
               style={styles.alignStart}
-              onPress={addMailbox}
-              disabled={busy !== null || input.trim() === ''}
-              testID="summary-connect-mailbox-add"
-            >
-              {t('summaries:connect.mailboxes.add')}
-            </MGButton>
-          </>
-        )}
-        {problem !== null ? (
-          <HelperText type="error" visible testID="summary-connect-mailbox-problem">
-            {t(mailboxProblemKey(problem), { max })}
-          </HelperText>
-        ) : null}
-        {edited ? (
-          <HelperText type="info" visible testID="summary-connect-mailboxes-unsaved">
-            {t('summaries:connect.mailboxes.unsaved')}
-          </HelperText>
-        ) : null}
-        {editing ? (
-          <View style={styles.buttonRow}>
-            <MGButton variant="ghost" style={styles.flex} onPress={resetMailboxes} disabled={busy !== null} testID="summary-connect-mailboxes-cancel">
-              {t('summaries:common.cancel')}
-            </MGButton>
-            <MGButton
-              style={styles.flex}
-              onPress={saveMailboxes}
-              loading={busy === 'mailboxes'}
+              onPress={confirmRegenerate}
+              loading={busy === 'regenerate'}
               disabled={busy !== null}
-              testID="summary-connect-mailboxes-save"
+              testID="summary-connect-regenerate"
             >
-              {t('summaries:connect.mailboxes.save')}
+              {t('summaries:connect.address.regenerate')}
             </MGButton>
-          </View>
-        ) : null}
-      </Section>
+          </Section>
 
-      <Section title={t('summaries:connect.setup.title')} testID="summary-connect-setup">
-        <View style={styles.chips}>
-          {SUMMARY_SETUP_TABS.map((value) => (
-            <Chip
-              key={value}
-              selected={value === activeTab}
-              showSelectedCheck={false}
-              mode={value === activeTab ? 'flat' : 'outlined'}
-              compact
-              onPress={() => setTab(value)}
-              testID={`summary-connect-tab-${value}`}
-            >
-              {t(setupTabKey(value))}
-            </Chip>
-          ))}
-        </View>
-        <View style={[styles.subBox, { borderColor: colors.outlineVariant }]} testID="summary-connect-notetakers">
-          <Text variant="titleSmall" accessibilityRole="header">
-            {t('summaries:connect.notetakers.title')}
-          </Text>
-          {(status.notetakers ?? []).length > 0 ? (
-            <>
-              <Text variant="bodySmall" style={muted}>
-                {t('summaries:connect.notetakers.hint')}
+          <Section title={t('summaries:connect.mailboxes.title')} testID="summary-connect-mailboxes">
+            <Text variant="bodyMedium" style={muted}>
+              {t('summaries:connect.mailboxes.hint')}
+            </Text>
+            {list.length === 0 ? (
+              <Text variant="bodyMedium" style={styles.paragraph} testID="summary-connect-mailboxes-empty">
+                {t('summaries:connect.mailboxes.empty')}
               </Text>
-              {(status.notetakers ?? []).map((notetaker) => (
-                <View key={notetaker.sender} style={styles.buttonRow} testID={`summary-connect-notetaker-${notetaker.sender}`}>
-                  <Text variant="bodyMedium" style={styles.flex} selectable>
-                    {t('summaries:connect.notetakers.item', { name: notetaker.name, sender: notetaker.sender })}
-                  </Text>
-                  <MGButton
-                    variant="outline"
-                    size="sm"
-                    icon="content-copy"
-                    onPress={() => copy(`sender:${notetaker.sender}`, notetaker.sender)}
-                    accessibilityLabel={t('summaries:connect.notetakers.copyLabel', { name: notetaker.name })}
-                    testID={`summary-connect-notetaker-copy-${notetaker.sender}`}
-                  >
-                    {copied === `sender:${notetaker.sender}` ? t('summaries:connect.notetakers.copied') : t('summaries:connect.notetakers.copy')}
-                  </MGButton>
-                </View>
-              ))}
-            </>
-          ) : (
-            <Text variant="bodySmall" style={muted} testID="summary-connect-notetakers-none">
-              {t('summaries:connect.notetakers.none')}
-            </Text>
-          )}
-          <Text variant="bodySmall" style={muted}>
-            {t('summaries:connect.notetakers.other')}
-          </Text>
-        </View>
-        <Text variant="bodySmall" style={muted}>
-          {t('summaries:connect.setup.browserHint')}
-        </Text>
-        {SUMMARY_SETUP_STEP_KEYS[activeTab].map((key, index) => (
-          <View key={key} style={styles.stepRow} testID={`summary-connect-step-${activeTab}-${index + 1}`}>
-            <Text variant="labelLarge" style={[styles.stepNumber, { color: colors.primary }]}>
-              {`${index + 1}.`}
-            </Text>
-            <Text variant="bodyMedium" style={styles.flex}>
-              {t(key)}
-            </Text>
-          </View>
-        ))}
-        {extras.links.length > 0 ? (
-          <View style={styles.buttonColumn}>
-            {extras.links.map((link) => (
-              <MGButton
-                key={link.url}
-                variant="outline"
-                icon="open-in-new"
-                onPress={() => {
-                  void openPage(link.url, link.waitsForGmailCode);
-                }}
-                testID={`summary-connect-link-${link.labelKey.slice(link.labelKey.lastIndexOf('.') + 1)}`}
-              >
-                {t(link.labelKey)}
-              </MGButton>
-            ))}
-          </View>
-        ) : null}
-        {extras.noteKey !== null ? (
-          <Text variant="bodySmall" style={[styles.paragraph, muted]}>
-            {t(extras.noteKey)}
-          </Text>
-        ) : null}
-        {adminKey !== null ? (
-          <View style={[styles.subBox, { borderColor: colors.outlineVariant }]} testID="summary-connect-admin">
-            <Text variant="titleSmall" accessibilityRole="header">
-              {t('summaries:connect.setup.admin.title')}
-            </Text>
-            <Text variant="bodySmall" style={muted}>
-              {t('summaries:connect.setup.admin.hint')}
-            </Text>
-            <MGButton
-              variant="tonal"
-              size="sm"
-              icon="share-variant"
-              style={styles.alignStart}
-              onPress={() => shareAdminSteps(adminKey)}
-              testID="summary-connect-admin-share"
-            >
-              {t('summaries:connect.setup.admin.share')}
-            </MGButton>
-          </View>
-        ) : null}
-      </Section>
+            ) : (
+              <View style={styles.paragraph}>
+                {list.map((mailbox) => (
+                  <View key={mailbox} style={[styles.mailboxRow, { borderBottomColor: colors.outlineVariant }]} testID="summary-connect-mailbox">
+                    <Icon name="mail" size={componentMetrics.iconInline} color={colors.onSurfaceVariant} />
+                    <Text variant="bodyLarge" style={styles.flex} selectable>
+                      {mailbox}
+                    </Text>
+                    <IconButton
+                      icon="close"
+                      accessibilityLabel={t('summaries:connect.mailboxes.remove', { address: mailbox })}
+                      onPress={() => removeMailbox(mailbox)}
+                      disabled={busy !== null}
+                      testID={`summary-connect-mailbox-remove-${mailbox}`}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+            {full ? (
+              <HelperText type="info" visible testID="summary-connect-mailboxes-full">
+                {t('summaries:connect.mailboxes.maxReached', { max })}
+              </HelperText>
+            ) : (
+              <>
+                <TextInput
+                  mode="outlined"
+                  outlineStyle={styles.inputOutline}
+                  dense
+                  style={styles.input}
+                  label={t('summaries:connect.mailboxes.label')}
+                  placeholder={t('summaries:connect.mailboxes.placeholder')}
+                  value={input}
+                  onChangeText={(value) => {
+                    setInput(value);
+                    setProblem(null);
+                  }}
+                  onSubmitEditing={addMailbox}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  returnKeyType="done"
+                  error={problem !== null}
+                  testID="summary-connect-mailbox-input"
+                />
+                <MGButton
+                  variant="ghost"
+                  size="sm"
+                  icon="plus"
+                  style={styles.alignStart}
+                  onPress={addMailbox}
+                  disabled={busy !== null || input.trim() === ''}
+                  testID="summary-connect-mailbox-add"
+                >
+                  {t('summaries:connect.mailboxes.add')}
+                </MGButton>
+              </>
+            )}
+            {problem !== null ? (
+              <HelperText type="error" visible testID="summary-connect-mailbox-problem">
+                {t(mailboxProblemKey(problem), { max })}
+              </HelperText>
+            ) : null}
+            {edited ? (
+              <HelperText type="info" visible testID="summary-connect-mailboxes-unsaved">
+                {t('summaries:connect.mailboxes.unsaved')}
+              </HelperText>
+            ) : null}
+            {editing ? (
+              <View style={styles.buttonRow}>
+                <MGButton variant="ghost" style={styles.flex} onPress={resetMailboxes} disabled={busy !== null} testID="summary-connect-mailboxes-cancel">
+                  {t('summaries:common.cancel')}
+                </MGButton>
+                <MGButton
+                  style={styles.flex}
+                  onPress={saveMailboxes}
+                  loading={busy === 'mailboxes'}
+                  disabled={busy !== null}
+                  testID="summary-connect-mailboxes-save"
+                >
+                  {t('summaries:connect.mailboxes.save')}
+                </MGButton>
+              </View>
+            ) : null}
+          </Section>
 
-      {showMicrosoftHint(status, nowMs) ? (
-        <Banner
-          tone="info"
-          title={t('summaries:connect.microsoftHint.title')}
-          text={t('summaries:connect.microsoftHint.body')}
-          action={{ label: t('summaries:connect.microsoftHint.action'), onPress: () => shareAdminSteps(SUMMARY_MICROSOFT_ADMIN_KEY) }}
-          style={styles.block}
-          testID="summary-connect-microsoft-hint"
-        />
+          <Section title={t('summaries:connect.setup.title')} testID="summary-connect-setup">
+            <View style={styles.chips}>
+              {SUMMARY_SETUP_TABS.map((value) => (
+                <Chip
+                  key={value}
+                  selected={value === activeTab}
+                  showSelectedCheck={false}
+                  mode={value === activeTab ? 'flat' : 'outlined'}
+                  compact
+                  onPress={() => setTab(value)}
+                  testID={`summary-connect-tab-${value}`}
+                >
+                  {t(setupTabKey(value))}
+                </Chip>
+              ))}
+            </View>
+            <View style={[styles.subBox, { borderColor: colors.outlineVariant }]} testID="summary-connect-notetakers">
+              <Text variant="titleSmall" accessibilityRole="header">
+                {t('summaries:connect.notetakers.title')}
+              </Text>
+              {(status.notetakers ?? []).length > 0 ? (
+                <>
+                  <Text variant="bodySmall" style={muted}>
+                    {t('summaries:connect.notetakers.hint')}
+                  </Text>
+                  {(status.notetakers ?? []).map((notetaker) => (
+                    <View key={notetaker.sender} style={styles.buttonRow} testID={`summary-connect-notetaker-${notetaker.sender}`}>
+                      <Text variant="bodyMedium" style={styles.flex} selectable>
+                        {t('summaries:connect.notetakers.item', { name: notetaker.name, sender: notetaker.sender })}
+                      </Text>
+                      <MGButton
+                        variant="outline"
+                        size="sm"
+                        icon="content-copy"
+                        onPress={() => copy(`sender:${notetaker.sender}`, notetaker.sender)}
+                        accessibilityLabel={t('summaries:connect.notetakers.copyLabel', { name: notetaker.name })}
+                        testID={`summary-connect-notetaker-copy-${notetaker.sender}`}
+                      >
+                        {copied === `sender:${notetaker.sender}` ? t('summaries:connect.notetakers.copied') : t('summaries:connect.notetakers.copy')}
+                      </MGButton>
+                    </View>
+                  ))}
+                </>
+              ) : (
+                <Text variant="bodySmall" style={muted} testID="summary-connect-notetakers-none">
+                  {t('summaries:connect.notetakers.none')}
+                </Text>
+              )}
+              <Text variant="bodySmall" style={muted}>
+                {t('summaries:connect.notetakers.other')}
+              </Text>
+            </View>
+            <Text variant="bodySmall" style={muted}>
+              {t('summaries:connect.setup.browserHint')}
+            </Text>
+            {SUMMARY_SETUP_STEP_KEYS[activeTab].map((key, index) => (
+              <View key={key} style={styles.stepRow} testID={`summary-connect-step-${activeTab}-${index + 1}`}>
+                <Text variant="labelLarge" style={[styles.stepNumber, { color: colors.primary }]}>
+                  {`${index + 1}.`}
+                </Text>
+                <Text variant="bodyMedium" style={styles.flex}>
+                  {t(key)}
+                </Text>
+              </View>
+            ))}
+            {extras.links.length > 0 ? (
+              <View style={styles.buttonColumn}>
+                {extras.links.map((link) => (
+                  <MGButton
+                    key={link.url}
+                    variant="outline"
+                    icon="open-in-new"
+                    onPress={() => {
+                      void openPage(link.url, link.waitsForGmailCode);
+                    }}
+                    testID={`summary-connect-link-${link.labelKey.slice(link.labelKey.lastIndexOf('.') + 1)}`}
+                  >
+                    {t(link.labelKey)}
+                  </MGButton>
+                ))}
+              </View>
+            ) : null}
+            {extras.noteKey !== null ? (
+              <Text variant="bodySmall" style={[styles.paragraph, muted]}>
+                {t(extras.noteKey)}
+              </Text>
+            ) : null}
+            {adminKey !== null ? (
+              <View style={[styles.subBox, { borderColor: colors.outlineVariant }]} testID="summary-connect-admin">
+                <Text variant="titleSmall" accessibilityRole="header">
+                  {t('summaries:connect.setup.admin.title')}
+                </Text>
+                <Text variant="bodySmall" style={muted}>
+                  {t('summaries:connect.setup.admin.hint')}
+                </Text>
+                <MGButton
+                  variant="tonal"
+                  size="sm"
+                  icon="share-variant"
+                  style={styles.alignStart}
+                  onPress={() => shareAdminSteps(adminKey)}
+                  testID="summary-connect-admin-share"
+                >
+                  {t('summaries:connect.setup.admin.share')}
+                </MGButton>
+              </View>
+            ) : null}
+          </Section>
+
+          {showMicrosoftHint(status, nowMs) ? (
+            <Banner
+              tone="info"
+              title={t('summaries:connect.microsoftHint.title')}
+              text={t('summaries:connect.microsoftHint.body')}
+              action={{ label: t('summaries:connect.microsoftHint.action'), onPress: () => shareAdminSteps(SUMMARY_MICROSOFT_ADMIN_KEY) }}
+              style={styles.block}
+              testID="summary-connect-microsoft-hint"
+            />
+          ) : null}
+        </>
       ) : null}
 
-      <Section title={t('summaries:connect.activity.title')} testID="summary-connect-activity">
-        {status.lastReceivedAt !== null ? (
-          <Text variant="bodyMedium" testID="summary-connect-last-received">
-            {t('summaries:connect.activity.lastReceived', { time: fmt.dateTime(status.lastReceivedAt) })}
-          </Text>
-        ) : (
-          <>
-            <Text variant="bodyMedium" testID="summary-connect-nothing-yet">
-              {t('summaries:connect.activity.nothingYet')}
+      {/* Activity: one row to the inbox with the last summary and what waits; refusals only when there are any. */}
+      <ListGroup style={styles.block} testID="summary-connect-activity">
+        <ListRow
+          icon="inbox-arrow-down"
+          title={t('summaries:connect.inboxRow')}
+          supporting={[
+            status.lastReceivedAt !== null
+              ? t('summaries:connect.activity.lastReceived', { time: fmt.dateTime(status.lastReceivedAt) })
+              : t('summaries:connect.activity.nothingYet'),
+            ...(status.inboxCount > 0 ? [t('summaries:row.waiting', { count: status.inboxCount })] : []),
+          ].join('\n')}
+          trailing="chevron"
+          onPress={() => navigation.navigate('SummaryInbox')}
+          testID="summary-connect-open-inbox"
+        />
+      </ListGroup>
+      {lastRefused !== null || status.refusedToday !== null ? (
+        <Section testID="summary-connect-refusals">
+          {lastRefused !== null && refusedKeys !== null && refusedFrom !== null ? (
+            <View style={styles.refusedBox} testID="summary-connect-last-refused">
+              <Text variant="titleSmall">
+                {t('summaries:connect.activity.lastRefused', { time: fmt.dateTime(lastRefused.at), reason: t(refusedKeys.title) })}
+              </Text>
+              <Text variant="bodySmall" style={muted}>
+                {t(refusedFrom.key, refusedFrom.options)}
+              </Text>
+              <Text variant="bodyMedium">{t(refusedKeys.body)}</Text>
+              <Text variant="bodyMedium">{t(refusedKeys.action)}</Text>
+            </View>
+          ) : null}
+          {status.refusedToday !== null ? (
+            <Text variant="bodyMedium" style={styles.paragraph} testID="summary-connect-refused-today">
+              {t('summaries:connect.activity.refusedToday', { count: status.refusedToday.count })}
             </Text>
-            <Text variant="bodySmall" style={muted}>
-              {t('summaries:connect.activity.waiting')}
-            </Text>
-          </>
-        )}
-        {lastRefused !== null && refusedKeys !== null && refusedFrom !== null ? (
-          <View style={[styles.subBox, { borderColor: colors.outlineVariant }]} testID="summary-connect-last-refused">
-            <Text variant="titleSmall">
-              {t('summaries:connect.activity.lastRefused', { time: fmt.dateTime(lastRefused.at), reason: t(refusedKeys.title) })}
-            </Text>
-            <Text variant="bodySmall" style={muted}>
-              {t(refusedFrom.key, refusedFrom.options)}
-            </Text>
-            <Text variant="bodyMedium">{t(refusedKeys.body)}</Text>
-            <Text variant="bodyMedium">{t(refusedKeys.action)}</Text>
-          </View>
-        ) : null}
-        {status.refusedToday !== null ? (
-          <Text variant="bodyMedium" style={styles.paragraph} testID="summary-connect-refused-today">
-            {t('summaries:connect.activity.refusedToday', { count: status.refusedToday.count })}
-          </Text>
-        ) : null}
-        {lastRefused !== null || status.refusedToday !== null ? (
+          ) : null}
           <Text variant="bodySmall" style={[styles.paragraph, muted]}>
             {t('summaries:common.refusedNotStored')}
           </Text>
-        ) : null}
-        {status.inboxCount > 0 ? (
-          <Text variant="bodyMedium" style={styles.paragraph} testID="summary-connect-inbox-count">
-            {t('summaries:row.waiting', { count: status.inboxCount })}
-          </Text>
-        ) : null}
-        <MGButton
-          variant="tonal"
-          icon="inbox-arrow-down"
-          style={styles.action}
-          onPress={() => navigation.navigate('SummaryInbox')}
-          testID="summary-connect-open-inbox"
-        >
-          {t('summaries:connect.openInbox')}
-        </MGButton>
-      </Section>
+        </Section>
+      ) : null}
 
-      <ChecksSection />
-      <PrivacySection />
       {m11Footer}
       {footer === undefined ? (
         <>
@@ -920,6 +931,7 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
           />
         </>
       ) : null}
+      {helpSheet}
     </ScreenBody>
   );
 }
@@ -932,8 +944,7 @@ const styles = StyleSheet.create({
   disconnect: {
     marginBottom: spacing.lg,
   },
-  intro: {
-    marginBottom: spacing.lg,
+  refusedBox: {
     gap: spacing.xs,
   },
   block: {

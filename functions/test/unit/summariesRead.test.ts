@@ -504,7 +504,11 @@ describe('summaryRead list', () => {
       count: null,
       match: null,
       suggestions: [{ meetingId: MEETING_ID, occurrenceDate: null, title: 'Urpayroll weekly sync', startAt: '2026-11-10T14:00:00.000Z', score: 0.74 }],
+      // The signing notetaker, by name (its domain when the name is not known).
+      notetaker: 'notetaker.example',
     });
+    // A hand forward names no notetaker unless the forward came from an accepted one.
+    expect(b?.notetaker).toBeUndefined();
     expect(c).toMatchObject({ inboxReason: 'not_addressed_to_you', recipientBound: false, suggestions: [] });
 
     // Rows come from field-masked queries: no document read, no body opened, nothing written.

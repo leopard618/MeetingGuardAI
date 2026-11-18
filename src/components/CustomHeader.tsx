@@ -4,12 +4,13 @@
  * - Left: the back arrow when the stack can go back, otherwise the menu button (opens the
  *   sidebar).
  * - Title: navigation:screens.<routeName> in the live language (titleL), else the app name.
- * - Right: the language dropdown (LanguageMenu: the flag of the CURRENT language, its code and a
+ * - Right: a screen's own icon buttons (`actions`, from its headerRight option; HeaderIconButton),
+ *   then the language dropdown (LanguageMenu: the flag of the CURRENT language, its code and a
  *   chevron; a tap opens the list of languages, a pick applies and saves it). The theme switch and
  *   the account live in the menu and in Settings.
  * 44dp targets, Feather icons, onSurface@12% borderless ripples. No animation.
  */
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -17,7 +18,7 @@ import { useT } from '../i18n';
 import { ROUTES } from '../navigation/routes';
 import { componentMetrics, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
 import { LanguageMenu } from './LanguageMenu';
-import { Icon } from './ui';
+import { Icon, type IconName } from './ui';
 
 export { LANGUAGE_FLAGS } from './LanguageMenu';
 
@@ -31,6 +32,34 @@ export interface CustomHeaderProps {
   showMenu?: boolean;
   /** Shows a back arrow instead of the menu button. */
   onBackPress?: () => void;
+  /** A screen's own buttons, left of the language dropdown (usually HeaderIconButton). */
+  actions?: ReactNode;
+}
+
+export interface HeaderIconButtonProps {
+  icon: IconName;
+  /** The accessibility label (the button has no visible text). */
+  label: string;
+  onPress: () => void;
+  testID?: string;
+}
+
+/** A 44dp icon button for a screen's header actions, styled like the back and menu buttons. */
+export function HeaderIconButton({ icon, label, onPress, testID }: HeaderIconButtonProps): ReactElement {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnIcon), borderless: true, radius: componentMetrics.headerRippleRadius }}
+      style={({ pressed }) => [styles.iconButton, pressed && Platform.OS !== 'android' && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={4}
+      testID={testID}
+    >
+      <Icon name={icon} color={colors.onSurface} />
+    </Pressable>
+  );
 }
 
 /** First letter of the display name, else of the email, else null (icon fallback). Used by the sidebar. */
@@ -40,7 +69,7 @@ export function avatarInitial(displayName: string | null | undefined, email: str
   return first ? first.toUpperCase() : null;
 }
 
-export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress }: CustomHeaderProps): ReactElement {
+export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress, actions }: CustomHeaderProps): ReactElement {
   const { colors } = useAppTheme();
   const t = useT();
   const insets = useSafeAreaInsets();
@@ -96,6 +125,12 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
           {displayTitle}
         </Text>
 
+        {actions !== undefined && actions !== null ? (
+          <View style={styles.actions} testID="header-actions">
+            {actions}
+          </View>
+        ) : null}
+
         <LanguageMenu testID="header-language" maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE} />
       </View>
     </View>
@@ -124,6 +159,11 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.xs,
   },
 });
 

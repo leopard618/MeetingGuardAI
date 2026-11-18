@@ -410,6 +410,11 @@ export interface NextExtractionInput {
   preselect: CommitmentPreselect;
   /** textKeys accepted in OTHER summaries of the same meeting (any key of the ring). */
   similarTextKeys: ReadonlySet<string>;
+  /**
+   * Titles of the tasks accepted from OTHER summaries of the same meeting (readMeetingTaskTitles):
+   * another notetaker's copy of the same commitment, worded differently, is marked similar_added too.
+   */
+  similarTitles?: readonly string[];
   /** This preparation's lease, released by the write (null when it took none). */
   leaseId: string | null;
 }
@@ -467,6 +472,24 @@ export function titleOverlap(a: string, b: string): number {
 }
 
 const SIMILAR_TITLE_SHARE = 0.6;
+
+/** titleContained: this share of the shorter title's words, and at least this many. */
+const CONTAINED_SHARE = 0.8;
+const CONTAINED_MIN_WORDS = 3;
+
+/**
+ * Whether one title says the other plus more (two notetakers wording one commitment: "Send the
+ * report by Friday" and "Send the report by Friday and ensure it is ready"): shared 3+ letter
+ * words over the SMALLER set, at least CONTAINED_MIN_WORDS of them.
+ */
+export function titleContained(a: string, b: string): boolean {
+  const left = checkableWords(a);
+  const right = checkableWords(b);
+  let shared = 0;
+  for (const word of left) if (right.has(word)) shared += 1;
+  const smaller = Math.min(left.size, right.size);
+  return smaller > 0 && shared >= CONTAINED_MIN_WORDS && shared / smaller >= CONTAINED_SHARE;
+}
 
 function sameOwner(a: string | null, b: string | null): boolean {
   if (a === null || b === null) return a === b;
@@ -575,7 +598,8 @@ export function nextExtraction(input: NextExtractionInput): NextExtraction {
     if (statusOf(decisions, entry.k) === 'open') {
       const elsewhere = input.similarTextKeys.size > 0 && textKeyCandidates(keyring, input.meetingId, entry.anchorText).some((key) => input.similarTextKeys.has(key));
       const earlierCopy = earlier.some((old) => sameOwner(old.owner, c.owner) && titleOverlap(old.title, c.title) >= SIMILAR_TITLE_SHARE);
-      if (elsewhere || earlierCopy) {
+      const taskTitled = (input.similarTitles ?? []).some((title) => titleOverlap(title, c.title) >= SIMILAR_TITLE_SHARE || titleContained(title, c.title));
+      if (elsewhere || earlierCopy || taskTitled) {
         flags = withFlag(flags, 'similar_added');
         similar += 1;
       }

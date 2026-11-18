@@ -11,6 +11,9 @@
  *   (MEETING_SUMMARIES_DEFER_MS after mount), and a failure renders nothing (no toast, no retry,
  *   no spinner here; the service logs codes only).
  * - Plain Text only; nothing from a summary is logged.
+ * Several notetakers (Fathom and Otter both recorded it): one row per meeting occurrence
+ * (meetingSummaryGroups), with one badge per notetaker; it opens the primary copy, and SummaryView
+ * switches between the copies with tabs. The count in the header counts meetings, not copies.
  * M11 (M11-DESIGN.md section 3.1): under each row, "Review commitments" (with the open count of a
  * ready list, and "2 added to your tasks" once anything was accepted) opens SummaryCommitments
  * { summaryId }; a separate button under the row, not inside it, so screen readers reach both.
@@ -31,7 +34,7 @@ import { componentMetrics, pressedOpacity, spacing, stateAlpha, typography, useA
 import { useFormatters } from '../shared/useFormatters';
 import { commitmentsEntryFor, type CommitmentsEntry } from './commitmentsEntryModel';
 import { ReviewCommitmentsButton } from './ReviewCommitmentsButton';
-import { meetingSummaryRows, originChip, summaryTitle } from './summaryViewModel';
+import { copyLabels, meetingSummaryGroups, meetingSummaryRows, originChip, summaryTitle, type MeetingSummaryGroup } from './summaryViewModel';
 
 /**
  * Meeting details renders first: the summary list is asked this long after mount, once the push
@@ -63,16 +66,17 @@ export function MeetingSummarySection({ meetingId }: MeetingSummarySectionProps)
   const { items, error } = useSummaryList('meeting', meetingId, { enabled: available && settled });
   const rows = meetingSummaryRows(available, items, error);
   if (rows === null) return null;
+  const groups = meetingSummaryGroups(rows);
   return (
     <>
-      <SectionHeader title={t('summaries:meeting.title', { count: rows.length })} />
+      <SectionHeader title={t('summaries:meeting.title', { count: groups.length })} />
       <ListGroup testID={`meeting-summaries-${meetingId}`}>
-        {rows.map((item) => (
+        {groups.map((group) => (
           <SummaryRow
-            key={item.summaryId}
-            item={item}
-            entry={commitmentsEntryFor(item, available)}
-            onOpen={() => navigation.navigate('SummaryView', { summaryId: item.summaryId })}
+            key={group.key}
+            group={group}
+            entry={commitmentsEntryFor(group.primary, available)}
+            onOpen={() => navigation.navigate('SummaryView', { summaryId: group.primary.summaryId })}
             onReview={(summaryId) => navigation.navigate('SummaryCommitments', { summaryId })}
           />
         ))}
@@ -82,16 +86,17 @@ export function MeetingSummarySection({ meetingId }: MeetingSummarySectionProps)
 }
 
 /**
- * One summary: the ListRow layout with a meta line (origin chip, received time, occurrence date),
- * and M11's "Review commitments" under it.
+ * One meeting's summary: the ListRow layout with a meta line (origin chip, or one badge per
+ * notetaker when several sent one; the received time; the occurrence date), and M11's "Review
+ * commitments" under it.
  */
 function SummaryRow({
-  item,
+  group,
   entry,
   onOpen,
   onReview,
 }: {
-  item: SummaryListItem;
+  group: MeetingSummaryGroup;
   entry: CommitmentsEntry | null;
   onOpen(): void;
   onReview(summaryId: string): void;
@@ -99,8 +104,11 @@ function SummaryRow({
   const t = useT();
   const fmt = useFormatters();
   const { colors } = useAppTheme();
+  const item: SummaryListItem = group.primary;
   const title = summaryTitle(item) ?? t('summaries:common.untitled');
   const chip = originChip(item.tier);
+  const several = group.copies.length > 1;
+  const labels = several ? copyLabels(group.copies) : [];
   // A series: the day that occurrence took place (its snapshot start, so a moved occurrence shows
   // its new day). match.occurrenceDate is the ORIGINAL date, an identifier only.
   const occurrenceStart = item.match !== null && item.match.occurrenceDate !== null ? item.match.meetingSnapshot.startAt : null;
@@ -121,7 +129,17 @@ function SummaryRow({
             {title}
           </Text>
           <View style={styles.meta}>
-            {chip !== null ? <Badge label={t(chip.key)} tone={chip.tone} testID={`meeting-summary-${item.summaryId}-chip`} /> : null}
+            {several
+              ? group.copies.map((copy, index) => (
+                  <Badge
+                    key={copy.summaryId}
+                    label={t(labels[index]?.key ?? 'summaries:meeting.copyForwarded', labels[index]?.params)}
+                    tone={index === 0 ? 'primary' : 'neutral'}
+                    testID={`meeting-summary-${item.summaryId}-copy-${index}`}
+                  />
+                ))
+              : null}
+            {!several && chip !== null ? <Badge label={t(chip.key)} tone={chip.tone} testID={`meeting-summary-${item.summaryId}-chip`} /> : null}
             <Text style={[styles.supporting, supporting]} testID={`meeting-summary-${item.summaryId}-received`}>
               {t('summaries:meeting.received', { time: fmt.dateTime(item.receivedAt) })}
             </Text>

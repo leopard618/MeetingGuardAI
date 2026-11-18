@@ -20,14 +20,17 @@ import {
   SUMMARY_DERIVED_HEADING_KEY,
   SUMMARY_TEXT_HEADING_KEY,
   attachTargetFor,
+  copyLabels,
   hasPlainLinks,
   inboxReasonLineKey,
   itemDisplayText,
   looksTruncated,
   matchLine,
+  meetingSummaryGroups,
   meetingSummaryRows,
   originChip,
   originLines,
+  summaryCopiesOf,
   summaryDateLine,
   summaryItemView,
   summaryTitle,
@@ -397,6 +400,10 @@ describe('items, links and length', () => {
       warningKey: null,
     });
     expect(summaryItemView(third)).toEqual({ checkKey: null, meta: [], warningKey: 'summaries:view.flag.possible_instruction' });
+    // A line that is only "Due: Wednesday" does not repeat it underneath; a task with a due does.
+    const dueOnly = { checked: null, owner: null, dueText: 'Wednesday', flags: [] };
+    expect(summaryItemView({ ...dueOnly, text: 'Due: Wednesday' }).meta).toEqual([]);
+    expect(summaryItemView({ ...dueOnly, text: 'Fix the login page (due: Wednesday)' }).meta).toEqual([{ key: 'summaries:view.due', params: { due: 'Wednesday' } }]);
   });
 
   it('notices links (shown as plain text) and a summary the server cut', () => {
@@ -456,4 +463,53 @@ it('hands out keys that exist in English and Spanish', () => {
     ),
   ];
   expectDefined(keys);
+});
+
+describe('several notetakers, one meeting', () => {
+  const base = {
+    status: 'matched' as const,
+    title: 'Weekly sync',
+    summaryDate: null,
+    recipientBound: true,
+    fresh: true,
+    inboxReason: null,
+    refusedReason: null,
+    count: null,
+    suggestions: [],
+  };
+  const match = (occurrenceDate: string | null) => ({
+    meetingId: 'm1',
+    occurrenceDate,
+    method: 'auto' as const,
+    meetingSnapshot: { title: 'Weekly sync', startAt: '2026-10-16T19:00:00.000Z', endAt: '2026-10-16T20:00:00.000Z', timezone: 'UTC' },
+  });
+  const fathom = { ...base, summaryId: 'a'.repeat(64), receivedAt: '2026-10-16T20:20:00.000Z', tier: 'vendor_verified' as const, senderDomain: 'fathom.video', match: match(null), notetaker: 'Fathom' };
+  const otter = { ...base, summaryId: 'b'.repeat(64), receivedAt: '2026-10-16T20:10:00.000Z', tier: 'user_forwarded' as const, senderDomain: null, match: match(null), notetaker: 'Otter' };
+  const nextWeek = { ...otter, summaryId: 'c'.repeat(64), match: match('2026-10-23') };
+
+  it('groups by meeting and occurrence, the notetaker-signed copy first', () => {
+    const groups = meetingSummaryGroups([otter, fathom, nextWeek]);
+    expect(groups.map((group) => group.copies.map((copy) => copy.summaryId))).toEqual([[fathom.summaryId, otter.summaryId], [nextWeek.summaryId]]);
+    expect(groups[0]?.primary.summaryId).toBe(fathom.summaryId);
+  });
+
+  it('finds the copies of one summary, and nothing for an unknown id or no list', () => {
+    expect(summaryCopiesOf([otter, fathom, nextWeek], otter.summaryId).map((copy) => copy.summaryId)).toEqual([fathom.summaryId, otter.summaryId]);
+    expect(summaryCopiesOf([otter], 'd'.repeat(64))).toEqual([]);
+    expect(summaryCopiesOf(null, otter.summaryId)).toEqual([]);
+  });
+
+  it('names each copy by its notetaker, the signing domain, or as a forwarded copy, numbering repeats', () => {
+    expect(copyLabels([fathom, otter])).toEqual([
+      { key: 'summaries:meeting.copyNamed', params: { name: 'Fathom' } },
+      { key: 'summaries:meeting.copyNamed', params: { name: 'Otter' } },
+    ]);
+    const unnamed = { ...fathom, notetaker: null };
+    const forwarded = { ...otter, notetaker: undefined };
+    expect(copyLabels([unnamed, forwarded, { ...forwarded, summaryId: 'e'.repeat(64) }])).toEqual([
+      { key: 'summaries:meeting.copyNamed', params: { name: 'fathom.video' } },
+      { key: 'summaries:meeting.copyForwardedNumbered', params: { number: '1' } },
+      { key: 'summaries:meeting.copyForwardedNumbered', params: { number: '2' } },
+    ]);
+  });
 });

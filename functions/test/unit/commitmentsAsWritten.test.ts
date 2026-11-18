@@ -50,7 +50,7 @@ describe('asWrittenProposals', () => {
     for (const c of list) expect(SPEC.text.slice(c.quoteStart, c.quoteEnd)).toBe(itemOf(SPEC, SPEC.text.slice(c.quoteStart, c.quoteStart + 12)).text);
   });
 
-  it('removes the owner, waiting-on and due markers from titles; reads only an absolute date in the due text', () => {
+  it('removes the owner, waiting-on and due markers from titles; reads the due words by code (resolveDue), within bounds', () => {
     const text = [
       'Sync',
       '',
@@ -63,8 +63,10 @@ describe('asWrittenProposals', () => {
     const list = asWritten(text);
     expect(list.map((c) => [c.title, c.due?.date ?? null, c.due?.time ?? null, c.ownerRole])).toEqual([
       ['Bish: Send the deck', '2026-11-20', '15:00', 'other'],
-      ['Bish: Book the venue', null, null, 'other'],
-      ['Draft the FAQ', null, null, 'me'],
+      // "Friday" is the first Friday after the meeting's Thursday; "Nov 21" is this year's.
+      ['Bish: Book the venue', '2026-10-16', null, 'other'],
+      ['Draft the FAQ', '2026-11-21', null, 'me'],
+      // Past the 400-day bound: no date.
       ['Order badges', null, null, 'none'],
     ]);
     const source = parsed(text);
@@ -237,3 +239,45 @@ describe('asWrittenProposals: bulleted owner groups (Fathom Next Steps)', () => 
     ]);
   });
 });
+
+describe('asWrittenProposals: Fathom recap shape', () => {
+  // Fathom's Next Steps name the owner before a colon and the due day after an arrow, and its
+  // Action Items say the same tasks again in other words.
+  const FATHOM = [
+    'Fathom Test 3',
+    '',
+    '## Next Steps',
+    '- Dusco: Fix login page bug \u2192 Due Wednesday.',
+    '- Mary: Test Fathom integration (content & delivery) \u2192 Due Thursday.',
+    '- All: Share progress updates in the team chat.',
+    '',
+    '## Action Items',
+    '- Fix login page issue',
+    '- Test Fathom integration: summaries, metadata, ownership/deadlines; post updates',
+    '- Order the new badges',
+  ].join('\n');
+
+  it('reads the owner before the colon and the due day after the arrow, out of the title', () => {
+    const list = asWritten(FATHOM);
+    const dusco = list.find((c) => c.title.startsWith('Dusco'));
+    expect(dusco).toMatchObject({ title: 'Dusco: Fix login page bug', owner: 'Dusco', ownerRole: 'other' });
+    // The meeting's Thursday: the next Wednesday.
+    expect(dusco?.due?.date).toBe('2026-10-21');
+    const mary = list.find((c) => c.title.startsWith('Mary'));
+    expect(mary).toMatchObject({ title: 'Mary: Test Fathom integration (content & delivery)', owner: 'Mary' });
+    expect(mary?.due?.date).toBe('2026-10-22');
+    // "All" is nobody's name.
+    expect(list.find((c) => c.title.startsWith('All') || c.title.startsWith('Share'))).toMatchObject({ title: 'All: Share progress updates in the team chat.', owner: null });
+  });
+
+  it('one task said in two sections is one suggestion, the one with the owner and the due day', () => {
+    const titles = asWritten(FATHOM).map((c) => c.title);
+    expect(titles).toEqual([
+      'Dusco: Fix login page bug',
+      'Mary: Test Fathom integration (content & delivery)',
+      'All: Share progress updates in the team chat.',
+      'Order the new badges',
+    ]);
+  });
+});
+

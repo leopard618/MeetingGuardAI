@@ -41,6 +41,8 @@ import { makeSummaryRead } from './readFunction';
 import { makeSummaryCommitments } from './commitmentsFunction';
 // M11 (docs/v2/M11-DESIGN.md section 4.3): the summaryWhatsApp worker shell; it loads nothing heavy at load.
 import { makeSummaryWhatsApp } from './whatsappFunction';
+// Connect Fathom (docs/v2/FATHOM-CONNECT.md): the shells; the handlers load on the first request.
+import { fathomEnabledAtLoad, makeFathomConnect, makeFathomOAuth, makeFathomWebhook } from './fathom/functions';
 
 export { summaryError } from './callables';
 export { summariesEnabledAtLoad } from './gate';
@@ -139,3 +141,20 @@ export const summaryCommitments = makeSummaryCommitments();
  * (./whatsappFunction.ts).
  */
 export const summaryWhatsApp = makeSummaryWhatsApp();
+
+// ---------------------------------------------------------------------------------------------
+// Connect Fathom (docs/v2/FATHOM-CONNECT.md): exported only while SUMMARIES_ENABLED is true AND
+// FATHOM_CLIENT_ID is set in functions/.env.<projectId> at deploy time. fathomConnect and
+// fathomOAuth bind FATHOM_CLIENT_SECRET and SUMMARIES_DATA_KEY; fathomWebhook binds the data key.
+// ---------------------------------------------------------------------------------------------
+
+const fathomOn = fathomEnabledAtLoad();
+
+/** fathomConnect {op: 'status' | 'start' | 'disconnect'} -> {status, authorizeUrl, remoteRemoved}. */
+export const fathomConnect = fathomOn ? makeFathomConnect() : undefined;
+
+/** The redirect URI registered with Fathom: exchanges the code and creates the user's webhook. */
+export const fathomOAuth = fathomOn ? makeFathomOAuth() : undefined;
+
+/** Fathom's signed deliveries (new meeting content ready), one URL per connected user. */
+export const fathomWebhook = fathomOn ? makeFathomWebhook() : undefined;

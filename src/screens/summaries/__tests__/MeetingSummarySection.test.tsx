@@ -169,6 +169,23 @@ it('shows each summary with its title, received time, origin chip and occurrence
   expect(navigationRef.getCurrentRoute()).toMatchObject({ name: 'SummaryView', params: { summaryId: ID_A } });
 });
 
+it('two notetakers for the same meeting: one row with a badge each, opening the notetaker copy', async () => {
+  const otter: SummaryListItem = { ...ROW, summaryId: 'c'.repeat(64), title: 'Weekly sync', tier: 'user_forwarded', senderDomain: null, receivedAt: '2026-10-16T20:10:00.000Z', notetaker: 'Otter' };
+  mockItems = [otter, { ...ROW, notetaker: 'Fathom' }];
+  await renderSection();
+  await waitFor(() => expect(screen.getByTestId('meeting-summaries-m1')).toBeTruthy());
+  // One meeting, so one summary: the notetaker-signed copy leads even though Otter's came first.
+  expect(screen.getByText('Notetaker summary')).toBeTruthy();
+  expect(screen.queryByText('Weekly sync')).toBeNull();
+  expect(screen.getByTestId(`meeting-summary-${ID_A}-copy-0`)).toBeTruthy();
+  expect(screen.getByText('Fathom')).toBeTruthy();
+  expect(screen.getByText('Otter')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId(`meeting-summary-${ID_A}`));
+  });
+  expect(navigationRef.getCurrentRoute()).toMatchObject({ name: 'SummaryView', params: { summaryId: ID_A } });
+});
+
 it('stays hidden when nothing is filed here or summaryRead is not deployed', async () => {
   mockItems = [];
   await renderSection();

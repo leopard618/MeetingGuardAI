@@ -9,7 +9,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
-import { Alert, Text, type AlertButton } from 'react-native';
+import { Alert, Text, View, type AlertButton } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
@@ -192,7 +192,8 @@ async function renderInbox() {
     <I18nProvider>
       <PaperProvider>
         <NavigationContainer>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {/* The header renders only the screen's headerRight (the settings gear), like the app header's actions. */}
+          <Stack.Navigator screenOptions={{ header: ({ options }) => <View>{options.headerRight?.({ canGoBack: true })}</View> }}>
             <Stack.Screen name="SummaryInbox" component={SummaryInboxScreen} />
             <Stack.Screen name="SummaryView" component={MockView as never} />
             <Stack.Screen name="SummaryConnect" component={MockConnect} />
@@ -380,17 +381,28 @@ it('shows the refused days once opened', async () => {
   expect(screen.queryByTestId('summary-inbox-refused-list')).toBeNull();
 });
 
-it('shows the empty state with the way to setup when nothing waits and nothing was filed', async () => {
+it('shows the empty state when nothing waits and nothing was filed; the header gear opens the settings', async () => {
   lists = { inbox: [], recent: [], refused: [], meeting: [] };
   await renderInbox();
   expect(await screen.findByTestId('summary-inbox-empty')).toBeTruthy();
   expect(screen.getByText('No summaries yet')).toBeTruthy();
+  expect(screen.getByText('When a summary arrives from Fathom or another notetaker, it is filed under its meeting or waits here.')).toBeTruthy();
+  // Setup lives behind the gear in the header now, not in a button on the screen.
+  expect(screen.queryByText('Set up forwarding')).toBeNull();
   // Refused stays reachable: it is often why nothing arrived.
   expect(screen.getByTestId('summary-inbox-refused')).toBeTruthy();
+  expect(screen.getByTestId('summary-inbox-settings').props.accessibilityLabel).toBe('Summary settings');
   await act(async () => {
-    fireEvent.press(screen.getByText('Set up forwarding'));
+    fireEvent.press(screen.getByTestId('summary-inbox-settings'));
   });
   expect(await screen.findByText('connect screen')).toBeTruthy();
+});
+
+it('has no setup row at the bottom of the lists', async () => {
+  await renderInbox();
+  await screen.findByText('Hiring sync');
+  expect(screen.queryByTestId('summary-inbox-setup')).toBeNull();
+  expect(screen.queryByText('Address and setup')).toBeNull();
 });
 
 it('pull to refresh asks the inbox (re-match) before the other views', async () => {

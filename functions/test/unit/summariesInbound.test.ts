@@ -880,6 +880,8 @@ describe('rows 7 to 10: stored summaries', () => {
     expect(body.text.startsWith('Urpayroll weekly sync')).toBe(true);
     expect(body.text).not.toContain('Pizza');
     expect(body.forwardedBy).toBe(USER_MAILBOX);
+    // The wrapper From is an accepted notetaker: the copy names it (plain domain) for the app.
+    expect((doc as StoredSummaryDoc & { notetakerDomain?: string }).notetakerDomain).toBe(VENDOR_ADDRESS.slice(VENDOR_ADDRESS.indexOf('@') + 1));
   });
 
   it('row 10: the same forward with an attached message fails closed while SUMMARIES_SENDERS is empty or lists someone else', async () => {

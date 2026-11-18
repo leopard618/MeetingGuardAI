@@ -68,7 +68,7 @@ import type { DNSResolver } from 'mailauth';
 
 import { isPassSig, type MailAuthResult } from '../mail/auth';
 import { parseMailDate, type HeaderFacts } from '../mail/headers';
-import { SUMMARY_LIMITS, type SummaryRefusedReason, type SummaryTier as ContractSummaryTier } from '../shared/aiContract';
+import { SUMMARY_LIMITS, summaryDomainSchema, type SummaryRefusedReason, type SummaryTier as ContractSummaryTier } from '../shared/aiContract';
 import { SealedError, parseKeyring, type Keyring } from '../shared/sealed';
 import { isValidTimeZone, zonedDateTimeToUtcIso } from '../shared/time';
 import { normalizeMailbox, parseAddressTemplate, readSummaryUser, resolveToken, tok8, tokenFromEnvelope, tokenHash } from './address';
@@ -593,7 +593,8 @@ async function storeSummary(
   if (text.trim().length === 0) return refuse(ctx, 'unreadable', classification.senderDomain, body.fromHtml ? 'html_only' : 'empty_text');
   const sections = parseSections(text);
   if (sections.sections.length === 0) return refuse(ctx, 'unreadable', classification.senderDomain, body.fromHtml ? 'html_only' : 'no_sections');
-  const meta = extractSummaryMeta(text, mime.subject);
+  // The arrival dates a year-less recap date (Otter writes "Nov 17, 11:14 pm").
+  const meta = extractSummaryMeta(text, mime.subject, { referenceDate: ctx.receivedAt });
   const subjectLine = sanitizeLine(mime.subject, SUMMARY_LIMITS.maxSubjectChars);
   const subject = subjectLine.length > 0 ? subjectLine : null;
 
@@ -672,12 +673,18 @@ async function storeSummary(
     now: ctx.attemptAt,
   });
 
+  // A hand forward of an accepted notetaker's mail names that notetaker (its domain, plain), so
+  // the app can tell two notetakers' copies of one meeting apart.
+  const forwardedFrom = storingRow === 10 && wrapperIsNotetaker(inner?.wrapper ?? null, ctx.senders) ? (inner?.wrapper?.fromAddress ?? null) : null;
+  const notetakerDomain = forwardedFrom !== null ? forwardedFrom.slice(forwardedFrom.lastIndexOf('@') + 1) : null;
+  const doc = notetakerDomain !== null && summaryDomainSchema.safeParse(notetakerDomain).success ? { ...built.doc, notetakerDomain } : built.doc;
+
   run.stage = 'commit';
   const result = await commitSummary(deps.db, {
     uid,
     tokenHash: ctx.hash,
     summaryId,
-    doc: built.doc,
+    doc,
     reseal: built.reseal,
     claimMarkers: built.claimMarkers,
     messageIdMarkerKey: messageMarkerKey(uid, messageKey),

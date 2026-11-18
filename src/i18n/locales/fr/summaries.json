@@ -277,7 +277,14 @@
       "deleting": "Suppression : immédiate dans notre base de données active, sous 21 jours dans les sauvegardes ; la copie de notre fournisseur d'e-mail après {{providerDays}} jours ; l'original reste dans votre boîte mail.",
       "openai": "Lorsque vous demandez des suggestions, le texte du compte rendu est envoyé à OpenAI via notre serveur.",
       "copies": "Copies hors de notre base de données : le rappel d'une tâche affiche son titre sur votre écran de verrouillage comme toute tâche ; sur WhatsApp, la liste et les phrases qu'elle cite restent dans votre conversation, dans les aperçus de ses notifications et dans vos sauvegardes WhatsApp jusqu'à ce que vous les y supprimiez ; une synchronisation To Do ou Google Tasks copie la tâche. Supprimer le compte rendu ou vous déconnecter n'affecte pas ces copies."
-    }
+    },
+    "email": {
+      "title": "Autres assistants de prise de notes (e-mail)",
+      "body": "Otter et les autres assistants : transférez vers votre adresse privée l'e-mail de compte rendu qu'ils vous envoient.",
+      "show": "Afficher la configuration par e-mail",
+      "hide": "Masquer la configuration par e-mail"
+    },
+    "inboxRow": "Boîte de réception des comptes rendus"
   },
   "inbox": {
     "waiting": {
@@ -310,9 +317,10 @@
     "openSetup": "Adresse et configuration",
     "empty": {
       "title": "Aucun compte rendu pour l'instant",
-      "body": "Quand le compte rendu de votre assistant de prise de notes arrive à votre adresse privée, il est classé sous sa réunion ou attend ici.",
+      "body": "Quand un compte rendu arrive de Fathom ou d'un autre assistant de prise de notes, il est classé sous sa réunion ou attend ici.",
       "action": "Configurer le transfert"
-    }
+    },
+    "settings": "Paramètres des comptes rendus"
   },
   "attach": {
     "title": "Choisir une réunion",
@@ -378,14 +386,22 @@
     "reviewCount": "Examiner les engagements ({{count}})",
     "retentionLink": "Durée de conservation des comptes rendus",
     "keptUntil": "Ce compte rendu est conservé jusqu'au {{date}}.",
-    "truncatedHint": "Seule la première partie a été conservée à son arrivée. L'e-mail d'origine reste dans votre propre boîte mail."
+    "truncatedHint": "Seule la première partie a été conservée à son arrivée. L'e-mail d'origine reste dans votre propre boîte mail.",
+    "copiesNote_one": "{{count}} assistant de prise de notes a envoyé un compte rendu de cette réunion.",
+    "copiesNote_other": "{{count}} assistants de prise de notes ont envoyé un compte rendu de cette réunion.",
+    "copiesLabel": "Comptes rendus de cette réunion",
+    "copyTab": "Voir le compte rendu de {{name}}"
   },
   "meeting": {
     "title_one": "Compte rendu de l'assistant de prise de notes",
     "title_other": "Comptes rendus de l'assistant de prise de notes",
     "received": "Reçu {{time}}",
     "occurrence": "Pour la réunion du {{date}}",
-    "open": "Ouvrir le compte rendu {{title}}"
+    "open": "Ouvrir le compte rendu {{title}}",
+    "copyNamed": "{{name}}",
+    "copyNamedNumbered": "{{name}} {{number}}",
+    "copyForwarded": "Copie transférée",
+    "copyForwardedNumbered": "Copie transférée {{number}}"
   },
   "commitments": {
     "title": "Tâches suggérées",
@@ -673,5 +689,38 @@
       "generic": "Un problème est survenu. Réessayez.",
       "retry": "Réessayer"
     }
+  },
+  "fathom": {
+    "title": "Connecter Fathom",
+    "recommended": "Recommandé",
+    "body": "Connectez-vous à Fathom une seule fois. Après chaque réunion enregistrée par Fathom, le compte rendu arrive ici tout seul et est classé sous la bonne réunion.",
+    "connect": "Connecter Fathom",
+    "note": "Nous lisons uniquement le compte rendu et les actions, jamais l'enregistrement ni la transcription. Fathom rédige ses comptes rendus en anglais.",
+    "connectedTitle": "Fathom est connecté",
+    "connectedBody": "Les nouveaux comptes rendus arrivent tout seuls après chaque réunion enregistrée par Fathom.",
+    "connectedSince": "Connecté {{time}}",
+    "lastSummary": "Dernier compte rendu {{time}}",
+    "noSummaryYet": "Aucun compte rendu pour le moment. La prochaine réunion enregistrée par Fathom apparaîtra ici.",
+    "forwardHint": "Si vous transférez les e-mails de Fathom vers votre adresse privée, vous pouvez arrêter : les comptes rendus de Fathom arrivent tout seuls.",
+    "disconnect": "Déconnecter Fathom",
+    "disconnectTitle": "Déconnecter Fathom ?",
+    "disconnectBody": "Les nouveaux comptes rendus de Fathom n'arriveront plus. Ceux que vous avez déjà restent.",
+    "disconnectConfirm": "Déconnecter",
+    "cancel": "Annuler",
+    "connected": "Fathom est connecté.",
+    "disconnected": "Fathom est déconnecté.",
+    "remoteNotRemoved": "Nous n'avons pas pu joindre Fathom. Vous pouvez supprimer le webhook dans API Access, dans les paramètres de Fathom.",
+    "errors": {
+      "expired": "La connexion à Fathom a pris trop de temps. Réessayez.",
+      "not_allowed": "Connecter Fathom n'est pas encore disponible pour ce compte.",
+      "fathom_refused": "Fathom n'a pas accepté la connexion. Réessayez.",
+      "fathom_unavailable": "Fathom ne répond pas pour le moment. Réessayez plus tard.",
+      "server_error": "Un problème est survenu lors de la connexion à Fathom. Réessayez."
+    }
+  },
+  "help": {
+    "title": "Fonctionnement des comptes rendus",
+    "open": "Aide",
+    "close": "Fermer"
   }
 }

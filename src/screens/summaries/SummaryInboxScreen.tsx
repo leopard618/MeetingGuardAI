@@ -9,8 +9,12 @@
  * - "Filed recently": filed and kept summaries, each opening SummaryView.
  * - "Refused": collapsed; opened, one row per day with a count, the latest reason and the
  *   verified sender domain. Loaded only when opened (refused rows hold no content).
- * - "Address and setup" opens SummaryConnect.
+ * - The gear in the header (next to the language menu) opens SummaryConnect, the summaries
+ *   settings.
  * Pull to refresh asks the inbox again (the server re-matches it first), then the other views.
+ * Connect Fathom (FATHOM-CONNECT.md section 9): on open, and forced on every pull, the server is
+ * asked to sync the caller's recent Fathom recordings first (a no-op without a connection), so a
+ * delivery Fathom never sent still shows up here.
  * The inbox is asked before "Filed recently" on every visit, so a summary the re-match files
  * shows up there instead of vanishing from both lists.
  *
@@ -26,12 +30,13 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { HeaderIconButton } from '../../components/CustomHeader';
 import {
   Badge,
   Banner,
@@ -56,6 +61,7 @@ import {
   useSummaryList,
   useSummaryStatus,
 } from '../../services/summaries';
+import { fathomService } from '../../services/summaries/fathom';
 import { componentMetrics, spacing, useAppTheme } from '../../theme';
 import { useFormatters } from '../shared/useFormatters';
 import { AttachMeetingSheet, type AttachMeetingTarget } from './AttachMeetingSheet';
@@ -133,6 +139,8 @@ export function SummaryInboxScreen(): ReactElement {
   const refreshAll = useCallback(async (): Promise<void> => {
     setPulling(true);
     try {
+      // Fathom first: what it stores is then in the lists below.
+      await fathomService.sync({ force: true });
       await refreshStatus();
       // The inbox first: it re-matches, and a re-match can file a summary.
       await refreshWaiting();
@@ -141,6 +149,20 @@ export function SummaryInboxScreen(): ReactElement {
       if (mounted.current) setPulling(false);
     }
   }, [refreshStatus, refreshWaiting, refreshRecent, refreshRefused, refusedOpen]);
+
+  // On open: a Fathom sync (best effort); new summaries make the lists ask again.
+  useEffect(() => {
+    if (!available) return undefined;
+    let active = true;
+    void fathomService.sync().then((outcome) => {
+      if (active && outcome !== null && outcome.imported > 0) {
+        void refreshWaiting().then(() => refreshRecent());
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [available, refreshWaiting, refreshRecent]);
 
   const run = useCallback(
     async (summaryId: string, action: string, work: () => Promise<unknown>, done: string): Promise<void> => {
@@ -188,7 +210,16 @@ export function SummaryInboxScreen(): ReactElement {
   };
 
   const openSummary = (summaryId: string): void => navigation.navigate('SummaryView', { summaryId });
-  const openSetup = (): void => navigation.navigate('SummaryConnect');
+
+  // Settings: the gear next to the language menu opens the Meeting summaries settings.
+  const settingsLabel = t('summaries:inbox.settings');
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderIconButton icon="settings" label={settingsLabel} onPress={() => navigation.navigate('SummaryConnect')} testID="summary-inbox-settings" />
+      ),
+    });
+  }, [navigation, settingsLabel]);
 
   const refusedSection = (
     <RefusedSection
@@ -228,7 +259,6 @@ export function SummaryInboxScreen(): ReactElement {
           icon="email-outline"
           title={t('summaries:inbox.empty.title')}
           body={t('summaries:inbox.empty.body')}
-          action={{ label: t('summaries:inbox.empty.action'), onPress: openSetup }}
           testID="summary-inbox-empty"
         />
         {refusedSection}
@@ -318,16 +348,6 @@ export function SummaryInboxScreen(): ReactElement {
         ) : null}
 
         {refusedSection}
-
-        <ListGroup style={styles.setup}>
-          <ListRow
-            icon="cog-outline"
-            title={t('summaries:inbox.openSetup')}
-            trailing="chevron"
-            onPress={openSetup}
-            testID="summary-inbox-setup"
-          />
-        </ListGroup>
       </>
     );
   }
@@ -601,8 +621,5 @@ const styles = StyleSheet.create({
   inlineRetry: {
     alignSelf: 'flex-start',
     marginTop: spacing.xs,
-  },
-  setup: {
-    marginTop: spacing.xxl,
   },
 });

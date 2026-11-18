@@ -105,6 +105,7 @@ import {
   commitPreparation,
   decideCommitments,
   readExistingTasks,
+  readMeetingTaskTitles,
   readSimilarTextKeys,
   recordModelCall,
   settleFailedPreparation,
@@ -441,6 +442,10 @@ async function writeView(
     ctx.log.warn('summaries.commitments.similar_unread', { uid: ctx.uid, errorName: errorName(error) });
     return new Set<string>();
   });
+  const similarTitles = await readMeetingTaskTitles(ctx.db, loaded.ref, loaded.matchStamp.meetingId).catch((error: unknown) => {
+    ctx.log.warn('summaries.commitments.similar_titles_unread', { uid: ctx.uid, errorName: errorName(error) });
+    return [] as string[];
+  });
   return commitPreparation(ctx.db, {
     ref: loaded.ref,
     contentDigest: loaded.stamp.contentDigest,
@@ -462,6 +467,7 @@ async function writeView(
         matchStamp: loaded.matchStamp,
         preselect: loaded.preselect,
         similarTextKeys,
+        similarTitles,
         leaseId,
       }),
   });

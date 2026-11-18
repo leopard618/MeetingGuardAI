@@ -20,6 +20,7 @@ rules_version = '2';
 //   summaryAddresses/{tokenHash}       M10 address index  server only (no client access at all)
 //   summaryUsers/{uid}                 M10 address state  server only (no client access at all)
 //   summaryEvents/{eventId}            M10 dedupe markers server only (no client access at all)
+//   fathomConnections, fathomHooks, fathomOAuthStates  Connect Fathom, server only (no client access at all)
 //   matterAddresses, matterMessageIds, inboundEmails     server only (no client access at all)
 //   matterSchedule, matterReadQueue (A2)                 server only (no client access at all)
 //   everything else                                       denied
@@ -525,6 +526,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /summaryEvents/{eventId} {
+      allow read, write: if false;
+    }
+    // Connect Fathom (docs/v2/FATHOM-CONNECT.md): the sealed tokens of a connection, the per-user
+    // webhook URL index and pending authorizations. Written and read ONLY by the fathom* functions
+    // (Admin SDK). Explicit so the catch-all below is not load-bearing.
+    match /fathomConnections/{uid} {
+      allow read, write: if false;
+    }
+    match /fathomHooks/{hookHash} {
+      allow read, write: if false;
+    }
+    match /fathomOAuthStates/{stateHash} {
       allow read, write: if false;
     }
 

@@ -277,7 +277,14 @@
       "deleting": "Exclusão: imediata do nosso banco de dados ativo, dos backups em até 21 dias; a cópia do nosso provedor de e-mail após {{providerDays}} dias; o original continua na sua caixa de e-mail.",
       "openai": "Quando você pede sugestões, o texto do resumo é enviado à OpenAI pelo nosso servidor.",
       "copies": "Cópias fora do nosso banco de dados: o lembrete de uma tarefa mostra o título dela na tela de bloqueio, como qualquer tarefa; no WhatsApp, a lista e as frases que ela cita ficam na sua conversa, nas prévias de notificação e nos seus backups do WhatsApp até você excluí-las lá; uma sincronização com o To Do ou o Google Tasks copia a tarefa. Excluir o resumo ou desconectar não afeta essas cópias."
-    }
+    },
+    "email": {
+      "title": "Outros assistentes de anotações (e-mail)",
+      "body": "Otter e outros assistentes de anotações: encaminhe para o seu endereço privado o e-mail com o resumo que eles enviam para você.",
+      "show": "Mostrar a configuração por e-mail",
+      "hide": "Ocultar a configuração por e-mail"
+    },
+    "inboxRow": "Caixa de entrada de resumos"
   },
   "inbox": {
     "waiting": {
@@ -310,9 +317,10 @@
     "openSetup": "Endereço e configuração",
     "empty": {
       "title": "Nenhum resumo ainda",
-      "body": "Quando o resumo do seu assistente de anotações chegar ao seu endereço privado, ele será arquivado na reunião correspondente ou aguardará aqui.",
+      "body": "Quando um resumo chegar do Fathom ou de outro assistente de anotações, ele será arquivado na reunião correspondente ou aguardará aqui.",
       "action": "Configurar o encaminhamento"
-    }
+    },
+    "settings": "Configurações de resumos"
   },
   "attach": {
     "title": "Escolher uma reunião",
@@ -378,14 +386,22 @@
     "reviewCount": "Revisar compromissos ({{count}})",
     "retentionLink": "Por quanto tempo guardamos os resumos",
     "keptUntil": "Este resumo será guardado até {{date}}.",
-    "truncatedHint": "Apenas a primeira parte foi guardada quando ele chegou. O e-mail original continua na sua própria caixa de e-mail."
+    "truncatedHint": "Apenas a primeira parte foi guardada quando ele chegou. O e-mail original continua na sua própria caixa de e-mail.",
+    "copiesNote_one": "{{count}} assistente de anotações enviou um resumo desta reunião.",
+    "copiesNote_other": "{{count}} assistentes de anotações enviaram um resumo desta reunião.",
+    "copiesLabel": "Resumos desta reunião",
+    "copyTab": "Ver o resumo de {{name}}"
   },
   "meeting": {
     "title_one": "Resumo do assistente de anotações",
     "title_other": "Resumos do assistente de anotações",
     "received": "Recebido {{time}}",
     "occurrence": "Para a reunião de {{date}}",
-    "open": "Abrir o resumo {{title}}"
+    "open": "Abrir o resumo {{title}}",
+    "copyNamed": "{{name}}",
+    "copyNamedNumbered": "{{name}} {{number}}",
+    "copyForwarded": "Cópia encaminhada",
+    "copyForwardedNumbered": "Cópia encaminhada {{number}}"
   },
   "commitments": {
     "title": "Tarefas sugeridas",
@@ -673,5 +689,38 @@
       "generic": "Algo deu errado. Tente novamente.",
       "retry": "Tentar novamente"
     }
+  },
+  "fathom": {
+    "title": "Conectar o Fathom",
+    "recommended": "Recomendado",
+    "body": "Entre no Fathom uma única vez. Depois de cada reunião que o Fathom grava, o resumo chega aqui sozinho e é arquivado na reunião certa.",
+    "connect": "Conectar o Fathom",
+    "note": "Lemos apenas o resumo e as tarefas, nunca a gravação nem a transcrição. O Fathom escreve os resumos em inglês.",
+    "connectedTitle": "O Fathom está conectado",
+    "connectedBody": "Os novos resumos chegam sozinhos depois de cada reunião que o Fathom grava.",
+    "connectedSince": "Conectado {{time}}",
+    "lastSummary": "Último resumo {{time}}",
+    "noSummaryYet": "Ainda não há resumos. A próxima reunião que o Fathom gravar aparece aqui.",
+    "forwardHint": "Se você encaminha os e-mails do Fathom para o seu endereço privado, já pode parar: os resumos do Fathom chegam sozinhos.",
+    "disconnect": "Desconectar o Fathom",
+    "disconnectTitle": "Desconectar o Fathom?",
+    "disconnectBody": "Os novos resumos do Fathom deixam de chegar. Os resumos que você já tem continuam.",
+    "disconnectConfirm": "Desconectar",
+    "cancel": "Cancelar",
+    "connected": "O Fathom está conectado.",
+    "disconnected": "O Fathom está desconectado.",
+    "remoteNotRemoved": "Não conseguimos falar com o Fathom. Você pode remover o webhook em API Access, nas configurações do Fathom.",
+    "errors": {
+      "expired": "O login no Fathom demorou demais. Tente de novo.",
+      "not_allowed": "Conectar o Fathom ainda não está disponível para esta conta.",
+      "fathom_refused": "O Fathom não aceitou o login. Tente de novo.",
+      "fathom_unavailable": "O Fathom não está respondendo agora. Tente mais tarde.",
+      "server_error": "Algo deu errado ao conectar o Fathom. Tente de novo."
+    }
+  },
+  "help": {
+    "title": "Como funcionam os resumos",
+    "open": "Ajuda",
+    "close": "Fechar"
   }
 }

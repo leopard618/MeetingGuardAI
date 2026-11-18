@@ -20,6 +20,9 @@
  * Plain Text only: no WebView, no HTML renderer; links, email addresses and phone numbers are
  * never tappable, and nothing from the summary is logged (failures reach the user as i18n
  * messages only). Strings: summaries:view.*, summaries:common.*.
+ * Several notetakers (Fathom and Otter both sent one for this meeting): tabs under the title switch
+ * between the copies filed under the same meeting occurrence (the meeting's list, cached by the
+ * service; summaryCopiesOf), each tab named by its notetaker. Switching sets the route's summaryId.
  * M11 (M11-DESIGN.md sections 3.1 and 5): "Review commitments" under the title of a filed or kept
  * summary (route SummaryCommitments { summaryId }, with the row's open count and facts); "Only the
  * first part was kept" under the cut-short notice when summaryRead says truncated; and "This
@@ -30,14 +33,14 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactElement } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Chip, Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Badge, Card, EmptyState, ErrorState, LoadingState, MGButton, SectionHeader } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { toAppError } from '../../core/errors';
 import { useT } from '../../i18n';
-import { summariesService, useSummary, useSummaryStatus } from '../../services/summaries';
+import { summariesService, useSummary, useSummaryList, useSummaryStatus } from '../../services/summaries';
 import { componentMetrics, spacing, useAppTheme } from '../../theme';
 import { copyText } from '../settings/whatsappConnectModel';
 import { ScreenBody } from '../shared/Section';
@@ -50,6 +53,7 @@ import { summaryKeptUntil } from './summaryRetentionModel';
 import { SUMMARY_PROVIDER_RETENTION_DAYS, summaryErrorMessageKey } from './summaryText';
 import {
   attachTargetFor,
+  copyLabels,
   hasPlainLinks,
   inboxReasonLineKey,
   looksTruncated,
@@ -57,6 +61,7 @@ import {
   originChip,
   originLines,
   summaryDateLine,
+  summaryCopiesOf,
   summaryItemView,
   summaryTitle,
   summaryViewActions,
@@ -79,6 +84,10 @@ export function SummaryViewScreen({ navigation, route }: Props): ReactElement {
   const fmt = useFormatters();
   const { status, available, error: statusError, refresh: refreshStatus } = useSummaryStatus();
   const { summary, error, loading, refresh } = useSummary(summaryId, { enabled: available });
+  // Other notetakers' copies of the same meeting (the meeting's list; Meeting details asked it first).
+  const copiesMeetingId = summary !== null && summary.status === 'matched' && summary.match !== null ? summary.match.meetingId : null;
+  const meetingList = useSummaryList('meeting', copiesMeetingId, { enabled: available && copiesMeetingId !== null });
+  const copies = summaryCopiesOf(meetingList.items, summaryId);
   const [busy, setBusy] = useState<Busy>(null);
   const [attachTarget, setAttachTarget] = useState<AttachMeetingTarget | null>(null);
   /** M11: the "How long we keep summaries" lines are shown (screen state only). */
@@ -255,6 +264,8 @@ export function SummaryViewScreen({ navigation, route }: Props): ReactElement {
         </Text>
         {chip !== null ? <Badge label={t(chip.key)} tone={chip.tone} style={styles.chip} testID="summary-view-chip" /> : null}
       </View>
+
+      {copies.length > 1 ? <CopyTabs copies={copies} summaryId={summaryId} onSelect={(id) => navigation.setParams({ summaryId: id })} /> : null}
 
       {/* M11 (M11-DESIGN.md section 3.1): "Review commitments" at the top, under the title. */}
       {reviewEntry !== null ? (
@@ -542,7 +553,63 @@ function IconLine({
   );
 }
 
+/** The notetakers' copies of this meeting as tabs, the current one selected. */
+function CopyTabs({
+  copies,
+  summaryId,
+  onSelect,
+}: {
+  copies: Parameters<typeof copyLabels>[0];
+  summaryId: string;
+  onSelect(summaryId: string): void;
+}): ReactElement {
+  const t = useT();
+  const { colors } = useAppTheme();
+  const labels = copyLabels(copies);
+  return (
+    <View style={styles.copies} testID="summary-view-copies">
+      <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+        {t('summaries:view.copiesNote', { count: copies.length })}
+      </Text>
+      <View style={styles.copyChips} accessibilityRole="tablist" accessibilityLabel={t('summaries:view.copiesLabel')}>
+        {copies.map((copy, index) => {
+          const ref = labels[index];
+          const label = ref !== undefined ? t(ref.key, ref.params) : t('summaries:meeting.copyForwarded');
+          const selected = copy.summaryId === summaryId;
+          return (
+            <Chip
+              key={copy.summaryId}
+              compact
+              selected={selected}
+              showSelectedCheck={false}
+              mode={selected ? 'flat' : 'outlined'}
+              onPress={() => {
+                if (!selected) onSelect(copy.summaryId);
+              }}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              accessibilityLabel={t('summaries:view.copyTab', { name: label })}
+              testID={`summary-view-copy-${index}`}
+            >
+              {label}
+            </Chip>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  copies: {
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  copyChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
   flex: {
     flex: 1,
   },

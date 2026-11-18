@@ -119,6 +119,23 @@ function markerLive(snapshot: DocumentSnapshot, nowMs: number): boolean {
   return expires === null || expires > nowMs;
 }
 
+/**
+ * Whether a copy keyed by `messageKey` is already handled, read before fetching it again (the
+ * Fathom sync): its summary exists, its Message-ID marker is live (claimed by a stored copy, also
+ * one that upgraded an email copy under another id), or the user deleted it (a live deletion
+ * marker). commitSummary decides the same on its own; this only saves the fetch.
+ */
+export async function summaryKnown(db: Firestore, uid: string, summaryId: string, messageIdMarkerKey: string, now: Date): Promise<boolean> {
+  assertUid(uid);
+  const nowMs = now.getTime();
+  const [own, message, deletion] = await Promise.all([
+    summaryRef(db, uid, summaryId).get(),
+    eventRef(db, messageIdMarkerKey).get(),
+    eventRef(db, deletionMarkerKey(uid, summaryId)).get(),
+  ]);
+  return own.exists || markerLive(message, nowMs) || markerLive(deletion, nowMs);
+}
+
 /** ALREADY_EXISTS from create() (gRPC code 6, or its string forms). */
 export function isAlreadyExists(error: unknown): boolean {
   const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;

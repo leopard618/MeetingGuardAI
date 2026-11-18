@@ -298,6 +298,44 @@ export async function readSimilarTextKeys(db: Firestore, ref: SummaryRef, meetin
   return keys;
 }
 
+/** At most this many accepted tasks are read for similar titles. */
+export const SIMILAR_TASK_SCAN_LIMIT = 50;
+
+/**
+ * The titles of the tasks accepted from OTHER summaries filed under the same meeting (their
+ * decisions keep the task id) that still exist. Another notetaker words the same commitment
+ * differently, so its text key never matches; nextExtraction compares these titles instead.
+ * Empty without a meeting.
+ */
+export async function readMeetingTaskTitles(db: Firestore, ref: SummaryRef, meetingId: string | null): Promise<string[]> {
+  if (meetingId === null || !MEETING_ID_PATTERN.test(meetingId)) return [];
+  const snapshot = await summariesCollection(db, ref.uid)
+    .where('match.meetingId', '==', meetingId)
+    .select('status', 'extraction.decisions')
+    .limit(SIMILAR_SCAN_LIMIT + 1)
+    .get();
+  const taskIds = new Set<string>();
+  for (const document of snapshot.docs) {
+    if (document.id === ref.summaryId) continue;
+    const data = (document.data() ?? {}) as { status?: unknown; extraction?: { decisions?: unknown } };
+    if (data.status !== 'matched' || !Array.isArray(data.extraction?.decisions)) continue;
+    for (const entry of data.extraction.decisions as unknown[]) {
+      const decision = entry as { s?: unknown; taskId?: unknown };
+      if (decision.s === 'accepted' && typeof decision.taskId === 'string' && MEETING_ID_PATTERN.test(decision.taskId)) taskIds.add(decision.taskId);
+      if (taskIds.size >= SIMILAR_TASK_SCAN_LIMIT) break;
+    }
+  }
+  if (taskIds.size === 0) return [];
+  const tasks = await db.getAll(...[...taskIds].map((id) => db.doc(TASK_PATH(ref.uid, id))), { fieldMask: ['title', 'deletedAt'] });
+  const titles: string[] = [];
+  for (const task of tasks) {
+    if (!task.exists) continue;
+    const data = (task.data() ?? {}) as { title?: unknown; deletedAt?: unknown };
+    if (typeof data.title === 'string' && data.title.trim().length > 0 && (data.deletedAt === undefined || data.deletedAt === null)) titles.push(data.title);
+  }
+  return titles;
+}
+
 /** Which of these task ids still exist (one getAll; nothing when the list is empty). */
 export async function readExistingTasks(db: Firestore, uid: string, taskIds: readonly string[]): Promise<Set<string>> {
   const unique = [...new Set(taskIds)].filter((id) => MEETING_ID_PATTERN.test(id));

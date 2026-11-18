@@ -277,7 +277,14 @@
       "deleting": "Al eliminar: sale en el acto de nuestra base de datos activa y de las copias de seguridad en un plazo de 21 días; la copia de nuestro proveedor de correo, a los {{providerDays}} días; el original se queda en tu buzón.",
       "openai": "Cuando pides sugerencias, el texto de la minuta se envía a OpenAI a través de nuestro servidor.",
       "copies": "Copias fuera de nuestra base de datos: el recordatorio de una tarea muestra su título en la pantalla de bloqueo, como cualquier tarea; en WhatsApp, la lista y las frases que cita se quedan en tu chat, en las vistas previas de las notificaciones y en tus copias de seguridad de WhatsApp hasta que las elimines allí; una sincronización con To Do o Google Tasks copia la tarea. Eliminar la minuta o desconectar no llega a esas copias."
-    }
+    },
+    "email": {
+      "title": "Otros asistentes de notas (correo)",
+      "body": "Otter y otros asistentes de notas: reenvía a tu dirección privada el correo con la minuta que te envían.",
+      "show": "Ver la configuración por correo",
+      "hide": "Ocultar la configuración por correo"
+    },
+    "inboxRow": "Bandeja de minutas"
   },
   "inbox": {
     "waiting": {
@@ -310,9 +317,10 @@
     "openSetup": "Dirección y configuración",
     "empty": {
       "title": "Todavía no hay minutas",
-      "body": "Cuando la minuta de tu asistente de notas llegue a tu dirección privada, se archivará en su reunión o esperará aquí.",
+      "body": "Cuando llega una minuta de Fathom o de otro asistente de notas, se archiva en su reunión o espera aquí.",
       "action": "Configurar el reenvío"
-    }
+    },
+    "settings": "Ajustes de minutas"
   },
   "attach": {
     "title": "Elegir una reunión",
@@ -378,14 +386,22 @@
     "reviewCount": "Revisar compromisos ({{count}})",
     "retentionLink": "Cuánto tiempo guardamos las minutas",
     "keptUntil": "Esta minuta se guarda hasta el {{date}}.",
-    "truncatedHint": "Al llegar solo se guardó la primera parte. El correo original se queda en tu propio buzón."
+    "truncatedHint": "Al llegar solo se guardó la primera parte. El correo original se queda en tu propio buzón.",
+    "copiesNote_one": "{{count}} asistente de notas envió una minuta de esta reunión.",
+    "copiesNote_other": "{{count}} asistentes de notas enviaron una minuta de esta reunión.",
+    "copiesLabel": "Minutas de esta reunión",
+    "copyTab": "Ver la minuta de {{name}}"
   },
   "meeting": {
     "title_one": "Minuta de tu asistente de notas",
     "title_other": "Minutas de tu asistente de notas",
     "received": "Recibida {{time}}",
     "occurrence": "Para la reunión del {{date}}",
-    "open": "Abrir la minuta {{title}}"
+    "open": "Abrir la minuta {{title}}",
+    "copyNamed": "{{name}}",
+    "copyNamedNumbered": "{{name}} {{number}}",
+    "copyForwarded": "Copia reenviada",
+    "copyForwardedNumbered": "Copia reenviada {{number}}"
   },
   "commitments": {
     "title": "Tareas sugeridas",
@@ -673,5 +689,38 @@
       "generic": "Algo salió mal. Inténtalo de nuevo.",
       "retry": "Reintentar"
     }
+  },
+  "fathom": {
+    "title": "Conectar Fathom",
+    "recommended": "Recomendado",
+    "body": "Inicia sesión en Fathom una sola vez. Después de cada reunión que Fathom graba, la minuta llega aquí sola y se archiva en la reunión correcta.",
+    "connect": "Conectar Fathom",
+    "note": "Solo leemos la minuta y las acciones, nunca la grabación ni la transcripción. Fathom escribe sus minutas en inglés.",
+    "connectedTitle": "Fathom está conectado",
+    "connectedBody": "Las minutas nuevas llegan solas después de cada reunión que Fathom graba.",
+    "connectedSince": "Conectado {{time}}",
+    "lastSummary": "Última minuta {{time}}",
+    "noSummaryYet": "Aún no hay minutas. La próxima reunión que Fathom grabe aparecerá aquí.",
+    "forwardHint": "Si reenvías los correos de Fathom a tu dirección privada, ya puedes dejar de hacerlo: las minutas de Fathom llegan solas.",
+    "disconnect": "Desconectar Fathom",
+    "disconnectTitle": "¿Desconectar Fathom?",
+    "disconnectBody": "Dejarán de llegar minutas nuevas de Fathom. Las minutas que ya tienes se quedan.",
+    "disconnectConfirm": "Desconectar",
+    "cancel": "Cancelar",
+    "connected": "Fathom está conectado.",
+    "disconnected": "Fathom está desconectado.",
+    "remoteNotRemoved": "No pudimos contactar a Fathom. Puedes quitar el webhook en API Access, en la configuración de Fathom.",
+    "errors": {
+      "expired": "El inicio de sesión en Fathom tardó demasiado. Inténtalo de nuevo.",
+      "not_allowed": "Conectar Fathom aún no está disponible para esta cuenta.",
+      "fathom_refused": "Fathom no aceptó el inicio de sesión. Inténtalo de nuevo.",
+      "fathom_unavailable": "Fathom no responde en este momento. Inténtalo más tarde.",
+      "server_error": "Algo salió mal al conectar Fathom. Inténtalo de nuevo."
+    }
+  },
+  "help": {
+    "title": "Cómo funcionan las minutas",
+    "open": "Ayuda",
+    "close": "Cerrar"
   }
 }

@@ -65,6 +65,7 @@ import {
   summaryListItemSchema,
   summaryReadGetResponseSchema,
   summaryReadListResponseSchema,
+  summaryDomainSchema,
   summaryReadRequestSchema,
   summarySuggestionSchema,
   type SummaryDetail,
@@ -106,6 +107,7 @@ import {
   type SummaryHead,
   type SummaryRef,
 } from './model';
+import { notetakerName } from './notetakers';
 import { sliceSafe } from './sanitize';
 import { cleanSubject, type SummarySection } from './sections';
 import { summariesCollection } from './store';
@@ -149,7 +151,7 @@ export const SUMMARY_REMATCH_FIELDS = [...MATCH_BASIS_FIELDS, 'schemaVersion', '
  * extraction's plain stamp and counts for "Review commitments (5)". sealedBody and the
  * extraction's sealed blob never leave Firestore.
  */
-export const SUMMARY_LIST_FIELDS = [...SUMMARY_REMATCH_FIELDS, 'sealedHead', 'parserVersion', ...EXTRACTION_LIST_FIELDS] as const;
+export const SUMMARY_LIST_FIELDS = [...SUMMARY_REMATCH_FIELDS, 'sealedHead', 'parserVersion', 'vendorDomain', 'notetakerDomain', ...EXTRACTION_LIST_FIELDS] as const;
 
 /** A refused row's field mask (it holds no content). */
 export const SUMMARY_REFUSED_FIELDS = ['status', 'refusedReason', 'senderDomain', 'firstAt', 'lastAt', 'count', 'expiresAt', 'schemaVersion'] as const;
@@ -172,11 +174,14 @@ const listDocSchema = storedSummarySchema
     updatedAt: true,
     sealedHead: true,
     parserVersion: true,
+    vendorDomain: true,
   })
+  // Who wrote a hand forward (inbound.ts), plain; absent on older summaries.
+  .extend({ notetakerDomain: summaryDomainSchema.nullable().optional() })
   // M11: only the extraction's masked stamp and counts (EXTRACTION_LIST_FIELDS); absent when the
   // field is null, as a nested field mask returns nothing for it.
   .extend({ extraction: z.unknown().optional() });
-const rematchDocSchema = listDocSchema.omit({ sealedHead: true, parserVersion: true, extraction: true });
+const rematchDocSchema = listDocSchema.omit({ sealedHead: true, parserVersion: true, extraction: true, vendorDomain: true, notetakerDomain: true });
 const storedCandidatesSchema = storedCandidateSchema.array().max(SUMMARY_LIMITS.maxSuggestions);
 
 /** A summary as a list reads it (SUMMARY_LIST_FIELDS). */
@@ -387,7 +392,7 @@ type RowDoc = Pick<
   SummaryListDoc,
   'status' | 'inboxReason' | 'trust' | 'senderDomain' | 'receivedAt' | 'summaryDate' | 'match' | 'candidates' | 'rejectedMeetingIds'
 > &
-  Partial<Pick<SummaryListDoc, 'contentDigest' | 'parserVersion' | 'extraction'>>;
+  Partial<Pick<SummaryListDoc, 'contentDigest' | 'parserVersion' | 'extraction' | 'vendorDomain' | 'notetakerDomain'>>;
 
 /**
  * M11: a filed or kept summary's suggested-task facts ({state, open, accepted}) from the
@@ -420,6 +425,8 @@ export function summaryListItemOf(summaryId: string, doc: RowDoc, title: string 
   };
   const commitments = summaryCommitmentsFactsOf(doc);
   if (commitments !== null) item.commitments = commitments;
+  const notetakerDomain = doc.vendorDomain ?? doc.notetakerDomain ?? null;
+  if (notetakerDomain !== null) item.notetaker = notetakerName(`@${notetakerDomain}`);
   return item;
 }
 

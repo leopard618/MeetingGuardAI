@@ -381,6 +381,27 @@ describe('the marks the ids cannot see', () => {
     expect(unrelated.commitments?.items.some((entry) => entry.flags.includes('similar_added'))).toBe(false);
   });
 
+  it('another notetaker wording the same task differently is marked similar_added by the added task title', async () => {
+    const h = harness();
+    seedSummary(h.db, SUMMARY_A);
+    const first = await call(h, { op: 'prepare', summaryId: SUMMARY_A, mode: 'as_written' });
+    const line = first.commitments?.items.find((entry) => entry.quote.startsWith('Prepare the demo account'));
+    await call(h, {
+      op: 'decide',
+      summaryId: SUMMARY_A,
+      key: first.commitments?.key,
+      timezone: 'UTC',
+      language: 'en',
+      decisions: [{ anchorId: line?.anchorId, decision: 'accept', draft: { title: line?.title, dueDate: null, dueTime: null, reminderMinutesBefore: null, owner: null } }],
+    });
+    // Otter's copy of the same meeting says it another way: no text key in common.
+    seedSummary(h.db, SUMMARY_B, { text: SPECIMEN.replace('Prepare the demo account', 'Prepare the demo account for the client review') });
+    const second = await call(h, { op: 'prepare', summaryId: SUMMARY_B, mode: 'as_written' });
+    const reworded = second.commitments?.items.find((entry) => entry.quote.startsWith('Prepare the demo account for the client review'));
+    expect(reworded?.flags).toContain('similar_added');
+    expect(reworded).toMatchObject({ status: 'open', preselected: false });
+  });
+
   it('after an upgrade whose line changed, an open item close to a task accepted from the earlier copy is marked', async () => {
     const h = harness();
     seedSummary(h.db, SUMMARY_A);
