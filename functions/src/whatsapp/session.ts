@@ -175,10 +175,10 @@ export interface WhatsappStore {
    */
   claimPendingActions(phoneE164: string, nonce: string | null, now: Date): Promise<ClaimResult>;
   /**
-   * App language + time zone from users/{uid}/settings/preferences (defaults en/UTC). M12:
-   * `uiLanguage` is the app language as set (en/es/pt/fr/de), used only by the suggested-tasks
-   * texts (summaryRoute.ts); `language` is its en/es base (toBaseLanguage) for everything that
-   * frames the assistant (BOT_STRINGS, confirm/cancel, lists), which stays en/es.
+   * App language + time zone from users/{uid}/settings/preferences (defaults en/UTC).
+   * `uiLanguage` is the app language as set (en/es/pt/fr/de): the webhook's bot texts, the
+   * assistant's replies and the suggested-tasks texts all use it. `language` is its en/es base
+   * (toBaseLanguage), kept for callers that still need only that.
    */
   getPreferences(uid: string): Promise<{ language: Language; uiLanguage: AppLanguage; timezone: string }>;
 }

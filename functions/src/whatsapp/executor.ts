@@ -38,7 +38,7 @@ import {
   type AiMeetingDraft,
   type AiTaskChanges,
   type AiTaskDraft,
-  type Language,
+  type AppLanguage,
 } from '../shared/aiContract';
 import { isValidTimeZone, toLocalDate, toLocalTime } from '../assistant/time';
 import { formatMeetingSummary, type BotMeetingSummaryInput } from './messages';
@@ -624,7 +624,7 @@ export async function executeConfirmedActions(
 export async function formatMeetingForShare(
   uid: string,
   meetingId: string,
-  language: Language,
+  language: AppLanguage,
   deps: ExecutorDeps,
 ): Promise<string | null> {
   const stored = parseStoredMeeting(await deps.store.getMeeting(uid, meetingId));
@@ -643,6 +643,15 @@ export async function formatMeetingForShare(
   return formatMeetingSummary(language, summary);
 }
 
+/** The task list's status words per app language. */
+const TASK_LIST_WORDS: Readonly<Record<AppLanguage, { done: string; due: string }>> = {
+  en: { done: 'done', due: 'due' },
+  es: { done: 'hecha', due: 'vence' },
+  pt: { done: 'concluída', due: 'vence' },
+  fr: { done: 'terminée', due: 'échéance' },
+  de: { done: 'erledigt', due: 'fällig' },
+};
+
 /** How many meetings a list reply shows at most. */
 export const LIST_REPLY_LIMIT = 5;
 
@@ -650,12 +659,11 @@ export const LIST_REPLY_LIMIT = 5;
 export async function formatTaskList(
   uid: string,
   taskIds: readonly string[],
-  language: Language,
+  language: AppLanguage,
   deps: ExecutorDeps,
 ): Promise<string[]> {
   if (!deps.tasks) return [];
-  const doneWord = language === 'es' ? 'hecha' : 'done';
-  const dueWord = language === 'es' ? 'vence' : 'due';
+  const { done: doneWord, due: dueWord } = TASK_LIST_WORDS[language] ?? TASK_LIST_WORDS.en;
   const lines: string[] = [];
   for (const taskId of taskIds.slice(0, LIST_REPLY_LIMIT)) {
     const stored = parseStoredTask(await deps.tasks.getTask(uid, taskId));
@@ -673,7 +681,7 @@ export async function formatTaskList(
 export async function formatMeetingList(
   uid: string,
   meetingIds: readonly string[],
-  language: Language,
+  language: AppLanguage,
   deps: ExecutorDeps,
 ): Promise<string[]> {
   const blocks: string[] = [];

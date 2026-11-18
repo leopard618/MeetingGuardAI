@@ -1,18 +1,18 @@
 /**
- * Every user-visible string the WhatsApp bot sends (EN + ES; docs/v1/ARCHITECTURE.md §27).
+ * Every user-visible string the WhatsApp bot sends (docs/v1/ARCHITECTURE.md §27).
  *
  * Language: a LINKED user gets their app language (users/{uid}/settings/preferences.language),
- * falling back to 'en'. M12: BOT_STRINGS frame the assistant and stay EN + ES (a pt, fr or de user
- * reads English there); only the suggested-tasks texts (SUMMARY_BOT_STRINGS) speak every app
- * language (EN, ES, PT as pt-BR, FR, DE). The inbound Cloud API payload carries NO locale, so an UNLINKED sender
- * has no known language and gets the bilingual EN + ES variants below.
+ * falling back to 'en'. Every app language (EN, ES, PT as pt-BR, FR, DE) for the bot's own texts
+ * (BOT_STRINGS) and the suggested-tasks texts (SUMMARY_BOT_STRINGS); the assistant's replies are
+ * asked in the same language. The inbound Cloud API payload carries NO locale, so an UNLINKED
+ * sender has no known language and gets the bilingual EN + ES variants below.
  *
  * Product text rule (tested by src/i18n/__tests__/noTypographicChars.test.ts, which sweeps
  * functions/src, and by test/unit/whatsappMessages.test.ts here): plain punctuation only - no
  * em/en dashes, no ellipsis character, no curly quotes. Spanish accents, inverted marks and
  * guillemets are fine (and expected: the app's ES voice uses them, so the bot matches it).
  */
-import { AI_ALLOWANCES, type AppLanguage, type Language } from '../shared/aiContract';
+import { AI_ALLOWANCES, type AppLanguage } from '../shared/aiContract';
 import { MAX_INTERACTIVE_BODY_CHARS } from './send';
 
 export interface BotMeetingSummaryInput {
@@ -94,10 +94,74 @@ const ES: BotStrings = {
   taskListEmpty: 'No encontré tareas que coincidan.',
 };
 
-export const BOT_STRINGS: Readonly<Record<Language, BotStrings>> = { en: EN, es: ES };
+const PT: BotStrings = {
+  linkSuccess: 'Seu WhatsApp agora está vinculado ao Meeting Guard AI. Pergunte sobre suas reuniões, por exemplo "O que tenho amanhã?"',
+  linkPrompt: 'Olá! Para usar o assistente do Meeting Guard AI aqui, abra o app, vá em Configurações > WhatsApp e me envie o código de 6 dígitos que aparece.',
+  codeExpired: 'Esse código não é mais válido. Abra o app e gere um novo.',
+  quotaExceeded: `Você atingiu seu limite de ações de IA por enquanto. O plano gratuito inclui ${AI_ALLOWANCES.free.total} ações nos seus primeiros ${AI_ALLOWANCES.free.windowDays} dias, até ${AI_ALLOWANCES.free.perDay} por dia; Pro e Premium renovam todo mês no dia em que você assinou. Veja seu uso no app.`,
+  confirmPrompt: 'Devo aplicar isto? Responda 1 para confirmar ou 2 para cancelar.',
+  confirmMore: 'e mais {count}',
+  buttons: { confirm: 'Confirmar', cancel: 'Cancelar' },
+  confirmed: 'Pronto. Apliquei as alterações.',
+  partialFailure: 'Algumas alterações não puderam ser aplicadas. Confira no app.',
+  cancelled: 'Cancelado. Não alterei nada.',
+  actionsExpired: 'Essa proposta expirou. Peça de novo e eu preparo outra vez.',
+  unsupportedType: 'Por enquanto só consigo ler mensagens de texto. Digite seu pedido.',
+  actionUnsupported: 'Ainda não consigo fazer essa alteração pelo WhatsApp. Use o app para isso.',
+  floodNotice: 'Você atingiu o limite diário de mensagens do WhatsApp. Tente de novo amanhã.',
+  error: 'Algo deu errado. Tente de novo.',
+  summaryLabels: { when: 'Quando', duration: 'Duração', minutes: 'min', where: 'Onde', allDay: 'dia inteiro' },
+  listEmpty: 'Não encontrei reuniões correspondentes.',
+  taskListEmpty: 'Não encontrei tarefas correspondentes.',
+};
 
-export function botStrings(language: Language): BotStrings {
-  return BOT_STRINGS[language] ?? BOT_STRINGS.en;
+const FR: BotStrings = {
+  linkSuccess: 'Votre WhatsApp est maintenant lié à Meeting Guard AI. Posez-moi vos questions sur vos réunions, par exemple "Qu\'est-ce que j\'ai demain?"',
+  linkPrompt: "Bonjour! Pour utiliser l'assistant Meeting Guard AI ici, ouvrez l'application, allez dans Paramètres > WhatsApp et envoyez-moi le code à 6 chiffres affiché.",
+  codeExpired: "Ce code n'est plus valide. Ouvrez l'application et générez-en un nouveau.",
+  quotaExceeded: `Vous avez atteint votre limite d'actions IA pour le moment. L'offre gratuite comprend ${AI_ALLOWANCES.free.total} actions pendant vos ${AI_ALLOWANCES.free.windowDays} premiers jours, jusqu'à ${AI_ALLOWANCES.free.perDay} par jour; Pro et Premium se renouvellent chaque mois le jour de votre abonnement. Consultez votre utilisation dans l'application.`,
+  confirmPrompt: "Je l'applique? Répondez 1 pour confirmer ou 2 pour annuler.",
+  confirmMore: 'et {count} de plus',
+  buttons: { confirm: 'Confirmer', cancel: 'Annuler' },
+  confirmed: "C'est fait. J'ai appliqué les modifications.",
+  partialFailure: "Certaines modifications n'ont pas pu être appliquées. Vérifiez dans l'application.",
+  cancelled: "Annulé. Je n'ai rien modifié.",
+  actionsExpired: 'Cette proposition a expiré. Redemandez-moi et je la préparerai à nouveau.',
+  unsupportedType: 'Pour le moment, je ne peux lire que des messages texte. Écrivez votre demande.',
+  actionUnsupported: "Je ne peux pas encore faire cette modification depuis WhatsApp. Utilisez l'application pour cela.",
+  floodNotice: 'Vous avez atteint la limite quotidienne de messages WhatsApp. Réessayez demain.',
+  error: "Une erreur s'est produite. Réessayez.",
+  summaryLabels: { when: 'Quand', duration: 'Durée', minutes: 'min', where: 'Où', allDay: 'toute la journée' },
+  listEmpty: "Je n'ai trouvé aucune réunion correspondante.",
+  taskListEmpty: "Je n'ai trouvé aucune tâche correspondante.",
+};
+
+const DE: BotStrings = {
+  linkSuccess: 'Ihr WhatsApp ist jetzt mit Meeting Guard AI verbunden. Fragen Sie mich nach Ihren Besprechungen, zum Beispiel "Was habe ich morgen?"',
+  linkPrompt: 'Hallo! Um den Assistenten von Meeting Guard AI hier zu nutzen, öffnen Sie die App, gehen Sie zu Einstellungen > WhatsApp und senden Sie mir den 6-stelligen Code, der dort angezeigt wird.',
+  codeExpired: 'Dieser Code ist nicht mehr gültig. Öffnen Sie die App und erstellen Sie einen neuen.',
+  quotaExceeded: `Sie haben Ihr Limit für KI-Aktionen vorerst erreicht. Kostenlos sind ${AI_ALLOWANCES.free.total} Aktionen in Ihren ersten ${AI_ALLOWANCES.free.windowDays} Tagen, bis zu ${AI_ALLOWANCES.free.perDay} pro Tag; Pro und Premium erneuern sich jeden Monat an dem Tag, an dem Sie abonniert haben. Ihre Nutzung sehen Sie in der App.`,
+  confirmPrompt: 'Soll ich das übernehmen? Antworten Sie 1 zum Bestätigen oder 2 zum Abbrechen.',
+  confirmMore: 'und {count} weitere',
+  buttons: { confirm: 'Bestätigen', cancel: 'Abbrechen' },
+  confirmed: 'Erledigt. Ich habe die Änderungen übernommen.',
+  partialFailure: 'Einige Änderungen konnten nicht übernommen werden. Bitte prüfen Sie das in der App.',
+  cancelled: 'Abgebrochen. Ich habe nichts geändert.',
+  actionsExpired: 'Dieser Vorschlag ist abgelaufen. Fragen Sie mich noch einmal, dann bereite ich ihn erneut vor.',
+  unsupportedType: 'Ich kann vorerst nur Textnachrichten lesen. Bitte schreiben Sie Ihre Anfrage.',
+  actionUnsupported: 'Diese Änderung kann ich über WhatsApp noch nicht vornehmen. Bitte nutzen Sie dafür die App.',
+  floodNotice: 'Sie haben das tägliche WhatsApp-Nachrichtenlimit erreicht. Bitte versuchen Sie es morgen erneut.',
+  error: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.',
+  summaryLabels: { when: 'Wann', duration: 'Dauer', minutes: 'Min.', where: 'Wo', allDay: 'ganztägig' },
+  listEmpty: 'Ich habe keine passenden Besprechungen gefunden.',
+  taskListEmpty: 'Ich habe keine passenden Aufgaben gefunden.',
+};
+
+export const BOT_STRINGS: Readonly<Record<AppLanguage, BotStrings>> = { en: EN, es: ES, pt: PT, fr: FR, de: DE };
+
+/** The bot's texts in the app language; anything unknown reads English. */
+export function botStrings(language: AppLanguage | string): BotStrings {
+  return Object.prototype.hasOwnProperty.call(BOT_STRINGS, language) ? BOT_STRINGS[language as AppLanguage] : BOT_STRINGS.en;
 }
 
 /** EN + ES in one message, for senders whose language is unknown (unlinked phones). */
@@ -109,7 +173,7 @@ export function bilingual(key: 'linkPrompt' | 'linkSuccess' | 'codeExpired' | 'f
  * One meeting as a short, forwardable text block (share_meeting replies and list replies).
  * Content comes from the user's OWN meeting documents; never logged.
  */
-export function formatMeetingSummary(language: Language, meeting: BotMeetingSummaryInput): string {
+export function formatMeetingSummary(language: AppLanguage, meeting: BotMeetingSummaryInput): string {
   const s = botStrings(language).summaryLabels;
   const when = meeting.time === null ? `${meeting.date} (${s.allDay})` : `${meeting.date} ${meeting.time} (${meeting.timezone})`;
   const lines = [`*${meeting.title}*`, `${s.when}: ${when}`, `${s.duration}: ${meeting.durationMinutes} ${s.minutes}`];
@@ -126,7 +190,7 @@ export const MAX_PROMPT_SUMMARY_CHARS = 140;
  * body tail-first, and the tail is exactly where the 1/2 instruction lives - so each summary is
  * capped and trailing bullets collapse into an "and N more" line until the whole body fits.
  */
-export function formatConfirmPrompt(language: Language, summaries: readonly string[]): string {
+export function formatConfirmPrompt(language: AppLanguage, summaries: readonly string[]): string {
   const s = botStrings(language);
   const budget = MAX_INTERACTIVE_BODY_CHARS - s.confirmPrompt.length - 2;
   const bullets = summaries.map((summary) =>
