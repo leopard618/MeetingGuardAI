@@ -24,7 +24,7 @@ import {
   type AiAction,
   type AssistantRequest,
   type AssistantResponse,
-  type Language,
+  type AppLanguage,
 } from '../shared/aiContract';
 import { WHATSAPP_TUNING } from '../config';
 import { isValidTimeZone } from '../assistant/time';
@@ -175,7 +175,7 @@ async function handleConfirm(
   phone: string,
   wamid: string,
   nonce: string | null,
-  language: Language,
+  language: AppLanguage,
   timezone: string,
   deps: WebhookDeps,
 ): Promise<void> {
@@ -206,7 +206,7 @@ async function handleConfirm(
   await safeSend(deps, phone, wamid, () => deps.sender.sendText(phone, reply));
 }
 
-async function handleCancel(phone: string, wamid: string, nonce: string | null, language: Language, deps: WebhookDeps): Promise<void> {
+async function handleCancel(phone: string, wamid: string, nonce: string | null, language: AppLanguage, deps: WebhookDeps): Promise<void> {
   const s = botStrings(language);
   const claim = await deps.store.claimPendingActions(phone, nonce, deps.now());
   const reply = claim.status === 'none' ? s.actionsExpired : s.cancelled;
@@ -251,7 +251,7 @@ async function handleUnlinked(message: InboundMessage, session: WhatsappSession,
  * link doc. Returns true when the message was consumed (relinked or expired reply); false lets
  * the text fall through to the assistant bridge ('invalid': it may be a genuine message).
  */
-async function tryRelink(message: InboundMessage, session: WhatsappSession, language: Language, deps: WebhookDeps): Promise<boolean> {
+async function tryRelink(message: InboundMessage, session: WhatsappSession, language: AppLanguage, deps: WebhookDeps): Promise<boolean> {
   const phone = message.from;
   // Past the failure ceiling the webhook stops redeeming (anti brute force) and the digits are
   // treated as ordinary chat again.
@@ -262,7 +262,7 @@ async function tryRelink(message: InboundMessage, session: WhatsappSession, lang
     logger.info('whatsapp.relinked', { uid: redeemed.uid, phone: phoneLogId(phone), wamid: message.wamid });
     // Confirm in the NEW account's language (the redeeming user is that account's owner).
     const prefs = await deps.store.getPreferences(redeemed.uid);
-    await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, botStrings(prefs.language).linkSuccess));
+    await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, botStrings(prefs.uiLanguage).linkSuccess));
     return true;
   }
   await deps.store.recordCodeFailure(phone, deps.now());
@@ -283,7 +283,7 @@ async function handleBridge(
   message: InboundMessage,
   session: WhatsappSession,
   uid: string,
-  language: Language,
+  language: AppLanguage,
   timezone: string,
   deps: WebhookDeps,
 ): Promise<void> {
@@ -449,10 +449,9 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
   }
 
   const prefs = await deps.store.getPreferences(uid);
-  // en/es: the assistant's frame (BOT_STRINGS, confirm/cancel, lists) stays en/es.
-  const language = prefs.language;
-  // M12: the app language as set (en/es/pt/fr/de), only for the suggested-tasks texts.
-  const uiLanguage = prefs.uiLanguage;
+  // The app language as set (en/es/pt/fr/de): the bot's texts, the assistant's replies and the
+  // suggested-tasks texts all speak it.
+  const language = prefs.uiLanguage;
   const timezone = isValidTimeZone(prefs.timezone) ? prefs.timezone : 'UTC';
 
   // Button taps (counters are already persisted; the claim tx owns the pending fields).
@@ -467,7 +466,7 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
     }
     // M11: the suggested-tasks buttons (wa_sum_all / wa_sum_none), pilot users only.
     if (deps.summaries !== undefined) {
-      const routed = { message, session, uid, language: uiLanguage, batchStartedMs: batch?.startedMs ?? null };
+      const routed = { message, session, uid, language, batchStartedMs: batch?.startedMs ?? null };
       if (await routeSummaryButton(routed, { summaries: deps.summaries, sender: deps.sender, now: deps.now })) return;
     }
     return; // unknown button id: ignore
@@ -500,7 +499,7 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
   // M11: "commitments" and the replies to a live suggested-tasks offer, pilot users only. It runs
   // before the bridge and never touches session.turns (docs/v2/M11-DESIGN.md section 4.1 step 7).
   if (deps.summaries !== undefined) {
-    const routed = { message, session, uid, language: uiLanguage, batchStartedMs: batch?.startedMs ?? null };
+    const routed = { message, session, uid, language, batchStartedMs: batch?.startedMs ?? null };
     if (await routeSummaryText(routed, { summaries: deps.summaries, sender: deps.sender, now: deps.now })) return;
   }
 

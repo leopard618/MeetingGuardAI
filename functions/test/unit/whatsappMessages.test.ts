@@ -20,8 +20,7 @@ function flatten(value: unknown, out: string[]): void {
 }
 
 describe('bot strings', () => {
-  it('cover EN and ES with identical key sets', () => {
-    expect(Object.keys(BOT_STRINGS).sort()).toEqual(['en', 'es']);
+  it('cover EN and ES with identical key sets (and every other app language, below)', () => {
     expect(Object.keys(BOT_STRINGS.es).sort()).toEqual(Object.keys(BOT_STRINGS.en).sort());
   });
 
@@ -42,8 +41,8 @@ describe('bot strings', () => {
     expect(BOT_STRINGS.es).toMatchSnapshot();
   });
 
-  it('button titles fit the WhatsApp 20-char limit in both languages', () => {
-    for (const language of ['en', 'es'] as const) {
+  it('button titles fit the WhatsApp 20-char limit in every app language', () => {
+    for (const language of APP_LANGUAGES) {
       expect(botStrings(language).buttons.confirm.length).toBeLessThanOrEqual(MAX_BUTTON_TITLE_CHARS);
       expect(botStrings(language).buttons.cancel.length).toBeLessThanOrEqual(MAX_BUTTON_TITLE_CHARS);
     }
@@ -60,10 +59,27 @@ describe('suggested-tasks strings (M11; M12 adds PT, FR and DE)', () => {
   // M12 also bans the German low quotes and the no-break spaces French spacing would bring.
   const M12_BANNED = new RegExp(`[${[...BANNED_CODES, 0x201e, 0x201a, 0xa0, 0x202f].map((code) => String.fromCodePoint(code)).join('')}]`);
 
-  it('cover every app language with identical key sets; the assistant frame stays EN and ES', () => {
+  it('cover every app language with identical key sets, the bot texts too', () => {
     expect(Object.keys(SUMMARY_BOT_STRINGS).sort()).toEqual([...APP_LANGUAGES].sort());
     for (const language of APP_LANGUAGES) expect(Object.keys(SUMMARY_BOT_STRINGS[language]).sort()).toEqual(Object.keys(SUMMARY_BOT_STRINGS.en).sort());
-    expect(Object.keys(BOT_STRINGS).sort()).toEqual(['en', 'es']);
+    expect(Object.keys(BOT_STRINGS).sort()).toEqual([...APP_LANGUAGES].sort());
+    for (const language of APP_LANGUAGES) expect(Object.keys(BOT_STRINGS[language]).sort()).toEqual(Object.keys(BOT_STRINGS.en).sort());
+  });
+
+  it('PT, FR and DE bot texts: no typographic characters, no space before ? ! ; :, the app\'s Settings name', () => {
+    const settings = { pt: 'Configura\u00e7\u00f5es > WhatsApp', fr: 'Param\u00e8tres > WhatsApp', de: 'Einstellungen > WhatsApp' } as const;
+    for (const language of ['pt', 'fr', 'de'] as const) {
+      const all: string[] = [];
+      flatten(BOT_STRINGS[language], all);
+      for (const text of all) {
+        expect(text).not.toMatch(M12_BANNED);
+        expect([language, text, / [:;?!]/.test(text)]).toEqual([language, text, false]);
+      }
+      expect(BOT_STRINGS[language].linkPrompt).toContain(settings[language]);
+      expect(botStrings(language)).toBe(BOT_STRINGS[language]);
+    }
+    expect(botStrings('it')).toBe(BOT_STRINGS.en);
+    expect(botStrings('toString')).toBe(BOT_STRINGS.en);
   });
 
   it('contain no typographic characters or no-break spaces, and fit one interactive body', () => {
@@ -139,7 +155,7 @@ describe('formatting', () => {
   it('the 1/2 instruction ALWAYS survives: bullets are capped and collapsed, never the tail', () => {
     // Worst case the contract allows: maxActions x maxSummaryChars (10 x 500).
     const summaries = Array.from({ length: 10 }, (_, index) => `${index} ${'y'.repeat(499)}`);
-    for (const language of ['en', 'es'] as const) {
+    for (const language of APP_LANGUAGES) {
       const prompt = formatConfirmPrompt(language, summaries);
       expect(prompt.length).toBeLessThanOrEqual(MAX_INTERACTIVE_BODY_CHARS); // sendButtons never truncates it
       expect(prompt.endsWith(BOT_STRINGS[language].confirmPrompt)).toBe(true);

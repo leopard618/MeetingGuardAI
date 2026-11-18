@@ -339,7 +339,7 @@ describe('routing', () => {
     expect(sessionOf(w).summaryOffer).toEqual(offer({ ai: 'none' }));
   });
 
-  it('M12: a pt user gets pt suggested-task texts and sends pt to the worker; the assistant frame stays en', async () => {
+  it('M12: a pt user gets pt suggested-task texts and sends pt to the worker, and the assistant answers in pt too', async () => {
     const w = world({
       port: new FakePort((request) =>
         request.op === 'reply' ? { kind: 'ok', response: { outcome: 'decided', text: 'RESULT', buttons: null, offer: { action: 'refresh', offer: offer() } } } : listAnswer(),
@@ -356,9 +356,9 @@ describe('routing', () => {
     armed(w, offer({ marked: [] }));
     await processInboundMessage(text('todas'), w.deps);
     expect(w.sender.sent.at(-1)?.body).toBe(SUMMARY_BOT_STRINGS.pt.nothingMarked);
-    // The assistant bridge keeps en/es: a pt user's chat request is English.
+    // The assistant bridge asks for the app language: a pt user's chat request is Portuguese.
     await processInboundMessage(text('O que tenho amanha?'), w.deps);
-    expect(w.assistant.map((request) => request.language)).toEqual(['en']);
+    expect(w.assistant.map((request) => request.language)).toEqual(['pt']);
   });
 
   it('M12: the fr and de button paths answer in that language; an unknown stored language reads English', async () => {

@@ -417,7 +417,7 @@ describe('assistant bridge (linked phones)', () => {
     expect(requests[1]?.request.messages[1]).toEqual({ role: 'assistant', content: 'Here you go.' });
   });
 
-  it('M12: a pt, fr or de user keeps the en assistant frame (request language, bot strings)', async () => {
+  it('a pt, fr or de user gets the assistant and the bot texts in their app language', async () => {
     for (const uiLanguage of ['pt', 'fr', 'de'] as const) {
       const store = linkedStore();
       store.prefs.set('u1', { language: 'en', uiLanguage, timezone: 'Europe/Paris' });
@@ -425,12 +425,12 @@ describe('assistant bridge (linked phones)', () => {
       const quotaError = new HttpsError('resource-exhausted', 'limit', { reason: 'quota_exceeded', usage });
       const { deps, requests } = makeDeps(store, sender);
       await processInboundMessage(textMessage({ text: 'What do I have tomorrow?' }), deps);
-      expect([uiLanguage, requests[0]?.request.language]).toEqual([uiLanguage, 'en']);
+      expect([uiLanguage, requests[0]?.request.language]).toEqual([uiLanguage, uiLanguage]);
       const refused = makeDeps(store, sender, async () => {
         throw quotaError;
       });
       await processInboundMessage(textMessage({ wamid: `wamid.quota.${uiLanguage}` }), refused.deps);
-      expect(sender.sent.at(-1)?.body).toBe(BOT_STRINGS.en.quotaExceeded);
+      expect(sender.sent.at(-1)?.body).toBe(BOT_STRINGS[uiLanguage].quotaExceeded);
     }
   });
 
