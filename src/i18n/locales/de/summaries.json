@@ -3,7 +3,9 @@
     "title": "Besprechungsprotokolle",
     "subtitle": "Die Protokolle Ihres Notizassistenten, abgelegt unter Ihren Besprechungen",
     "waiting_one": "{{count}} wartet auf eine Besprechung",
-    "waiting_other": "{{count}} warten auf eine Besprechung"
+    "waiting_other": "{{count}} warten auf eine Besprechung",
+    "section": "Notizassistent",
+    "settingsSubtitle": "Verbinden Sie Fathom oder einen anderen Notizassistenten"
   },
   "common": {
     "productLine": "Meeting Guard AI nimmt nicht an Ihren Besprechungen teil, zeichnet sie nicht auf und hört nicht mit.",

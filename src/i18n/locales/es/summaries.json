@@ -3,7 +3,9 @@
     "title": "Minutas de reuniones",
     "subtitle": "Las minutas de tu asistente de notas, archivadas en tus reuniones",
     "waiting_one": "{{count}} minuta espera una reunión",
-    "waiting_other": "{{count}} minutas esperan una reunión"
+    "waiting_other": "{{count}} minutas esperan una reunión",
+    "section": "Asistente de notas",
+    "settingsSubtitle": "Conecta Fathom u otro asistente de notas"
   },
   "common": {
     "productLine": "Meeting Guard AI no se une a tus reuniones, no las graba y no las escucha.",
