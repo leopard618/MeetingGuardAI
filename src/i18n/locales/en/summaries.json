@@ -283,7 +283,8 @@
       "body": "Otter and other notetakers: forward the summary email they send you to your private address.",
       "show": "Show the email setup",
       "hide": "Hide the email setup"
-    }
+    },
+    "inboxRow": "Summary inbox"
   },
   "inbox": {
     "waiting": {
@@ -316,9 +317,10 @@
     "openSetup": "Address and setup",
     "empty": {
       "title": "No summaries yet",
-      "body": "When your notetaker's summary arrives at your private address, it is filed under its meeting or waits here.",
+      "body": "When a summary arrives from Fathom or another notetaker, it is filed under its meeting or waits here.",
       "action": "Set up forwarding"
-    }
+    },
+    "settings": "Summary settings"
   },
   "attach": {
     "title": "Choose a meeting",
@@ -707,5 +709,10 @@
       "fathom_unavailable": "Fathom is not responding right now. Try again later.",
       "server_error": "Something went wrong while connecting Fathom. Try again."
     }
+  },
+  "help": {
+    "title": "How meeting summaries work",
+    "open": "Help",
+    "close": "Close"
   }
 }

@@ -1,6 +1,6 @@
 /**
- * "How long we keep summaries" (docs/v2/M11-DESIGN.md section 5): the same lines on the connect
- * screen (a section of its own) and on SummaryView (under its "How long we keep summaries" link),
+ * "How long we keep summaries" (docs/v2/M11-DESIGN.md section 5): the same lines in the connect
+ * screen's help sheet (SummaryHelpSheet) and on SummaryView (under its "How long we keep summaries" link),
  * and in the privacy policy draft. Filed or kept 12 months, inbox 60 days, refused rows 30 days
  * (counts only), suggestions go with their summary, added tasks stay, deleting (live database at
  * once, backups within 21 days, our email provider's copy after SUMMARY_PROVIDER_RETENTION_DAYS,
@@ -14,7 +14,6 @@ import { Text } from 'react-native-paper';
 
 import { useT } from '../../i18n';
 import { componentMetrics, spacing, useAppTheme } from '../../theme';
-import { Section } from '../shared/Section';
 import { SUMMARY_RETENTION_KEYS, retentionLineKey } from './summaryRetentionModel';
 import { SUMMARY_PROVIDER_RETENTION_DAYS } from './summaryText';
 
@@ -39,16 +38,6 @@ export function SummaryRetentionList({ testID }: { testID?: string }): ReactElem
         </View>
       ))}
     </View>
-  );
-}
-
-/** The connect screen's card: the title and the lines. */
-export function SummaryRetentionSection(): ReactElement {
-  const t = useT();
-  return (
-    <Section title={t('summaries:connect.retention.title')} testID="summary-connect-retention">
-      <SummaryRetentionList testID="summary-retention" />
-    </Section>
   );
 }
 

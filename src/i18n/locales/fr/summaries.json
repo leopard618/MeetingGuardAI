@@ -283,7 +283,8 @@
       "body": "Otter et les autres assistants : transférez vers votre adresse privée l'e-mail de compte rendu qu'ils vous envoient.",
       "show": "Afficher la configuration par e-mail",
       "hide": "Masquer la configuration par e-mail"
-    }
+    },
+    "inboxRow": "Boîte de réception des comptes rendus"
   },
   "inbox": {
     "waiting": {
@@ -316,9 +317,10 @@
     "openSetup": "Adresse et configuration",
     "empty": {
       "title": "Aucun compte rendu pour l'instant",
-      "body": "Quand le compte rendu de votre assistant de prise de notes arrive à votre adresse privée, il est classé sous sa réunion ou attend ici.",
+      "body": "Quand un compte rendu arrive de Fathom ou d'un autre assistant de prise de notes, il est classé sous sa réunion ou attend ici.",
       "action": "Configurer le transfert"
-    }
+    },
+    "settings": "Paramètres des comptes rendus"
   },
   "attach": {
     "title": "Choisir une réunion",
@@ -707,5 +709,10 @@
       "fathom_unavailable": "Fathom ne répond pas pour le moment. Réessayez plus tard.",
       "server_error": "Un problème est survenu lors de la connexion à Fathom. Réessayez."
     }
+  },
+  "help": {
+    "title": "Fonctionnement des comptes rendus",
+    "open": "Aide",
+    "close": "Fermer"
   }
 }

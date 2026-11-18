@@ -283,7 +283,8 @@
       "body": "Otter e outros assistentes de anotações: encaminhe para o seu endereço privado o e-mail com o resumo que eles enviam para você.",
       "show": "Mostrar a configuração por e-mail",
       "hide": "Ocultar a configuração por e-mail"
-    }
+    },
+    "inboxRow": "Caixa de entrada de resumos"
   },
   "inbox": {
     "waiting": {
@@ -316,9 +317,10 @@
     "openSetup": "Endereço e configuração",
     "empty": {
       "title": "Nenhum resumo ainda",
-      "body": "Quando o resumo do seu assistente de anotações chegar ao seu endereço privado, ele será arquivado na reunião correspondente ou aguardará aqui.",
+      "body": "Quando um resumo chegar do Fathom ou de outro assistente de anotações, ele será arquivado na reunião correspondente ou aguardará aqui.",
       "action": "Configurar o encaminhamento"
-    }
+    },
+    "settings": "Configurações de resumos"
   },
   "attach": {
     "title": "Escolher uma reunião",
@@ -707,5 +709,10 @@
       "fathom_unavailable": "O Fathom não está respondendo agora. Tente mais tarde.",
       "server_error": "Algo deu errado ao conectar o Fathom. Tente de novo."
     }
+  },
+  "help": {
+    "title": "Como funcionam os resumos",
+    "open": "Ajuda",
+    "close": "Fechar"
   }
 }

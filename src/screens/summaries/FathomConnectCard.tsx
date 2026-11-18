@@ -3,10 +3,10 @@
  * at the top of the Meeting summaries connect screen while the server offers it (status
  * available); renders nothing otherwise, so a server without Connect Fathom shows the email setup
  * exactly as before.
- * - Not connected: what it does, Connect Fathom (opens Fathom's sign-in in an auth session), and
- *   what we read.
- * - Connected: since when, the last summary, the "stop forwarding Fathom emails" hint and
- *   Disconnect Fathom (after a confirmation).
+ * - Not connected: what it does and Connect Fathom (opens Fathom's sign-in in an auth session).
+ * - Connected: the last summary and Disconnect Fathom (after a confirmation).
+ * What we read and the "stop forwarding Fathom emails" hint live in the help sheet
+ * (SummaryHelpSheet), to keep the screen short.
  * Errors reach the user as mapped toasts only; nothing here logs.
  */
 import type { ReactElement } from 'react';
@@ -90,22 +90,11 @@ export function FathomConnectCard({ fathom, onConnected }: FathomConnectCardProp
             {t('summaries:fathom.connectedTitle')}
           </Text>
         </View>
-        <Text variant="bodyMedium" style={styles.paragraph}>
-          {t('summaries:fathom.connectedBody')}
-        </Text>
-        {status.connectedAt !== null ? (
-          <Text variant="bodySmall" style={[styles.paragraph, muted]} testID="fathom-card-since">
-            {t('summaries:fathom.connectedSince', { time: fmt.dateTime(status.connectedAt) })}
-          </Text>
-        ) : null}
-        <Text variant="bodySmall" style={muted} testID="fathom-card-last">
+        <Text variant="bodyMedium" style={[styles.paragraph, muted]} testID="fathom-card-last">
           {status.lastEventAt !== null ? t('summaries:fathom.lastSummary', { time: fmt.dateTime(status.lastEventAt) }) : t('summaries:fathom.noSummaryYet')}
         </Text>
-        <Text variant="bodySmall" style={[styles.paragraph, muted]}>
-          {t('summaries:fathom.forwardHint')}
-        </Text>
         <MGButton
-          variant="outline"
+          variant="ghost"
           size="sm"
           icon="link-variant-off"
           style={styles.alignStart}
@@ -147,9 +136,6 @@ export function FathomConnectCard({ fathom, onConnected }: FathomConnectCardProp
       >
         {t('summaries:fathom.connect')}
       </MGButton>
-      <Text variant="bodySmall" style={[styles.paragraph, { color: colors.onPrimaryContainer }]}>
-        {t('summaries:fathom.note')}
-      </Text>
     </Card>
   );
 }
@@ -179,6 +165,6 @@ const styles = StyleSheet.create({
   },
   alignStart: {
     alignSelf: 'flex-start',
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
 });

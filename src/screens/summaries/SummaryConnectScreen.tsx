@@ -11,13 +11,15 @@
  *   with "Steps for your administrator" to share, the Microsoft 365 hint, activity (last received,
  *   last refused and what to do, today's refusals and the capped notice), "What we check" and the
  *   privacy wording of section 14.
+ * Kept short on purpose: the explanations (the product line, Connect Fathom details, what we check,
+ * privacy and "How long we keep summaries") sit in the help sheet behind the question mark in the
+ * header (SummaryHelpSheet), and "Summary inbox" is one row with the last summary and the count.
  * The status is asked again on open, then every SUMMARY_STATUS_POLL_MS while the screen is focused
  * and waits for the first summary or a Gmail code (summaryConnectModel.shouldPollStatus).
  * JavaScript only (core Clipboard through copyText, Share, Linking, plain Text), so it can ride an
  * update to runtime 1.6.0. Privacy: nothing from the status (address, mailboxes, codes) is ever
  * logged; failures reach the user as mapped messages only.
  * M11 (M11-DESIGN.md section 5), in the `footer` spot at the bottom:
- * - "How long we keep summaries" (SummaryRetentionSection) on every view of the pilot;
  * - with an address, Disconnect (destructive, last), opening the "Stop receiving summaries" sheet
  *   (DisconnectSheet: Keep them, or Delete them after a second confirmation; tasks added from
  *   summaries stay). It runs summaryAction disconnect {deleteSummaries} through the M10 service,
@@ -32,12 +34,13 @@
  */
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { Alert, Linking, Share, StyleSheet, View } from 'react-native';
 import { Chip, HelperText, IconButton, Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import { Banner, Card, ErrorState, Icon, LoadingState, MGButton } from '../../components/ui';
+import { HeaderIconButton } from '../../components/CustomHeader';
+import { Banner, Card, ErrorState, Icon, ListGroup, ListRow, LoadingState, MGButton } from '../../components/ui';
 import { SUMMARY_LIMITS } from '../../core/aiContract';
 import type { RootStackParamList } from '../../core/contracts';
 import { toAppError } from '../../core/errors';
@@ -51,7 +54,7 @@ import { useLiveNow } from '../shared/useLiveNow';
 import { useFathomConnection } from '../../services/summaries/useFathomConnection';
 import { DisconnectSheet } from './DisconnectSheet';
 import { FathomConnectCard } from './FathomConnectCard';
-import { SummaryRetentionSection } from './SummaryRetention';
+import { SummaryHelpSheet } from './SummaryHelpSheet';
 import {
   CACHED_SUMMARY_LIST_VIEWS,
   createViewCopy,
@@ -98,18 +101,14 @@ const COPIED_RESET_MS = 2_000;
 /** The 24 h hint and the Gmail wait need minutes, not seconds. */
 const NOW_TICK_MS = 60_000;
 
-const CHECK_KEYS = ['signature', 'sender', 'mailbox', 'fresh', 'match', 'refused'] as const;
-/** Section 14 wording; 'refused' carries the caveat that a real summary sent straight here waits for an OK. */
-const PRIVACY_KEYS = ['encrypted', 'yoursOnly', 'deletable', 'refused'] as const;
-
 type CopiedTarget = 'address' | `code:${string}` | `sender:${string}`;
 type Busy = 'create' | 'regenerate' | 'mailboxes' | `dismiss:${string}`;
 
 export interface SummaryConnectScreenProps {
   /**
-   * The spot last on the screen. undefined (the default, as the route renders it): M11's "How
-   * long we keep summaries" card and, with an address, Disconnect (M11-DESIGN.md section 5).
-   * Anything else replaces both; null renders nothing there.
+   * The spot last on the screen. undefined (the default, as the route renders it): with an
+   * address, Disconnect (M11-DESIGN.md section 5). Anything else replaces it; null renders
+   * nothing there.
    */
   footer?: ReactNode;
 }
@@ -118,37 +117,6 @@ export interface SummaryConnectScreenProps {
 function StatusPoller(): null {
   useSummaryStatus({ pollMs: SUMMARY_STATUS_POLL_MS });
   return null;
-}
-
-function ChecksSection(): ReactElement {
-  const t = useT();
-  const { colors } = useAppTheme();
-  return (
-    <Section title={t('summaries:connect.checks.title')} testID="summary-connect-checks">
-      {CHECK_KEYS.map((key) => (
-        <View key={key} style={styles.bulletRow}>
-          <Icon name="checkCircle" size={componentMetrics.iconInline} color={colors.primary} />
-          <Text variant="bodyMedium" style={styles.flex}>
-            {t(`summaries:connect.checks.${key}`)}
-          </Text>
-        </View>
-      ))}
-    </Section>
-  );
-}
-
-function PrivacySection(): ReactElement {
-  const t = useT();
-  const { colors } = useAppTheme();
-  return (
-    <Section title={t('summaries:common.privacy.title')} testID="summary-connect-privacy">
-      {PRIVACY_KEYS.map((key) => (
-        <Text key={key} variant="bodySmall" style={[styles.paragraph, { color: colors.onSurfaceVariant }]}>
-          {t(`summaries:common.privacy.${key}`, { providerDays: SUMMARY_PROVIDER_RETENTION_DAYS })}
-        </Text>
-      ))}
-    </Section>
-  );
 }
 
 export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): ReactElement {
@@ -174,12 +142,12 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   // it; the email setup then sits behind "Other notetakers (email)". null = the default below.
   const fathom = useFathomConnection();
   const [emailOpen, setEmailOpen] = useState<boolean | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // The cached status can be minutes old (Settings asked first): ask again on open.
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
 
   useEffect(() => {
     if (copied === null) return undefined;
@@ -192,6 +160,17 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   const saved = status?.mailboxes ?? [];
   const list = draft ?? saved;
   const muted = { color: colors.onSurfaceVariant };
+
+  // Help: the question mark next to the language menu, on every view of the pilot.
+  const helpAvailable = view !== 'loading' && view !== 'error' && view !== 'unavailable' && status !== null;
+  const helpLabel = t('summaries:help.open');
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: helpAvailable
+        ? () => <HeaderIconButton icon="help" label={helpLabel} onPress={() => setHelpOpen(true)} testID="summary-connect-help" />
+        : undefined,
+    });
+  }, [navigation, helpAvailable, helpLabel]);
 
   function showError(caught: unknown): void {
     const appError = toAppError(caught);
@@ -397,15 +376,6 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
     );
   }
 
-  const productLine = (
-    <View style={styles.intro} testID="summary-connect-product-line">
-      <Text variant="titleMedium">{t('summaries:common.productLine')}</Text>
-      <Text variant="bodyMedium" style={muted}>
-        {t('summaries:common.productLineMore')}
-      </Text>
-    </View>
-  );
-
   // A later ask failed: the last answer stays on screen with a notice.
   const staleNotice =
     error !== null ? (
@@ -439,37 +409,33 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
       }}
     />
   );
+  // One row; what "email" means for Otter and others is in the help sheet.
   const emailToggle = fathomOffered ? (
-    <Section title={t('summaries:connect.email.title')} testID="summary-connect-email">
-      <Text variant="bodyMedium" style={muted}>
-        {t('summaries:connect.email.body')}
-      </Text>
-      <MGButton
-        variant="ghost"
-        size="sm"
-        icon={emailExpanded ? 'chevron-up' : 'chevron-down'}
-        style={styles.alignStart}
+    <ListGroup style={styles.block} testID="summary-connect-email">
+      <ListRow
+        icon="email-fast-outline"
+        title={t('summaries:connect.email.title')}
+        trailing={<Icon name={emailExpanded ? 'chevronUp' : 'chevronDown'} size={componentMetrics.iconInline} color={colors.onSurfaceVariant} />}
         onPress={() => setEmailOpen(!emailExpanded)}
+        accessibilityLabel={emailExpanded ? t('summaries:connect.email.hide') : t('summaries:connect.email.show')}
+        accessibilityState={{ expanded: emailExpanded }}
         testID="summary-connect-email-toggle"
-      >
-        {emailExpanded ? t('summaries:connect.email.hide') : t('summaries:connect.email.show')}
-      </MGButton>
-    </Section>
+      />
+    </ListGroup>
   ) : null;
 
-  // M11 (M11-DESIGN.md section 5): "How long we keep summaries" renders here, last; with an
-  // address, Disconnect follows it (the connected view below). A `footer` prop replaces both.
-  const m11Footer = footer !== undefined ? footer : <SummaryRetentionSection />;
+  // M11 (M11-DESIGN.md section 5): with an address, Disconnect renders last (the connected view
+  // below); a `footer` prop replaces it. "How long we keep summaries" is in the help sheet.
+  const m11Footer = footer !== undefined ? footer : null;
+  const helpSheet = <SummaryHelpSheet visible={helpOpen} fathomOffered={fathomOffered} onDismiss={() => setHelpOpen(false)} />;
 
   if (view === 'not_ready') {
     return (
       <ScreenBody>
-        {productLine}
         {staleNotice}
         <Banner tone="info" text={t('summaries:connect.notReady')} style={styles.block} testID="summary-connect-not-ready" />
-        <ChecksSection />
-        <PrivacySection />
         {m11Footer}
+        {helpSheet}
       </ScreenBody>
     );
   }
@@ -481,7 +447,6 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
     const keptSummaries = disconnected === 'keep' || status.inboxCount > 0;
     return (
       <ScreenBody>
-        {productLine}
         {staleNotice}
         {fathomCard}
         {emailToggle}
@@ -530,9 +495,8 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
             </MGButton>
           </Section>
         ) : null}
-        <ChecksSection />
-        <PrivacySection />
         {m11Footer}
+        {helpSheet}
       </ScreenBody>
     );
   }
@@ -555,7 +519,6 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   return (
     <ScreenBody>
       {polling ? <StatusPoller /> : null}
-      {productLine}
       {staleNotice}
       {fathomCard}
       {emailToggle}
@@ -900,61 +863,47 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
         </>
       ) : null}
 
-      <Section title={t('summaries:connect.activity.title')} testID="summary-connect-activity">
-        {status.lastReceivedAt !== null ? (
-          <Text variant="bodyMedium" testID="summary-connect-last-received">
-            {t('summaries:connect.activity.lastReceived', { time: fmt.dateTime(status.lastReceivedAt) })}
-          </Text>
-        ) : (
-          <>
-            <Text variant="bodyMedium" testID="summary-connect-nothing-yet">
-              {t('summaries:connect.activity.nothingYet')}
+      {/* Activity: one row to the inbox with the last summary and what waits; refusals only when there are any. */}
+      <ListGroup style={styles.block} testID="summary-connect-activity">
+        <ListRow
+          icon="inbox-arrow-down"
+          title={t('summaries:connect.inboxRow')}
+          supporting={[
+            status.lastReceivedAt !== null
+              ? t('summaries:connect.activity.lastReceived', { time: fmt.dateTime(status.lastReceivedAt) })
+              : t('summaries:connect.activity.nothingYet'),
+            ...(status.inboxCount > 0 ? [t('summaries:row.waiting', { count: status.inboxCount })] : []),
+          ].join('\n')}
+          trailing="chevron"
+          onPress={() => navigation.navigate('SummaryInbox')}
+          testID="summary-connect-open-inbox"
+        />
+      </ListGroup>
+      {lastRefused !== null || status.refusedToday !== null ? (
+        <Section testID="summary-connect-refusals">
+          {lastRefused !== null && refusedKeys !== null && refusedFrom !== null ? (
+            <View style={styles.refusedBox} testID="summary-connect-last-refused">
+              <Text variant="titleSmall">
+                {t('summaries:connect.activity.lastRefused', { time: fmt.dateTime(lastRefused.at), reason: t(refusedKeys.title) })}
+              </Text>
+              <Text variant="bodySmall" style={muted}>
+                {t(refusedFrom.key, refusedFrom.options)}
+              </Text>
+              <Text variant="bodyMedium">{t(refusedKeys.body)}</Text>
+              <Text variant="bodyMedium">{t(refusedKeys.action)}</Text>
+            </View>
+          ) : null}
+          {status.refusedToday !== null ? (
+            <Text variant="bodyMedium" style={styles.paragraph} testID="summary-connect-refused-today">
+              {t('summaries:connect.activity.refusedToday', { count: status.refusedToday.count })}
             </Text>
-            <Text variant="bodySmall" style={muted}>
-              {t('summaries:connect.activity.waiting')}
-            </Text>
-          </>
-        )}
-        {lastRefused !== null && refusedKeys !== null && refusedFrom !== null ? (
-          <View style={[styles.subBox, { borderColor: colors.outlineVariant }]} testID="summary-connect-last-refused">
-            <Text variant="titleSmall">
-              {t('summaries:connect.activity.lastRefused', { time: fmt.dateTime(lastRefused.at), reason: t(refusedKeys.title) })}
-            </Text>
-            <Text variant="bodySmall" style={muted}>
-              {t(refusedFrom.key, refusedFrom.options)}
-            </Text>
-            <Text variant="bodyMedium">{t(refusedKeys.body)}</Text>
-            <Text variant="bodyMedium">{t(refusedKeys.action)}</Text>
-          </View>
-        ) : null}
-        {status.refusedToday !== null ? (
-          <Text variant="bodyMedium" style={styles.paragraph} testID="summary-connect-refused-today">
-            {t('summaries:connect.activity.refusedToday', { count: status.refusedToday.count })}
-          </Text>
-        ) : null}
-        {lastRefused !== null || status.refusedToday !== null ? (
+          ) : null}
           <Text variant="bodySmall" style={[styles.paragraph, muted]}>
             {t('summaries:common.refusedNotStored')}
           </Text>
-        ) : null}
-        {status.inboxCount > 0 ? (
-          <Text variant="bodyMedium" style={styles.paragraph} testID="summary-connect-inbox-count">
-            {t('summaries:row.waiting', { count: status.inboxCount })}
-          </Text>
-        ) : null}
-        <MGButton
-          variant="tonal"
-          icon="inbox-arrow-down"
-          style={styles.action}
-          onPress={() => navigation.navigate('SummaryInbox')}
-          testID="summary-connect-open-inbox"
-        >
-          {t('summaries:connect.openInbox')}
-        </MGButton>
-      </Section>
+        </Section>
+      ) : null}
 
-      <ChecksSection />
-      <PrivacySection />
       {m11Footer}
       {footer === undefined ? (
         <>
@@ -979,6 +928,7 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
           />
         </>
       ) : null}
+      {helpSheet}
     </ScreenBody>
   );
 }
@@ -991,8 +941,7 @@ const styles = StyleSheet.create({
   disconnect: {
     marginBottom: spacing.lg,
   },
-  intro: {
-    marginBottom: spacing.lg,
+  refusedBox: {
     gap: spacing.xs,
   },
   block: {

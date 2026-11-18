@@ -9,7 +9,8 @@
  * - "Filed recently": filed and kept summaries, each opening SummaryView.
  * - "Refused": collapsed; opened, one row per day with a count, the latest reason and the
  *   verified sender domain. Loaded only when opened (refused rows hold no content).
- * - "Address and setup" opens SummaryConnect.
+ * - The gear in the header (next to the language menu) opens SummaryConnect, the summaries
+ *   settings.
  * Pull to refresh asks the inbox again (the server re-matches it first), then the other views.
  * The inbox is asked before "Filed recently" on every visit, so a summary the re-match files
  * shows up there instead of vanishing from both lists.
@@ -26,12 +27,13 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { HeaderIconButton } from '../../components/CustomHeader';
 import {
   Badge,
   Banner,
@@ -188,7 +190,16 @@ export function SummaryInboxScreen(): ReactElement {
   };
 
   const openSummary = (summaryId: string): void => navigation.navigate('SummaryView', { summaryId });
-  const openSetup = (): void => navigation.navigate('SummaryConnect');
+
+  // Settings: the gear next to the language menu opens the Meeting summaries settings.
+  const settingsLabel = t('summaries:inbox.settings');
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderIconButton icon="settings" label={settingsLabel} onPress={() => navigation.navigate('SummaryConnect')} testID="summary-inbox-settings" />
+      ),
+    });
+  }, [navigation, settingsLabel]);
 
   const refusedSection = (
     <RefusedSection
@@ -228,7 +239,6 @@ export function SummaryInboxScreen(): ReactElement {
           icon="email-outline"
           title={t('summaries:inbox.empty.title')}
           body={t('summaries:inbox.empty.body')}
-          action={{ label: t('summaries:inbox.empty.action'), onPress: openSetup }}
           testID="summary-inbox-empty"
         />
         {refusedSection}
@@ -318,16 +328,6 @@ export function SummaryInboxScreen(): ReactElement {
         ) : null}
 
         {refusedSection}
-
-        <ListGroup style={styles.setup}>
-          <ListRow
-            icon="cog-outline"
-            title={t('summaries:inbox.openSetup')}
-            trailing="chevron"
-            onPress={openSetup}
-            testID="summary-inbox-setup"
-          />
-        </ListGroup>
       </>
     );
   }
@@ -601,8 +601,5 @@ const styles = StyleSheet.create({
   inlineRetry: {
     alignSelf: 'flex-start',
     marginTop: spacing.xs,
-  },
-  setup: {
-    marginTop: spacing.xxl,
   },
 });

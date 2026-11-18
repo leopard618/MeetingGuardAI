@@ -283,7 +283,8 @@
       "body": "Otter y otros asistentes de notas: reenvía a tu dirección privada el correo con la minuta que te envían.",
       "show": "Ver la configuración por correo",
       "hide": "Ocultar la configuración por correo"
-    }
+    },
+    "inboxRow": "Bandeja de minutas"
   },
   "inbox": {
     "waiting": {
@@ -316,9 +317,10 @@
     "openSetup": "Dirección y configuración",
     "empty": {
       "title": "Todavía no hay minutas",
-      "body": "Cuando la minuta de tu asistente de notas llegue a tu dirección privada, se archivará en su reunión o esperará aquí.",
+      "body": "Cuando llega una minuta de Fathom o de otro asistente de notas, se archiva en su reunión o espera aquí.",
       "action": "Configurar el reenvío"
-    }
+    },
+    "settings": "Ajustes de minutas"
   },
   "attach": {
     "title": "Elegir una reunión",
@@ -707,5 +709,10 @@
       "fathom_unavailable": "Fathom no responde en este momento. Inténtalo más tarde.",
       "server_error": "Algo salió mal al conectar Fathom. Inténtalo de nuevo."
     }
+  },
+  "help": {
+    "title": "Cómo funcionan las minutas",
+    "open": "Ayuda",
+    "close": "Cerrar"
   }
 }

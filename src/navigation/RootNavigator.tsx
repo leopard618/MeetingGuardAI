@@ -65,13 +65,15 @@ import { useSignOutFlow } from './useSignOut';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
-function MainHeader({ routeName, onBackPress }: { routeName: RouteName; onBackPress?: () => void }): ReactElement {
+function MainHeader({ routeName, onBackPress, actions }: { routeName: RouteName; onBackPress?: () => void; actions?: ReactNode }): ReactElement {
   const { open } = useSidebar();
-  return <CustomHeader title={routeName} onMenuPress={open} showMenu onBackPress={onBackPress} />;
+  return <CustomHeader title={routeName} onMenuPress={open} showMenu onBackPress={onBackPress} actions={actions} />;
 }
 
-function renderMainHeader({ route, back, navigation }: StackHeaderProps): ReactNode {
-  return <MainHeader routeName={route.name as RouteName} onBackPress={back ? navigation.goBack : undefined} />;
+/** A screen's headerRight option (navigation.setOptions) renders its icon buttons left of the language menu. */
+function renderMainHeader({ route, back, navigation, options }: StackHeaderProps): ReactNode {
+  const actions = options.headerRight?.({ canGoBack: back !== undefined });
+  return <MainHeader routeName={route.name as RouteName} onBackPress={back ? navigation.goBack : undefined} actions={actions} />;
 }
 
 /** A render error replaces only the failed screen (header and navigation keep working). */

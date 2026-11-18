@@ -283,7 +283,8 @@
       "body": "Otter und andere Notizassistenten: Leiten Sie die Protokoll-E-Mail, die sie Ihnen schicken, an Ihre private Adresse weiter.",
       "show": "E-Mail-Einrichtung anzeigen",
       "hide": "E-Mail-Einrichtung ausblenden"
-    }
+    },
+    "inboxRow": "Protokoll-Posteingang"
   },
   "inbox": {
     "waiting": {
@@ -316,9 +317,10 @@
     "openSetup": "Adresse und Einrichtung",
     "empty": {
       "title": "Noch keine Protokolle",
-      "body": "Wenn das Protokoll Ihres Notizassistenten an Ihrer privaten Adresse ankommt, wird es unter seiner Besprechung abgelegt oder wartet hier.",
+      "body": "Wenn ein Protokoll von Fathom oder einem anderen Notizassistenten ankommt, wird es unter seiner Besprechung abgelegt oder wartet hier.",
       "action": "Weiterleitung einrichten"
-    }
+    },
+    "settings": "Protokoll-Einstellungen"
   },
   "attach": {
     "title": "Besprechung wählen",
@@ -707,5 +709,10 @@
       "fathom_unavailable": "Fathom antwortet gerade nicht. Versuchen Sie es später erneut.",
       "server_error": "Beim Verbinden mit Fathom ist etwas schiefgelaufen. Versuchen Sie es erneut."
     }
+  },
+  "help": {
+    "title": "So funktionieren Protokolle",
+    "open": "Hilfe",
+    "close": "Schließen"
   }
 }

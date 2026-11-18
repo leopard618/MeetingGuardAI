@@ -12,12 +12,17 @@ Otter and other notetakers.
 - From then on, after each meeting Fathom records, the summary and action items arrive on their own
   and go through the same matching as email summaries: filed under the right meeting when the match
   is clear, otherwise waiting in the summary inbox. Suggested tasks (M11) work the same way.
-- **Other notetakers (email)** sits below as a closed section with the existing email setup inside.
+- **Other notetakers (email)** sits below as one row that opens the existing email setup.
   It is open by default when Fathom is not offered, when a Gmail code waits, and for someone who
   already receives summaries by email without Fathom.
+- The screen keeps only what the user acts on: the Fathom card, the email row, one **Summary
+  inbox** row (last summary and what waits), refusals only when there are any, and Stop receiving
+  summaries. The explanations (what Meeting Guard AI does, what we read from Fathom, what we
+  check, privacy, how long we keep summaries) open from the **question mark** in the header, next
+  to the language menu. The summary inbox has a **gear** there that opens this screen.
 - **Disconnect Fathom** (after a confirmation) removes the webhook in Fathom and the connection.
   "Stop receiving summaries" also disconnects Fathom first.
-- Fathom writes its summaries in English (its API says so); the card says it.
+- Fathom writes its summaries in English (its API says so); the help sheet says it.
 
 ## 2. Flow
 
@@ -110,7 +115,11 @@ Setup, in this order:
 - `src/services/summaries/fathom.ts`: the callable, the auth session, `parseFathomReturn`.
 - `src/services/summaries/useFathomConnection.ts`: status on mount, connect, disconnect.
 - `src/screens/summaries/FathomConnectCard.tsx` and the connect screen layout.
-- Copy: `summaries:fathom.*` and `summaries:connect.email.*` in en, es, fr, de, pt.
+- `src/screens/summaries/SummaryHelpSheet.tsx`: the help sheet. Header buttons come from a
+  screen's `headerRight` option (`navigation.setOptions`), drawn by `CustomHeader` as
+  `HeaderIconButton`s left of the language menu.
+- Copy: `summaries:fathom.*`, `summaries:connect.email.*` and `summaries:help.*` in en, es, fr,
+  de, pt.
 - `expo-web-browser` and the `meetingguardai` scheme are already in the app: no native change.
 
 ## 8. Later

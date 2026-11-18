@@ -6,8 +6,11 @@
  * M11: "How long we keep summaries", Disconnect with its "Stop receiving summaries" sheet (Keep
  * them, Delete them after a second confirmation), what the screen offers afterwards, and the
  * Microsoft 365 hint dated by addressCreatedAt.
+ * The short layout: the explanations (product line, what we check, privacy, how long we keep
+ * summaries) open from the question mark in the header (the help sheet).
  */
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import type { ReactElement } from 'react';
 import { Alert, Linking, Share, Text, type AlertButton } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
@@ -35,9 +38,11 @@ let mockNow = new Date('2026-11-12T12:00:00.000Z');
 jest.mock('../../shared/useLiveNow', () => ({ useLiveNow: () => mockNow }));
 
 const mockNavigate = jest.fn();
+// The header actions (the help question mark) arrive through setOptions({ headerRight }).
+const mockSetOptions = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual<object>('@react-navigation/native'),
-  useNavigation: () => ({ navigate: mockNavigate }),
+  useNavigation: () => ({ navigate: mockNavigate, setOptions: mockSetOptions }),
 }));
 
 let mockStatus: SummaryStatusResponse | null = null;
@@ -120,6 +125,22 @@ async function press(testID: string) {
   });
 }
 
+/** The header's help button as the screen last set it, or null when it has none. */
+function helpButton(): ReactElement<{ onPress(): void; label: string }> | null {
+  const calls = mockSetOptions.mock.calls as [{ headerRight?: () => ReactElement<{ onPress(): void; label: string }> }][];
+  const last = calls[calls.length - 1]?.[0];
+  return last?.headerRight?.() ?? null;
+}
+
+async function openHelp() {
+  const button = helpButton();
+  expect(button).not.toBeNull();
+  await act(async () => {
+    button?.props.onPress();
+  });
+  expect(screen.getByTestId('summary-help-sheet')).toBeTruthy();
+}
+
 function pollCalls(): unknown[] {
   return mockUseSummaryStatus.mock.calls.map(([options]) => options?.pollMs ?? null).filter((value) => value !== null);
 }
@@ -135,6 +156,7 @@ beforeEach(async () => {
   mockRefresh.mockClear();
   mockUseSummaryStatus.mockClear();
   mockNavigate.mockClear();
+  mockSetOptions.mockClear();
   mockCreateAddress.mockReset();
   mockRegenerateAddress.mockReset();
   mockSetMailboxes.mockReset();
@@ -177,6 +199,8 @@ describe('the gate', () => {
       expect(screen.getByTestId('summary-connect-unavailable')).toBeTruthy();
       expect(screen.queryByTestId('summary-connect-product-line')).toBeNull();
       expect(screen.queryByText(ADDRESS)).toBeNull();
+      // No help button either: there is nothing to explain yet.
+      expect(helpButton()).toBeNull();
     }
     mockStatus = null;
     mockError = summaryAppError('not_enabled');
@@ -187,9 +211,10 @@ describe('the gate', () => {
   it('says "being set up" while the server cannot hand out addresses', async () => {
     mockStatus = { ...AVAILABLE, ready: false };
     await renderScreen();
-    expect(screen.getByText('Meeting Guard AI does not join, record or listen to your meetings.')).toBeTruthy();
     expect(screen.getByTestId('summary-connect-not-ready')).toBeTruthy();
     expect(screen.queryByTestId('summary-connect-create-button')).toBeNull();
+    await openHelp();
+    expect(screen.getByText('Meeting Guard AI does not join, record or listen to your meetings.')).toBeTruthy();
     expect(screen.getByTestId('summary-connect-checks')).toBeTruthy();
   });
 
@@ -204,7 +229,8 @@ describe('the address', () => {
     mockStatus = AVAILABLE;
     mockCreateAddress.mockResolvedValue(answer(CONNECTED));
     await renderScreen();
-    expect(screen.getByText('Meeting Guard AI does not join, record or listen to your meetings.')).toBeTruthy();
+    // The explanations wait behind the help button: the screen opens on the action.
+    expect(screen.queryByText('Meeting Guard AI does not join, record or listen to your meetings.')).toBeNull();
     // No mailbox editing or setup before an address exists (set_mailboxes needs one).
     expect(screen.queryByTestId('summary-connect-mailboxes')).toBeNull();
     await press('summary-connect-create-button');
@@ -446,13 +472,13 @@ describe('setup', () => {
 describe('activity', () => {
   it('waits for the first summary and polls only then', async () => {
     await renderScreen();
-    expect(screen.getByTestId('summary-connect-nothing-yet')).toBeTruthy();
+    expect(screen.getByText('Nothing received yet.')).toBeTruthy();
     expect(pollCalls()).toContain(8_000);
 
     mockUseSummaryStatus.mockClear();
     mockStatus = RECEIVED;
     await renderScreen();
-    expect(screen.getByTestId('summary-connect-last-received').props.children).toBe('Last summary received Nov 12, 2026, 9:30 AM');
+    expect(screen.getByText('Last summary received Nov 12, 2026, 9:30 AM')).toBeTruthy();
     expect(pollCalls()).toEqual([]);
   });
 
@@ -484,10 +510,11 @@ describe('activity', () => {
     expect(screen.getByText('From an unknown sender')).toBeTruthy();
   });
 
-  it('opens the summary inbox', async () => {
+  it('opens the summary inbox from one row with the last summary and what waits', async () => {
     mockStatus = { ...RECEIVED, inboxCount: 2 };
     await renderScreen();
-    expect(screen.getByTestId('summary-connect-inbox-count').props.children).toBe('2 waiting for a meeting');
+    expect(screen.getByText('Summary inbox')).toBeTruthy();
+    expect(screen.getByText('Last summary received Nov 12, 2026, 9:30 AM\n2 waiting for a meeting')).toBeTruthy();
     await press('summary-connect-open-inbox');
     expect(mockNavigate).toHaveBeenCalledWith('SummaryInbox');
   });
@@ -520,6 +547,10 @@ describe('activity', () => {
 describe('what we check and privacy', () => {
   it('states the checks and the privacy wording with the provider retention', async () => {
     await renderScreen();
+    expect(screen.queryByTestId('summary-connect-checks')).toBeNull();
+    expect(helpButton()?.props.label).toBe('Help');
+    await openHelp();
+    expect(screen.getByText('How meeting summaries work')).toBeTruthy();
     expect(screen.getByText(/carries your notetaker's own digital signature/)).toBeTruthy();
     // Never claim that only signed summaries get in (section 14): hand forwards and unbound or
     // old vendor summaries wait in the inbox for an OK.
@@ -533,9 +564,12 @@ describe('what we check and privacy', () => {
   it('renders in Spanish', async () => {
     await i18n.changeLanguage('es');
     await renderScreen();
-    expect(screen.getByText('Meeting Guard AI no se une a tus reuniones, no las graba y no las escucha.')).toBeTruthy();
     expect(screen.getByText('Tu dirección privada')).toBeTruthy();
     expect(screen.getByText('Dónde llegan tus minutas')).toBeTruthy();
+    expect(screen.getByText('Bandeja de minutas')).toBeTruthy();
+    await openHelp();
+    expect(screen.getByText('Cómo funcionan las minutas')).toBeTruthy();
+    expect(screen.getByText('Meeting Guard AI no se une a tus reuniones, no las graba y no las escucha.')).toBeTruthy();
     expect(screen.getByText('Qué comprobamos')).toBeTruthy();
     // The privacy card names what is encrypted (T5), and the refused caveat shows in Spanish too.
     expect(screen.getByText(/^Google Cloud cifra tus minutas en tránsito y en reposo\./)).toBeTruthy();
@@ -544,9 +578,9 @@ describe('what we check and privacy', () => {
 });
 
 describe('M11 footer spot', () => {
-  it('renders the retention card and Disconnect by default; a footer prop replaces both', async () => {
+  it('renders Disconnect by default; a footer prop replaces it', async () => {
     await renderScreen();
-    expect(screen.getByTestId('summary-connect-retention')).toBeTruthy();
+    expect(screen.queryByTestId('summary-connect-retention')).toBeNull();
     expect(screen.getByTestId('summary-connect-disconnect')).toBeTruthy();
 
     await render(
@@ -571,8 +605,9 @@ describe('M11 footer spot', () => {
 });
 
 describe('how long we keep summaries (M11)', () => {
-  it('lists every rule, with our email provider keeping its copy 45 days', async () => {
+  it('lists every rule in the help sheet, with our email provider keeping its copy 45 days', async () => {
     await renderScreen();
+    await openHelp();
     expect(screen.getByText('How long we keep summaries')).toBeTruthy();
     expect(screen.getByText('Summaries filed under a meeting or kept: 12 months after they arrive, then deleted.')).toBeTruthy();
     expect(screen.getByText(/Summaries waiting in the inbox: 60 days after they arrive/)).toBeTruthy();
@@ -587,20 +622,30 @@ describe('how long we keep summaries (M11)', () => {
   it('shows the rules before an address exists too, but no Disconnect', async () => {
     mockStatus = AVAILABLE;
     await renderScreen();
-    expect(screen.getByTestId('summary-connect-retention')).toBeTruthy();
     expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
+    await openHelp();
+    expect(screen.getByTestId('summary-connect-retention')).toBeTruthy();
 
     mockStatus = { ...AVAILABLE, ready: false };
     await renderScreen();
+    expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
+    await openHelp();
     expect(screen.getByTestId('summary-connect-retention')).toBeTruthy();
+  });
+
+  it('never shows the rules while the feature is off for the account', async () => {
+    mockStatus = { ...CONNECTED, allowed: false };
+    await renderScreen();
+    expect(helpButton()).toBeNull();
+    expect(screen.queryByTestId('summary-connect-retention')).toBeNull();
     expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
   });
 
-  it('never shows the card while the feature is off for the account', async () => {
-    mockStatus = { ...CONNECTED, allowed: false };
+  it('the help sheet closes', async () => {
     await renderScreen();
-    expect(screen.queryByTestId('summary-connect-retention')).toBeNull();
-    expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
+    await openHelp();
+    await press('summary-help-close');
+    expect(screen.queryByTestId('summary-help-sheet')).toBeNull();
   });
 });
 
@@ -735,7 +780,9 @@ describe('disconnect (M11)', () => {
   it('is translated to Spanish', async () => {
     await i18n.changeLanguage('es');
     await renderScreen();
+    await openHelp();
     expect(screen.getByText('Cuánto tiempo guardamos las minutas')).toBeTruthy();
+    await press('summary-help-close');
     await openSheet();
     expect(screen.getByText('Dejar de recibir minutas')).toBeTruthy();
     expect(screen.getByText('Conservarlas')).toBeTruthy();
@@ -785,8 +832,27 @@ describe('Connect Fathom', () => {
     expect(screen.getByTestId('fathom-card')).toBeTruthy();
     expect(screen.getAllByText('Connect Fathom')).toHaveLength(2);
     expect(screen.queryByTestId('summary-connect-create-button')).toBeNull();
+    // The email way in is one row; its explanation is in the help sheet.
+    expect(screen.getByText('Other notetakers (email)')).toBeTruthy();
+    expect(screen.queryByText(/forward the summary email they send you/)).toBeNull();
     await press('summary-connect-email-toggle');
     expect(screen.getByTestId('summary-connect-create-button')).toBeTruthy();
+  });
+
+  it('the help sheet explains Fathom only while it is offered', async () => {
+    mockStatus = AVAILABLE;
+    await renderScreen();
+    await openHelp();
+    expect(screen.queryByTestId('summary-help-fathom')).toBeNull();
+    expect(screen.getByTestId('summary-help-email')).toBeTruthy();
+
+    mockFathomStatus = { ...FATHOM_OFF, available: true };
+    await renderScreen();
+    await openHelp();
+    expect(screen.getByTestId('summary-help-fathom')).toBeTruthy();
+    expect(screen.getByText(/We read only the summary and the action items/)).toBeTruthy();
+    expect(screen.getByText(/you can stop now: Fathom summaries arrive on their own/)).toBeTruthy();
+    expect(screen.getByText(/forward the summary email they send you to your private address/)).toBeTruthy();
   });
 
   it('a connection says so and asks the summaries status again', async () => {
@@ -815,6 +881,10 @@ describe('Connect Fathom', () => {
     mockDisconnect.mockResolvedValueOnce(answer({ ...AVAILABLE }));
     await renderScreen();
     expect(screen.getByTestId('fathom-card-connected')).toBeTruthy();
+    // Short: the last summary, no "connected since" or forwarding hint on the card.
+    expect(screen.getByText('Last summary Nov 12, 2026, 9:30 AM')).toBeTruthy();
+    expect(screen.queryByText(/Connected Nov/)).toBeNull();
+    expect(screen.queryByText(/you can stop now/)).toBeNull();
     expect(screen.queryByTestId('summary-connect-address')).toBeNull();
     expect(screen.getByTestId('summary-connect-activity')).toBeTruthy();
     await press('summary-connect-disconnect');
