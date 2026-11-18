@@ -87,6 +87,8 @@ interface FakeFathomOptions {
   /** GET /meetings items (one page). */
   meetings?: unknown[];
   meetingsStatus?: number;
+  /** The whole GET /meetings body, in place of the default page. */
+  meetingsBody?: unknown;
   /** GET /recordings/{id}/summary markdown by recording id; null or missing = no summary yet. */
   recordingSummaries?: Record<string, string | null>;
 }
@@ -115,7 +117,7 @@ function fakeFathom(options: FakeFathomOptions = {}) {
     if (url.includes('/webhooks/') && init.method === 'DELETE') return reply(options.deleteStatus ?? 204, null);
     if (url.startsWith(`${FATHOM_API_BASE}/meetings?`) && init.method === 'GET') {
       if ((options.meetingsStatus ?? 200) !== 200) return reply(options.meetingsStatus ?? 500, {});
-      return reply(200, { limit: 10, next_cursor: null, items: options.meetings ?? [] });
+      return reply(200, options.meetingsBody ?? { limit: 10, next_cursor: null, items: options.meetings ?? [] });
     }
     const summaryMatch = /\/recordings\/(\d+)\/summary$/.exec(url);
     if (summaryMatch !== null && init.method === 'GET') {
@@ -544,6 +546,23 @@ describe('fathomConnect sync (the backup to the webhook)', () => {
     h.fake.seed(summaryEventPath(deletionMarkerKey(UID, summaryId)), { expiresAt: '2026-12-15T00:00:00.000Z' });
     expect((await sync(h)).synced).toEqual({ ran: true, imported: 0, pending: 0 });
     expect(summaries(h.fake)).toHaveLength(0);
+  });
+
+  it('reads a page whose cursor is empty or not a string, with fields it does not know', async () => {
+    const h = harness({
+      fathom: { meetingsBody: { limit: null, next_cursor: '', items: [LISTED], extra: { any: true } }, recordingSummaries: { [RECORDING]: MARKDOWN } },
+    });
+    await connect(h);
+    expect((await sync(h)).synced).toEqual({ ran: true, imported: 1, pending: 0 });
+  });
+
+  it('a page it cannot read logs which field, by name only, and stores nothing', async () => {
+    const h = harness({ fathom: { meetingsBody: { items: 'not a list', next_cursor: 'abc' } } });
+    await connect(h);
+    expect((await sync(h)).synced).toEqual({ ran: true, imported: 0, pending: 0 });
+    const line = (logger.info as unknown as jest.Mock).mock.calls.find(([message, fields]) => message === 'summaries.fathom_sync' && (fields as { outcome?: string }).outcome === 'fathom_failed');
+    expect(line?.[1]).toMatchObject({ failure: 'shape', failureDetail: 'meetings:items' });
+    expect(allLogText()).not.toContain('not a list');
   });
 
   it('not connected: skipped; Fathom refusing the list: no error, nothing stored', async () => {

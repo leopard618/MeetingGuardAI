@@ -43,10 +43,21 @@ export class FathomApiError extends Error {
   constructor(
     readonly failure: FathomFailure,
     readonly status: number | null,
+    /**
+     * For 'shape': which call and which field did not match, by name only ("meetings:next_cursor",
+     * "token:not_json"), never a value. Safe to log.
+     */
+    readonly detail: string | null = null,
   ) {
     super(`fathom api: ${failure}${status === null ? '' : ` ${status}`}`);
     this.name = 'FathomApiError';
   }
+}
+
+/** The field paths of a failed parse, joined ("items.0.recording_id"), names only, at most 3. */
+function shapeDetail(call: string, error: z.ZodError): string {
+  const paths = error.issues.slice(0, 3).map((issue) => (issue.path.length > 0 ? issue.path.map(String).join('.') : '(root)'));
+  return `${call}:${paths.join(',')}`.slice(0, 200);
 }
 
 export interface FathomClientConfig {
@@ -108,11 +119,11 @@ async function call(
   }
 }
 
-async function jsonOf(response: { json(): Promise<unknown> }): Promise<unknown> {
+async function jsonOf(response: { json(): Promise<unknown> }, call: string): Promise<unknown> {
   try {
     return await response.json();
   } catch {
-    throw new FathomApiError('shape', null);
+    throw new FathomApiError('shape', null, `${call}:not_json`);
   }
 }
 
@@ -123,8 +134,8 @@ async function tokenCall(config: FathomClientConfig, form: Record<string, string
     body: new URLSearchParams({ ...form, client_id: config.clientId, client_secret: config.clientSecret }).toString(),
   });
   if (response.status < 200 || response.status > 299) throw new FathomApiError(statusFailure(response.status), response.status);
-  const parsed = tokenResponseSchema.safeParse(await jsonOf(response));
-  if (!parsed.success) throw new FathomApiError('shape', response.status);
+  const parsed = tokenResponseSchema.safeParse(await jsonOf(response, 'token'));
+  if (!parsed.success) throw new FathomApiError('shape', response.status, shapeDetail('token', parsed.error));
   const expiresIn = parsed.data.expires_in ?? DEFAULT_EXPIRES_IN_SECONDS;
   return {
     accessToken: parsed.data.access_token,
@@ -161,8 +172,8 @@ export async function createWebhook(config: FathomClientConfig, accessToken: str
     }),
   });
   if (response.status < 200 || response.status > 299) throw new FathomApiError(statusFailure(response.status), response.status);
-  const parsed = webhookResponseSchema.safeParse(await jsonOf(response));
-  if (!parsed.success) throw new FathomApiError('shape', response.status);
+  const parsed = webhookResponseSchema.safeParse(await jsonOf(response, 'webhook'));
+  if (!parsed.success) throw new FathomApiError('shape', response.status, shapeDetail('webhook', parsed.error));
   return { id: String(parsed.data.id), secret: parsed.data.secret };
 }
 
@@ -182,10 +193,13 @@ export interface FathomMeetingPage {
   nextCursor: string | null;
 }
 
-const meetingPageSchema = z.object({
-  items: z.array(z.unknown()).max(100),
-  next_cursor: z.string().min(1).max(2000).nullable().optional(),
+// Tolerant on purpose (a sync is only a backup): any item count (the caller reads at most
+// MAX_PAGE_ITEMS), and a cursor that is absent, null, empty or not a string means the last page.
+const meetingPageSchema = z.looseObject({
+  items: z.array(z.unknown()),
+  next_cursor: z.unknown().optional(),
 });
+const MAX_PAGE_ITEMS = 100;
 
 /**
  * GET /meetings of the authorized user, newest first, created after `createdAfter`, with their
@@ -205,16 +219,18 @@ export async function listMeetings(
     headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
   });
   if (response.status < 200 || response.status > 299) throw new FathomApiError(statusFailure(response.status), response.status);
-  const parsed = meetingPageSchema.safeParse(await jsonOf(response));
-  if (!parsed.success) throw new FathomApiError('shape', response.status);
-  return { items: parsed.data.items, nextCursor: parsed.data.next_cursor ?? null };
+  const parsed = meetingPageSchema.safeParse(await jsonOf(response, 'meetings'));
+  if (!parsed.success) throw new FathomApiError('shape', response.status, shapeDetail('meetings', parsed.error));
+  const cursor = parsed.data.next_cursor;
+  const nextCursor = typeof cursor === 'string' && cursor.length > 0 && cursor.length <= 2000 ? cursor : null;
+  return { items: parsed.data.items.slice(0, MAX_PAGE_ITEMS), nextCursor };
 }
 
-const recordingSummarySchema = z.object({
+const recordingSummarySchema = z.looseObject({
   summary: z
-    .object({
-      template_name: z.string().max(200).nullable().optional(),
-      markdown_formatted: z.string().max(200_000).nullable().optional(),
+    .looseObject({
+      template_name: z.unknown().optional(),
+      markdown_formatted: z.string().max(400_000).nullable().optional(),
     })
     .nullable()
     .optional(),
@@ -237,9 +253,10 @@ export async function getRecordingSummary(config: FathomClientConfig, accessToke
   });
   if (response.status === 404) return null;
   if (response.status < 200 || response.status > 299) throw new FathomApiError(statusFailure(response.status), response.status);
-  const parsed = recordingSummarySchema.safeParse(await jsonOf(response));
-  if (!parsed.success) throw new FathomApiError('shape', response.status);
+  const parsed = recordingSummarySchema.safeParse(await jsonOf(response, 'summary'));
+  if (!parsed.success) throw new FathomApiError('shape', response.status, shapeDetail('summary', parsed.error));
   const markdown = parsed.data.summary?.markdown_formatted ?? null;
   if (markdown === null || markdown.trim().length === 0) return null;
-  return { template_name: parsed.data.summary?.template_name ?? null, markdown_formatted: markdown };
+  const template = parsed.data.summary?.template_name;
+  return { template_name: typeof template === 'string' ? template.slice(0, 200) : null, markdown_formatted: markdown };
 }

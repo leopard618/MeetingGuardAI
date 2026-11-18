@@ -57,6 +57,8 @@ export interface FathomSyncResult {
   pending: number;
   /** FathomApiError failure code, or null. */
   failure: string | null;
+  /** For a shape failure: the call and field names that did not match (never a value). */
+  failureDetail?: string | null;
 }
 
 type Claim = 'missing' | 'recent' | 'claimed';
@@ -89,6 +91,7 @@ export async function syncFathom(uid: string, deps: FathomSyncDeps): Promise<Fat
       imported: result.imported,
       pending: result.pending,
       failure: result.failure,
+      failureDetail: result.failureDetail ?? null,
       ms: Date.now() - startedMs,
     });
 
@@ -150,6 +153,7 @@ export async function syncFathom(uid: string, deps: FathomSyncDeps): Promise<Fat
   } catch (error) {
     if (!(error instanceof FathomApiError)) throw error;
     result.failure = error.failure;
+    result.failureDetail = error.detail;
     log('fathom_failed');
     return result;
   }
