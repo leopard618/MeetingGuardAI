@@ -21,7 +21,8 @@ import { newSummaryUserFields, tokenHash } from '../../src/summaries/address';
 import { deleteSummaryDataForUid } from '../../src/summaries/accountDeletion';
 import type { SummaryCallableAuth } from '../../src/summaries/callables';
 import { loadCandidates } from '../../src/summaries/candidates';
-import { FATHOM_AUTHORIZE_URL, FATHOM_TOKEN_URL, type FathomFetch } from '../../src/summaries/fathom/api';
+import { FATHOM_API_BASE, FATHOM_AUTHORIZE_URL, FATHOM_TOKEN_URL, type FathomFetch } from '../../src/summaries/fathom/api';
+import { deletionMarkerKey, summaryEventPath, summaryIdFor } from '../../src/summaries/model';
 import { handleFathomConnect, handleFathomOAuth, type FathomConnectDeps } from '../../src/summaries/fathom/connect';
 import { fathomMeetingSchema, recapTextOf } from '../../src/summaries/fathom/payload';
 import { verifyFathomSignature } from '../../src/summaries/fathom/signature';
@@ -77,8 +78,20 @@ interface FetchCall {
   authorization: string | undefined;
 }
 
-/** A scripted Fathom: token grants, webhook create and delete. */
-function fakeFathom(options: { tokenStatus?: number; createStatus?: number; deleteStatus?: number; expiresIn?: number } = {}) {
+/** A scripted Fathom: token grants, webhook create and delete, and for the sync GET /meetings and GET /recordings/{id}/summary. */
+interface FakeFathomOptions {
+  tokenStatus?: number;
+  createStatus?: number;
+  deleteStatus?: number;
+  expiresIn?: number;
+  /** GET /meetings items (one page). */
+  meetings?: unknown[];
+  meetingsStatus?: number;
+  /** GET /recordings/{id}/summary markdown by recording id; null or missing = no summary yet. */
+  recordingSummaries?: Record<string, string | null>;
+}
+
+function fakeFathom(options: FakeFathomOptions = {}) {
   const calls: FetchCall[] = [];
   let webhookCounter = 0;
   let refreshCounter = 0;
@@ -100,6 +113,15 @@ function fakeFathom(options: { tokenStatus?: number; createStatus?: number; dele
       return reply(201, { id: `wh_${webhookCounter}`, secret: WEBHOOK_SECRET, url: 'x', created_at: NOW.toISOString() });
     }
     if (url.includes('/webhooks/') && init.method === 'DELETE') return reply(options.deleteStatus ?? 204, null);
+    if (url.startsWith(`${FATHOM_API_BASE}/meetings?`) && init.method === 'GET') {
+      if ((options.meetingsStatus ?? 200) !== 200) return reply(options.meetingsStatus ?? 500, {});
+      return reply(200, { limit: 10, next_cursor: null, items: options.meetings ?? [] });
+    }
+    const summaryMatch = /\/recordings\/(\d+)\/summary$/.exec(url);
+    if (summaryMatch !== null && init.method === 'GET') {
+      const markdown = options.recordingSummaries?.[summaryMatch[1] ?? ''] ?? null;
+      return markdown === null ? reply(404, {}) : reply(200, { summary: { template_name: 'general', markdown_formatted: markdown } });
+    }
     return reply(404, {});
   };
   return { fetch, calls };
@@ -134,6 +156,7 @@ function harness(options: { withAddress?: boolean; fathom?: Parameters<typeof fa
       return Buffer.alloc(size, counter);
     },
     sleep: async () => undefined,
+    candidates: loadCandidates,
   };
   return { fake, fathom, deps, setNow: (date) => (now = date) };
 }
@@ -457,5 +480,81 @@ describe('sealed secrets', () => {
   it('a blob sealed for one uid does not open for another', () => {
     const blob = sealSecrets(KEYRING, UID, { accessToken: 'a', accessExpiresAtMs: 1, refreshToken: 'r', webhookSecret: null });
     expect(() => openSecrets(KEYRING, 'uidSomeoneElse01', blob)).toThrow();
+  });
+});
+
+describe('fathomConnect sync (the backup to the webhook)', () => {
+  const { default_summary: summaryOf, ...LISTED } = MEETING_PAYLOAD;
+  const RECORDING = String(MEETING_PAYLOAD.recording_id);
+  const MARKDOWN = summaryOf.markdown_formatted;
+  const sync = (h: Harness) => handleFathomConnect(verifiedAuth(), { op: 'sync' }, h.deps);
+
+  it('stores a recording the webhook never delivered, filed to its meeting', async () => {
+    const h = harness({ fathom: { meetings: [LISTED], recordingSummaries: { [RECORDING]: MARKDOWN } } });
+    await connect(h);
+    const out = await sync(h);
+    expect(out.synced).toEqual({ ran: true, imported: 1, pending: 0 });
+    const stored = summaries(h.fake);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ status: 'matched', source: 'fathom_api', match: { meetingId: MEETING_ID } });
+    // The list asks for action items (OAuth apps may not ask it for summaries) over the last 7 days.
+    const list = h.fathom.calls.find((call) => call.url.startsWith(`${FATHOM_API_BASE}/meetings?`));
+    const query = new URL(list?.url ?? 'https://x').searchParams;
+    expect(query.get('include_action_items')).toBe('true');
+    expect(query.get('include_summary')).toBeNull();
+    expect(query.get('created_after')).toBe('2026-11-03T15:30:00Z');
+    expect(list?.authorization).toBe(`Bearer ${ACCESS_TOKEN}`);
+    expect(out.status.lastEventAt).toBe(NOW.toISOString());
+    expect(allLogText()).not.toMatch(/Urpayroll|payroll export|fathom-access-token/);
+  });
+
+  it('runs at most once a minute, and never fetches a recording it already has', async () => {
+    const h = harness({ fathom: { meetings: [LISTED], recordingSummaries: { [RECORDING]: MARKDOWN } } });
+    await connect(h);
+    await sync(h);
+    expect((await sync(h)).synced).toEqual({ ran: false, imported: 0, pending: 0 });
+    h.setNow(new Date(NOW.getTime() + 2 * 60 * 1000));
+    const fetchesBefore = h.fathom.calls.filter((call) => call.url.endsWith('/summary')).length;
+    expect((await sync(h)).synced).toEqual({ ran: true, imported: 0, pending: 0 });
+    expect(h.fathom.calls.filter((call) => call.url.endsWith('/summary'))).toHaveLength(fetchesBefore);
+    expect(summaries(h.fake)).toHaveLength(1);
+  });
+
+  it('a webhook delivery and a sync of the same recording are one summary', async () => {
+    const h = harness({ fathom: { meetings: [LISTED], recordingSummaries: { [RECORDING]: MARKDOWN } } });
+    const hookToken = await connect(h);
+    const body = JSON.stringify(MEETING_PAYLOAD);
+    await deliver(h, hookToken, body);
+    expect((await sync(h)).synced).toEqual({ ran: true, imported: 0, pending: 0 });
+    expect(summaries(h.fake)).toHaveLength(1);
+    expect(h.fathom.calls.filter((call) => call.url.endsWith('/summary'))).toHaveLength(0);
+  });
+
+  it('a recording with no summary yet is pending and stores nothing', async () => {
+    const h = harness({ fathom: { meetings: [LISTED], recordingSummaries: {} } });
+    await connect(h);
+    expect((await sync(h)).synced).toEqual({ ran: true, imported: 0, pending: 1 });
+    expect(summaries(h.fake)).toHaveLength(0);
+  });
+
+  it('never brings back a summary the user deleted', async () => {
+    const h = harness({ fathom: { meetings: [LISTED], recordingSummaries: { [RECORDING]: MARKDOWN } } });
+    await connect(h);
+    const summaryId = summaryIdFor(UID, `fathom:rec:${RECORDING}`);
+    h.fake.seed(summaryEventPath(deletionMarkerKey(UID, summaryId)), { expiresAt: '2026-12-15T00:00:00.000Z' });
+    expect((await sync(h)).synced).toEqual({ ran: true, imported: 0, pending: 0 });
+    expect(summaries(h.fake)).toHaveLength(0);
+  });
+
+  it('not connected: skipped; Fathom refusing the list: no error, nothing stored', async () => {
+    const off = harness({ fathom: { meetings: [LISTED] } });
+    expect((await sync(off)).synced).toEqual({ ran: false, imported: 0, pending: 0 });
+
+    const h = harness({ fathom: { meetings: [LISTED], meetingsStatus: 401 } });
+    await connect(h);
+    const out = await sync(h);
+    expect(out.synced).toEqual({ ran: true, imported: 0, pending: 0 });
+    expect(summaries(h.fake)).toHaveLength(0);
+    expect(allLogText()).toContain('fathom_failed');
   });
 });

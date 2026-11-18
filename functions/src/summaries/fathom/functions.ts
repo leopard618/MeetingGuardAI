@@ -103,7 +103,16 @@ function connectDeps(): ConnectModuleNamespace.FathomConnectDeps {
     get authUsers() {
       return loadInboundAuthUsers();
     },
+    // The sync's meeting candidates (a pure loader, no mail parsers), loaded on use.
+    candidates: (...args) => loadCandidatesModule().loadCandidates(...args),
   };
+}
+
+let candidatesModule: CandidatesModule | null = null;
+function loadCandidatesModule(): CandidatesModule {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- deliberate lazy load (file comment).
+  if (candidatesModule === null) candidatesModule = require('../candidates') as CandidatesModule;
+  return candidatesModule;
 }
 
 /** Auth reads in the inbound shape, without loading ./inbound (mailauth). */

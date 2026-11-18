@@ -164,14 +164,7 @@ async function processDelivery(request: FathomWebhookRequest, deps: FathomWebhoo
   run.providerEventId = `fathom:${request.webhookId as string}`;
   run.attemptAt = attemptAt;
 
-  // Step 3: pilot and Auth.
-  if (!isPilotUid(uid, deps.pilotUids())) return run.finish(OK, 'dropped', 'not_pilot');
-  run.stage = 'auth_user';
-  const authUser = await deps.authUsers.getUser(uid);
-  if (!authUser.exists) return run.finish(OK, 'dropped', 'user_missing');
-  if (authUser.disabled) return run.finish(OK, 'dropped', 'user_disabled');
-
-  // Step 4: the payload.
+  // Steps 3 to 7: the same for a webhook delivery and a sync (./sync.ts).
   run.stage = 'payload';
   let raw: unknown;
   try {
@@ -179,38 +172,84 @@ async function processDelivery(request: FathomWebhookRequest, deps: FathomWebhoo
   } catch {
     return run.finish(OK, 'ignored', 'payload_not_json');
   }
-  const parsed = fathomMeetingSchema.safeParse(raw);
-  if (!parsed.success) return run.finish(OK, 'ignored', 'payload_shape');
-  const meeting = parsed.data;
-  if (!hasContent(meeting)) return run.finish(OK, 'ignored', 'no_content');
-
   run.stage = 'first_seen';
   const receivedAt = (await readFirstSeen(deps.db, run.providerEventId)) ?? attemptAt;
+  const result = await ingestFathomMeeting(uid, raw, deps, {
+    attemptAt,
+    receivedAt,
+    providerEventId: run.providerEventId,
+    stage: (stage) => {
+      run.stage = stage;
+    },
+  });
+  return run.finish(OK, result.verdict, result.reason, { outcome: result.outcome, matched: result.matched });
+}
+
+/** What ingestFathomMeeting did with one meeting (fixed codes, safe to log). */
+export interface FathomIngestResult {
+  verdict: 'ignored' | 'dropped' | 'refused' | 'stored';
+  reason: string;
+  outcome?: string;
+  matched?: boolean;
+}
+
+export type FathomIngestDeps = Pick<FathomWebhookDeps, 'pilotUids' | 'keyring' | 'db' | 'authUsers' | 'candidates'>;
+
+export interface FathomIngestContext {
+  attemptAt: Date;
+  /** The first time this copy was seen (a retry keeps it). */
+  receivedAt: Date;
+  /** The refusal marker key's event id (fathom:<webhook-id>, or fathom:sync:<recording id>). */
+  providerEventId: string;
+  /** Names the step in progress, for the caller's error log. */
+  stage(stage: string): void;
+}
+
+/**
+ * Steps 3 to 7 for one Fathom meeting of `uid` (a verified webhook delivery or a meeting the sync
+ * read with the user's own token): pilot and Auth, the payload, the address, the text, then trust,
+ * matching and the commit. Firestore errors propagate.
+ */
+export async function ingestFathomMeeting(uid: string, raw: unknown, deps: FathomIngestDeps, ctx: FathomIngestContext): Promise<FathomIngestResult> {
+  const { attemptAt, receivedAt } = ctx;
+  // Step 3: pilot and Auth.
+  if (!isPilotUid(uid, deps.pilotUids())) return { verdict: 'dropped', reason: 'not_pilot' };
+  ctx.stage('auth_user');
+  const authUser = await deps.authUsers.getUser(uid);
+  if (!authUser.exists) return { verdict: 'dropped', reason: 'user_missing' };
+  if (authUser.disabled) return { verdict: 'dropped', reason: 'user_disabled' };
+
+  // Step 4: the payload.
+  ctx.stage('payload');
+  const parsed = fathomMeetingSchema.safeParse(raw);
+  if (!parsed.success) return { verdict: 'ignored', reason: 'payload_shape' };
+  const meeting = parsed.data;
+  if (!hasContent(meeting)) return { verdict: 'ignored', reason: 'no_content' };
 
   // Step 5: the address the commit re-checks.
-  run.stage = 'summary_user';
+  ctx.stage('summary_user');
   const summaryUser = await readSummaryUser(uid, { db: deps.db });
   const address = summaryUser === null ? null : usableToken(summaryUser);
-  if (address === null) return run.finish(OK, 'dropped', 'no_address');
+  if (address === null) return { verdict: 'dropped', reason: 'no_address' };
 
   // Step 6: the text.
-  run.stage = 'text';
+  ctx.stage('text');
   const sanitized = sanitizeText(recapTextOf(meeting));
   const text = sanitized.text;
   const subjectLine = sanitizeLine(meetingTitleOf(meeting) ?? '', SUMMARY_LIMITS.maxSubjectChars);
   const subject = subjectLine.length > 0 ? subjectLine : null;
   const sections = text.trim().length === 0 ? null : parseSections(text);
   if (sections === null || sections.sections.length === 0) {
-    run.stage = 'refusal';
+    ctx.stage('refusal');
     const outcome = await recordRefusal(deps.db, {
       uid,
       reason: 'unreadable',
       senderDomain: FATHOM_DOMAIN,
-      providerEventId: run.providerEventId,
+      providerEventId: ctx.providerEventId,
       now: attemptAt,
       tokenHash: address.tokenHash,
     });
-    return run.finish(OK, 'refused', 'unreadable', { outcome });
+    return { verdict: 'refused', reason: 'unreadable', outcome };
   }
   const meta = extractSummaryMeta(text, subject);
 
@@ -219,7 +258,7 @@ async function processDelivery(request: FathomWebhookRequest, deps: FathomWebhoo
   const anchorMs = anchorAtDate?.getTime() ?? Number.NaN;
   const fresh = Number.isFinite(anchorMs) && anchorMs >= receivedAt.getTime() - FRESH_BEFORE_MS && anchorMs <= receivedAt.getTime() + FRESH_AFTER_MS;
   const anchor: MatchAnchor | null = anchorAtDate === null ? null : { at: anchorAtDate.toISOString(), signed: true };
-  run.stage = 'candidates';
+  ctx.stage('candidates');
   const zone = await readPreferencesTimeZone(deps.db, uid);
   const window = candidateWindow({ summaryDate: meta.summaryDate, anchorAt: anchor?.at ?? null });
   const loaded = await deps.candidates(deps.db, uid, window, receivedAt, { preferencesTimeZone: zone });
@@ -239,9 +278,9 @@ async function processDelivery(request: FathomWebhookRequest, deps: FathomWebhoo
     now: attemptAt,
   });
 
-  const messageKey = `fathom:rec:${recordingIdOf(meeting)}`;
+  const messageKey = fathomMessageKey(recordingIdOf(meeting));
   const summaryId = summaryIdFor(uid, messageKey);
-  run.stage = 'build';
+  ctx.stage('build');
   const built = buildSummaryDoc({
     keyring: deps.keyring(),
     uid,
@@ -272,7 +311,7 @@ async function processDelivery(request: FathomWebhookRequest, deps: FathomWebhoo
   // Where the copy came from (the stored schema keeps unknown fields).
   const doc = { ...built.doc, source: 'fathom_api' };
 
-  run.stage = 'commit';
+  ctx.stage('commit');
   const result = await commitSummary(deps.db, {
     uid,
     tokenHash: address.tokenHash,
@@ -292,9 +331,12 @@ async function processDelivery(request: FathomWebhookRequest, deps: FathomWebhoo
       // Best effort: the status line only.
     }
   }
+  if (result.outcome === 'dropped') return { verdict: 'dropped', reason: result.reason, outcome: result.outcome };
   const reason = built.doc.status === 'matched' ? 'filed' : (built.doc.inboxReason ?? 'inbox');
-  return run.finish(OK, result.outcome === 'dropped' ? 'dropped' : 'stored', result.outcome === 'dropped' ? result.reason : reason, {
-    outcome: result.outcome,
-    matched: result.outcome !== 'dropped' && result.status === 'matched',
-  });
+  return { verdict: 'stored', reason, outcome: result.outcome, matched: result.status === 'matched' };
+}
+
+/** The message key of a Fathom recording: a webhook delivery and a sync of it are one copy. */
+export function fathomMessageKey(recordingId: string): string {
+  return `fathom:rec:${recordingId}`;
 }

@@ -1629,7 +1629,12 @@ export interface SummaryMeta {
   titleLine: string | null;
   /** Subject without Re/Fwd/RV prefixes and notetaker prefixes ("Meeting notes:"), or null. */
   subjectClean: string | null;
-  /** YYYY-MM-DD when exactly one distinct date appears in the first 10 lines and the Subject. */
+  /**
+   * YYYY-MM-DD when exactly one distinct date appears in the first 10 lines and the Subject. With
+   * no date that carries a year and a `referenceDate` given (the time the copy arrived), a single
+   * distinct year-less month and day ("Nov 17, 11:14 pm", Otter's recap) counts too, in the year
+   * that puts it on or before the reference (yearlessDateOf).
+   */
   summaryDate: string | null;
   /** The text line (trimmed) that carries summaryDate, or null (date only in the Subject, or none). */
   dateLine: string | null;
@@ -1918,8 +1923,15 @@ function participantTitle(topLines: readonly string[], k: number): string | null
   return head !== '' && isDateValue(head) ? name : null;
 }
 
+/**
+ * A notetaker's share or preview line above the recap ("Dana Lee has shared notes from Weekly
+ * sync, Nov 17. The meeting focused on...", Otter's email preview): never the meeting name.
+ */
+const SHARED_NOTES_LINE_RE = /\bhas[ \t]+shared[ \t]+(?:the[ \t]+|a[ \t]+)?(?:meeting[ \t]+)?(?:notes|summary|recap)[ \t]+(?:from|for|of)[ \t]/i;
+
 function isTitleCandidate(trimmed: string, label: Label): boolean {
   if (matchItem(trimmed)) return false;
+  if (SHARED_NOTES_LINE_RE.test(label.text)) return false;
   if (!/\p{L}/u.test(label.text)) return false;
   const key = headingKey(label.text);
   if (KNOWN_HEADINGS.has(key)) return false;
@@ -1939,7 +1951,11 @@ function isTitleCandidate(trimmed: string, label: Label): boolean {
  * and conferenceLinks. `text` is the sanitized, wrapper-stripped text; `subject` is the raw or
  * sanitized Subject header value.
  */
-export function extractSummaryMeta(text: string, subject: string | null | undefined): SummaryMeta {
+export function extractSummaryMeta(
+  text: string,
+  subject: string | null | undefined,
+  options: { referenceDate?: Date | null } = {},
+): SummaryMeta {
   const topLines: string[] = [];
   for (const span of lineSpans(text)) {
     const trimmed = rawLine(text, span).trim();
@@ -1947,11 +1963,24 @@ export function extractSummaryMeta(text: string, subject: string | null | undefi
     topLines.push(trimmed);
     if (topLines.length >= META_LINES) break;
   }
+  const subjectClean = cleanSubject(subject);
 
   let titleLine: string | null = null;
+  // A top line that is exactly the cleaned Subject is the meeting name (Otter: "Meeting Summary
+  // for Weekly sync" over a "Weekly sync" line, under a preview line that would win otherwise).
+  const subjectKey = subjectClean !== null ? headingKey(subjectClean) : '';
+  if (subjectKey !== '') {
+    for (const trimmed of topLines) {
+      const label = readLabel(trimmed);
+      if (headingKey(label.text) === subjectKey && isTitleCandidate(trimmed, label)) {
+        titleLine = sliceSafe(label.text, MAX_TITLE_CHARS).trim();
+        break;
+      }
+    }
+  }
   // True while every line so far is a preamble line (isTitlePreamble) or a skipped document label.
   let leading = true;
-  for (let k = 0; k < topLines.length; k++) {
+  for (let k = 0; titleLine === null && k < topLines.length; k++) {
     const trimmed = topLines[k] ?? '';
     const label = readLabel(trimmed);
     if (NOTETAKER_BANNER_KEYS.has(headingKey(label.text))) continue;
@@ -1978,21 +2007,84 @@ export function extractSummaryMeta(text: string, subject: string | null | undefi
   const all = new Set<string>(datesIn(subjectLine));
   const perLine = topLines.map((line) => datesIn(line));
   for (const dates of perLine) for (const d of dates) all.add(d);
-  const summaryDate = all.size === 1 ? ([...all][0] ?? null) : null;
+  let summaryDate = all.size === 1 ? ([...all][0] ?? null) : null;
   let dateLine: string | null = null;
   if (summaryDate !== null) {
-    const index = perLine.findIndex((dates) => dates.has(summaryDate));
+    const found = summaryDate;
+    const index = perLine.findIndex((dates) => dates.has(found));
     const line = index >= 0 ? topLines[index] : undefined;
     dateLine = line !== undefined ? sliceSafe(line, MAX_TITLE_CHARS).trim() : null;
+  } else if (all.size === 0 && options.referenceDate instanceof Date && Number.isFinite(options.referenceDate.getTime())) {
+    // No date with a year anywhere: a single year-less month and day, dated by the arrival.
+    const reference = options.referenceDate;
+    const yearless = new Set<string>(yearlessDatesIn(subjectLine, reference));
+    const perLineYearless = topLines.map((line) => yearlessDatesIn(line, reference));
+    for (const dates of perLineYearless) for (const d of dates) yearless.add(d);
+    const only = yearless.size === 1 ? [...yearless][0] : undefined;
+    if (only !== undefined) {
+      summaryDate = only;
+      const index = perLineYearless.findIndex((dates) => dates.has(only));
+      const line = index >= 0 ? topLines[index] : undefined;
+      dateLine = line !== undefined ? sliceSafe(line, MAX_TITLE_CHARS).trim() : null;
+    }
   }
 
   return {
     titleLine,
-    subjectClean: cleanSubject(subject),
+    subjectClean,
     summaryDate,
     dateLine,
     conferenceLinks: conferenceLinksIn(text),
   };
+}
+
+/** A capitalized month name and a day with no year after it ("Nov 17", "Nov 17, 11:14 pm", "17 Nov"). */
+const MONTH_WORDS = Object.keys(MONTHS)
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+const YEARLESS_MONTH_FIRST_RE = new RegExp(
+  `(?<![\\p{L}\\d])(${MONTH_WORDS})\\.?[ \\t]+(\\d{1,2})(?:st|nd|rd|th)?(?![\\d:])(?!,?[ \\t]+\\d{4})`,
+  'giu',
+);
+const YEARLESS_DAY_FIRST_RE = new RegExp(
+  `(?<![\\d:])(\\d{1,2})(?:st|nd|rd|th)?[ \\t]+(?:de[ \\t]+)?(${MONTH_WORDS})\\.?(?!\\p{L})(?!,?[ \\t]+(?:del?[ \\t]+)?\\d{4})`,
+  'giu',
+);
+/** A year-less date this far after the reference still counts as this year (zones, late mail). */
+const YEARLESS_AHEAD_MS = 2 * 24 * 60 * 60 * 1000;
+
+/**
+ * The calendar date of a year-less month and day, in the year that puts it on or before
+ * `reference` (up to YEARLESS_AHEAD_MS after it): a recap names a meeting that already took place.
+ * Null for an impossible day (Feb 30).
+ */
+export function yearlessDateOf(month: number, day: number, reference: Date): string | null {
+  for (const year of [reference.getUTCFullYear(), reference.getUTCFullYear() - 1]) {
+    if (month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) continue;
+    const at = Date.UTC(year, month - 1, day);
+    if (at <= reference.getTime() + YEARLESS_AHEAD_MS) return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+/**
+ * Year-less dates in `s` (month first or day first), dated by yearlessDateOf. Month first needs a
+ * capitalized month ("May 5", never "may 5 people"); day first also takes a lowercase full month
+ * name (Spanish "17 de noviembre"), never a short one ("5 mar").
+ */
+export function yearlessDatesIn(s: string, reference: Date): Set<string> {
+  const out = new Set<string>();
+  const add = (monthWord: string | undefined, dayText: string | undefined, dayFirst = false) => {
+    if (monthWord === undefined || dayText === undefined) return;
+    if (!/^\p{Lu}/u.test(monthWord) && !(dayFirst && monthWord.length > 4)) return;
+    const month = MONTHS[monthWord.toLowerCase()];
+    if (month === undefined) return;
+    const date = yearlessDateOf(month, Number(dayText), reference);
+    if (date !== null) out.add(date);
+  };
+  for (const m of s.matchAll(YEARLESS_MONTH_FIRST_RE)) add(m[1], m[2]);
+  for (const m of s.matchAll(YEARLESS_DAY_FIRST_RE)) add(m[2], m[1], true);
+  return out;
 }
 
 export interface LocalDateTime {

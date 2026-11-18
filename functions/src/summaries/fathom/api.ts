@@ -1,7 +1,10 @@
 /**
- * Fathom API client (Connect Fathom; docs/v2/FATHOM-CONNECT.md section 3). The four calls the
- * integration makes: the authorization-code exchange, the refresh, POST /webhooks and
- * DELETE /webhooks/{id}. Over an injected fetch port so tests never reach the network.
+ * Fathom API client (Connect Fathom; docs/v2/FATHOM-CONNECT.md section 3). The calls the
+ * integration makes: the authorization-code exchange, the refresh, POST /webhooks,
+ * DELETE /webhooks/{id}, and for the sync (section 9) GET /meetings and
+ * GET /recordings/{id}/summary. Over an injected fetch port so tests never reach the network.
+ * OAuth apps may not ask GET /meetings for summaries (include_summary): the summary of each
+ * recording is read from /recordings instead (developers.fathom.ai FAQ, checked 2026-11-18).
  *
  * Facts from developers.fathom.ai (checked 2026-11-17) and the official fathom-typescript SDK
  * 0.0.43 (funcs/getAuthorizationUrl.js, funcs/withAuthorization.js):
@@ -171,4 +174,72 @@ export async function deleteWebhook(config: FathomClientConfig, accessToken: str
   });
   if (response.status === 404) return;
   if (response.status < 200 || response.status > 299) throw new FathomApiError(statusFailure(response.status), response.status);
+}
+
+/** One page of GET /meetings: the raw items (each checked by payload.ts) and the next cursor. */
+export interface FathomMeetingPage {
+  items: unknown[];
+  nextCursor: string | null;
+}
+
+const meetingPageSchema = z.object({
+  items: z.array(z.unknown()).max(100),
+  next_cursor: z.string().min(1).max(2000).nullable().optional(),
+});
+
+/**
+ * GET /meetings of the authorized user, newest first, created after `createdAfter`, with their
+ * action items (10 a page; Fathom has no page size parameter).
+ */
+export async function listMeetings(
+  config: FathomClientConfig,
+  accessToken: string,
+  query: { createdAfter: Date; cursor?: string | null },
+): Promise<FathomMeetingPage> {
+  const url = new URL(`${FATHOM_API_BASE}/meetings`);
+  url.searchParams.append('created_after', query.createdAfter.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+  url.searchParams.append('include_action_items', 'true');
+  if (typeof query.cursor === 'string' && query.cursor.length > 0) url.searchParams.append('cursor', query.cursor);
+  const response = await call(config, url.toString(), {
+    method: 'GET',
+    headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+  });
+  if (response.status < 200 || response.status > 299) throw new FathomApiError(statusFailure(response.status), response.status);
+  const parsed = meetingPageSchema.safeParse(await jsonOf(response));
+  if (!parsed.success) throw new FathomApiError('shape', response.status);
+  return { items: parsed.data.items, nextCursor: parsed.data.next_cursor ?? null };
+}
+
+const recordingSummarySchema = z.object({
+  summary: z
+    .object({
+      template_name: z.string().max(200).nullable().optional(),
+      markdown_formatted: z.string().max(200_000).nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+/** A recording's summary as GET /recordings/{id}/summary answers it (the meeting payload's default_summary). */
+export interface FathomRecordingSummary {
+  template_name: string | null;
+  markdown_formatted: string;
+}
+
+/**
+ * GET /recordings/{id}/summary (synchronous: no destination_url). Null while Fathom has no
+ * summary for it yet (none, empty, or 404).
+ */
+export async function getRecordingSummary(config: FathomClientConfig, accessToken: string, recordingId: string): Promise<FathomRecordingSummary | null> {
+  const response = await call(config, `${FATHOM_API_BASE}/recordings/${encodeURIComponent(recordingId)}/summary`, {
+    method: 'GET',
+    headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+  });
+  if (response.status === 404) return null;
+  if (response.status < 200 || response.status > 299) throw new FathomApiError(statusFailure(response.status), response.status);
+  const parsed = recordingSummarySchema.safeParse(await jsonOf(response));
+  if (!parsed.success) throw new FathomApiError('shape', response.status);
+  const markdown = parsed.data.summary?.markdown_formatted ?? null;
+  if (markdown === null || markdown.trim().length === 0) return null;
+  return { template_name: parsed.data.summary?.template_name ?? null, markdown_formatted: markdown };
 }

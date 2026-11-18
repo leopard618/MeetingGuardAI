@@ -12,6 +12,8 @@
  *   summary is bound to it), then one single-use state (10 minutes) and the authorize URL.
  * - disconnect: DELETE the webhook in Fathom with a fresh access token (best effort:
  *   remoteRemoved false when Fathom could not be told), then the connection and hook documents.
+ * - sync: the backup to the webhook (./sync.ts, loaded on use): the caller's recent recordings
+ *   that are not stored yet, at most once a minute; synced {ran, imported, pending}.
  *
  * fathomOAuth GET ?code&state (or ?error&state): the state is consumed first (single use), the
  * code exchanged, a webhook created for the user's own recordings with a new per-user URL, and the
@@ -37,7 +39,7 @@ import type { Keyring } from '../../shared/sealed';
 import { createAddress, parseAddressTemplate, type AddressDeps } from '../address';
 import { isVerifiedCaller, summaryCallerOf, summaryError, verifiedEmailOf, type SummaryCallableAuth } from '../callables';
 import { isPilotUid } from '../gate';
-import type { InboundAuthUsers } from '../inbound';
+import type { CandidatesLoader, InboundAuthUsers } from '../inbound';
 import { FathomApiError, authorizeUrl, createWebhook, deleteWebhook, exchangeCode, type FathomClientConfig, type FathomFetch } from './api';
 import {
   accessTokenFor,
@@ -50,6 +52,7 @@ import {
   saveConnection,
   type FathomRandom,
 } from './store';
+import type * as SyncModuleNamespace from './sync';
 
 export interface FathomConnectConfig {
   enabled: boolean;
@@ -74,6 +77,8 @@ export interface FathomConnectDeps {
   /** This project's fathomWebhook URL (no query). */
   webhookUrl: string;
   authUsers?: InboundAuthUsers;
+  /** The meeting candidates loader (sync only; ../candidates loadCandidates). */
+  candidates?: CandidatesLoader;
   random?: FathomRandom;
   /** Test seam for accessTokenFor's lease wait. */
   sleep?: (ms: number) => Promise<void>;
@@ -156,6 +161,34 @@ export async function handleFathomConnect(auth: SummaryCallableAuth, data: unkno
       });
     } catch (error) {
       logger.error('summaries.fathom_connect', { uid: caller.uid, op, outcome: 'error', stage: 'state', errorName: errorName(error) });
+      throw summaryError('upstream_error', 'Fathom is not available right now. Try again later.');
+    }
+  }
+
+  if (op === 'sync') {
+    const { authUsers, candidates } = deps;
+    if (authUsers === undefined || candidates === undefined) throw summaryError('not_ready', 'Connect Fathom is being set up. Try again later.');
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- deliberate lazy load: status and start stay light.
+      const { syncFathom } = require('./sync') as typeof SyncModuleNamespace;
+      const synced = await syncFathom(caller.uid, {
+        db: deps.db,
+        now: deps.now,
+        client: () => client(deps),
+        keyring: deps.keyring,
+        pilotUids: () => deps.config.pilotUids,
+        authUsers,
+        candidates,
+        ...(deps.sleep !== undefined ? { sleep: deps.sleep } : {}),
+      });
+      return respond({
+        status: await statusOf(caller.uid, deps),
+        authorizeUrl: null,
+        remoteRemoved: null,
+        synced: { ran: synced.ran, imported: synced.imported, pending: synced.pending },
+      });
+    } catch (error) {
+      logger.error('summaries.fathom_connect', { uid: caller.uid, op, outcome: 'error', errorName: errorName(error) });
       throw summaryError('upstream_error', 'Fathom is not available right now. Try again later.');
     }
   }

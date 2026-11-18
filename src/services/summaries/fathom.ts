@@ -7,6 +7,10 @@
  *   authorize URL), then an auth session that ends on FATHOM_RETURN_URL; its result and reason
  *   codes are read here (parseFathomReturn).
  * - disconnect(): removes the webhook in Fathom and the connection.
+ * - sync(): the backup to the webhook. The server asks Fathom for the caller's recent recordings
+ *   and stores what is new (at most once a minute per user). Best effort: null when it could not
+ *   run (no Firebase, not connected, an older server, a failure); never throws. This app asks at
+ *   most once per FATHOM_SYNC_APP_INTERVAL_MS unless forced (pull to refresh, right after connecting).
  * Pure pieces (parseFathomReturn, FATHOM_UNAVAILABLE) are exported for tests. Nothing here logs a
  * URL: the authorize URL carries a single-use state.
  */
@@ -30,6 +34,15 @@ import { isSummariesUnavailableError, mapSummaryError } from './summaryCore';
 const log = createLogger('summaries');
 
 const CALL_TIMEOUT_MS = 30_000;
+/** sync() asks the server at most this often, unless forced. */
+export const FATHOM_SYNC_APP_INTERVAL_MS = 60_000;
+
+/** What a sync did: ran false when the server skipped it (not connected, or asked within a minute). */
+export interface FathomSyncOutcome {
+  ran: boolean;
+  imported: number;
+  pending: number;
+}
 
 export const FATHOM_UNAVAILABLE: FathomConnectionStatus = { available: false, connected: false, connectedAt: null, lastEventAt: null };
 
@@ -51,6 +64,7 @@ export interface FathomService {
   status(): Promise<FathomConnectionStatus>;
   connect(): Promise<FathomConnectOutcome>;
   disconnect(): Promise<{ status: FathomConnectionStatus; remoteRemoved: boolean | null }>;
+  sync(options?: { force?: boolean }): Promise<FathomSyncOutcome | null>;
 }
 
 /** The outcome a FATHOM_RETURN_URL redirect carries (pure). Anything else is an error without a reason. */
@@ -70,7 +84,10 @@ export function parseFathomReturn(url: string): FathomConnectOutcome {
   return { result: 'error', reason: (FATHOM_RETURN_REASONS as readonly string[]).includes(reason) ? (reason as FathomReturnReason) : null };
 }
 
-export function createFathomService(deps: FathomServiceDeps): FathomService {
+export function createFathomService(deps: FathomServiceDeps & { nowMs?: () => number }): FathomService {
+  const nowMs = deps.nowMs ?? (() => Date.now());
+  let lastSyncAskMs: number | null = null;
+
   async function call(request: FathomConnectRequest): Promise<FathomConnectResponse> {
     const transport = deps.getTransport();
     if (!transport) throw new AppError('not_configured', 'Firebase is not configured in this build');
@@ -111,6 +128,18 @@ export function createFathomService(deps: FathomServiceDeps): FathomService {
     async disconnect() {
       const answer = await call({ op: 'disconnect' });
       return { status: answer.status, remoteRemoved: answer.remoteRemoved };
+    },
+    async sync(options = {}) {
+      if (!deps.getTransport()) return null;
+      const at = nowMs();
+      if (options.force !== true && lastSyncAskMs !== null && at - lastSyncAskMs < FATHOM_SYNC_APP_INTERVAL_MS) return null;
+      lastSyncAskMs = at;
+      try {
+        return (await call({ op: 'sync' })).synced ?? null;
+      } catch {
+        // call() logged the code; a sync is only a backup to the webhook.
+        return null;
+      }
     },
   };
 }

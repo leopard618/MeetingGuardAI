@@ -31,6 +31,8 @@ import {
   parseSections,
   sectionsAreConsistent,
   summarySectionsSchema,
+  yearlessDateOf,
+  yearlessDatesIn,
   type ParsedSections,
 } from '../../src/summaries/sections';
 
@@ -3260,5 +3262,72 @@ describe('extractSummaryMeta: participants line, review cases', () => {
     expect(titleOf(['Meeting with Dana Lee - Read.ai Report', 'Meeting Report', 'Nov 16, 2026'])).toBe('Meeting with Dana Lee - Read.ai Report');
     expect(titleOf(['Meeting with Dana Lee', 'Dana and Bish discussed the pricing for Q4', 'Next call Nov 20'])).toBe('Meeting with Dana Lee');
     expect(titleOf(['Meeting with Dana Lee and Sam Ortiz', 'Acme - Weekly sync', 'October 16, 2026 | 28 mins'])).toBe('Acme - Weekly sync');
+  });
+});
+
+describe('extractSummaryMeta: Otter recap (preview line, year-less date)', () => {
+  // The shape of Otter's "Meeting Summary for <title>" email as text: its preview line first,
+  // then the link, the meeting name and "Nov 17, 11:14 pm, 10 min" (no year anywhere).
+  const OTTER = [
+    'Dana Lee has shared notes from Weekly sync, Nov 17 . The meeting focused on the quarterly plan.',
+    'View in Otter',
+    'Weekly sync',
+    'Nov 17, 11:14 pm, 10 min',
+    'The meeting focused on the quarterly plan and the next release.',
+    'See full summary',
+    'Action items',
+    '- Send the report by Friday and ensure it is ready before the deadline.',
+  ].join('\n');
+  const SUBJECT = 'Fwd: Meeting Summary for Weekly sync';
+  const ARRIVED = new Date('2026-11-18T07:39:00.000Z');
+
+  it('names the meeting from the line that equals the cleaned Subject, never the preview line', () => {
+    const meta = extractSummaryMeta(OTTER, SUBJECT, { referenceDate: ARRIVED });
+    expect(meta.titleLine).toBe('Weekly sync');
+    expect(meta.subjectClean).toBe('Weekly sync');
+  });
+
+  it('skips a share preview line even without a matching Subject', () => {
+    expect(extractSummaryMeta(OTTER, null).titleLine).toBe('View in Otter');
+    expect(extractSummaryMeta(OTTER.split('\n').filter((l) => l !== 'View in Otter').join('\n'), null).titleLine).toBe('Weekly sync');
+  });
+
+  it('dates a single year-less month and day by the arrival', () => {
+    const meta = extractSummaryMeta(OTTER, SUBJECT, { referenceDate: ARRIVED });
+    expect(meta.summaryDate).toBe('2026-11-17');
+    expect(meta.dateLine).toBe('Dana Lee has shared notes from Weekly sync, Nov 17 . The meeting focused on the quarterly plan.');
+  });
+
+  it('reads no year-less date without a reference, or when a dated year is present', () => {
+    expect(extractSummaryMeta(OTTER, SUBJECT).summaryDate).toBeNull();
+    const dated = `${OTTER}\nNovember 12, 2026`;
+    expect(extractSummaryMeta(dated, SUBJECT, { referenceDate: ARRIVED }).summaryDate).toBe('2026-11-12');
+  });
+
+  it('two different year-less dates are no date', () => {
+    const two = OTTER.replace('Nov 17, 11:14 pm', 'Nov 16, 11:14 pm');
+    expect(extractSummaryMeta(two, SUBJECT, { referenceDate: ARRIVED }).summaryDate).toBeNull();
+  });
+});
+
+describe('yearlessDateOf and yearlessDatesIn', () => {
+  const NOV_18 = new Date('2026-11-18T07:00:00.000Z');
+  const JAN_2 = new Date('2027-01-02T07:00:00.000Z');
+
+  it('picks the year that puts the date on or before the arrival', () => {
+    expect(yearlessDateOf(11, 17, NOV_18)).toBe('2026-11-17');
+    expect(yearlessDateOf(11, 19, NOV_18)).toBe('2026-11-19');
+    expect(yearlessDateOf(12, 30, JAN_2)).toBe('2026-12-30');
+    expect(yearlessDateOf(2, 30, NOV_18)).toBeNull();
+  });
+
+  it('reads capitalized month first and day first forms, never a sentence word', () => {
+    expect([...yearlessDatesIn('Nov 17, 11:14 pm, 10 min', NOV_18)]).toEqual(['2026-11-17']);
+    expect([...yearlessDatesIn('17 Nov', NOV_18)]).toEqual(['2026-11-17']);
+    expect([...yearlessDatesIn('17 de noviembre', NOV_18)]).toEqual(['2026-11-17']);
+    expect([...yearlessDatesIn('17 de Noviembre', NOV_18)]).toEqual(['2026-11-17']);
+    expect([...yearlessDatesIn('take 5 mar bars', NOV_18)]).toEqual([]);
+    expect([...yearlessDatesIn('you may 5 people', NOV_18)]).toEqual([]);
+    expect([...yearlessDatesIn('Nov 17, 2026', NOV_18)]).toEqual([]);
   });
 });

@@ -1739,6 +1739,8 @@ export const fathomConnectRequestSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('status') }),
   z.object({ op: z.literal('start') }),
   z.object({ op: z.literal('disconnect') }),
+  /** Asks Fathom for the caller's recent recordings and stores what is new (a missed webhook, a meeting before connecting). */
+  z.object({ op: z.literal('sync') }),
 ]);
 export type FathomConnectRequest = z.infer<typeof fathomConnectRequestSchema>;
 
@@ -1762,6 +1764,19 @@ export const fathomConnectResponseSchema = z.object({
     .nullable(),
   /** disconnect only: false when Fathom could not be told (the user may remove it in Fathom settings). */
   remoteRemoved: z.boolean().nullable(),
+  /**
+   * sync only (absent from older servers): ran false when it was skipped (not connected, or asked
+   * again within a minute); imported = new summaries stored; pending = recordings Fathom has no
+   * summary for yet, or left for the next sync.
+   */
+  synced: z
+    .object({
+      ran: z.boolean(),
+      imported: z.number().int().nonnegative(),
+      pending: z.number().int().nonnegative(),
+    })
+    .nullable()
+    .optional(),
 });
 export type FathomConnectResponse = z.infer<typeof fathomConnectResponseSchema>;
 

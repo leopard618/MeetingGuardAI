@@ -79,4 +79,31 @@ describe('createFathomService', () => {
     await expect(service.disconnect()).resolves.toEqual({ status: OFFERED, remoteRemoved: false });
     expect(t.calls).toEqual(['disconnect']);
   });
+
+  it('sync: answers what the server stored, at most once a minute unless forced', async () => {
+    let now = 1_000_000;
+    const t = transport(() => ({ status: { ...OFFERED, connected: true }, authorizeUrl: null, remoteRemoved: null, synced: { ran: true, imported: 2, pending: 1 } }));
+    const service = createFathomService({ getTransport: () => t, openSession: jest.fn(), nowMs: () => now });
+    await expect(service.sync()).resolves.toEqual({ ran: true, imported: 2, pending: 1 });
+    now += 30_000;
+    await expect(service.sync()).resolves.toBeNull();
+    await expect(service.sync({ force: true })).resolves.toEqual({ ran: true, imported: 2, pending: 1 });
+    now += 61_000;
+    await expect(service.sync()).resolves.toEqual({ ran: true, imported: 2, pending: 1 });
+    expect(t.calls).toEqual(['sync', 'sync', 'sync']);
+  });
+
+  it('sync: never throws, and an older server without synced answers null', async () => {
+    const failing = createFathomService({
+      getTransport: () =>
+        transport(() => {
+          throw Object.assign(new Error('internal'), { code: 'functions/internal' });
+        }),
+      openSession: jest.fn(),
+    });
+    await expect(failing.sync()).resolves.toBeNull();
+    const older = createFathomService({ getTransport: () => transport(() => ({ status: OFFERED, authorizeUrl: null, remoteRemoved: null })), openSession: jest.fn() });
+    await expect(older.sync()).resolves.toBeNull();
+    await expect(createFathomService({ getTransport: () => null, openSession: jest.fn() }).sync()).resolves.toBeNull();
+  });
 });

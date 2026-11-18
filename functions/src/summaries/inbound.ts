@@ -593,7 +593,8 @@ async function storeSummary(
   if (text.trim().length === 0) return refuse(ctx, 'unreadable', classification.senderDomain, body.fromHtml ? 'html_only' : 'empty_text');
   const sections = parseSections(text);
   if (sections.sections.length === 0) return refuse(ctx, 'unreadable', classification.senderDomain, body.fromHtml ? 'html_only' : 'no_sections');
-  const meta = extractSummaryMeta(text, mime.subject);
+  // The arrival dates a year-less recap date (Otter writes "Nov 17, 11:14 pm").
+  const meta = extractSummaryMeta(text, mime.subject, { referenceDate: ctx.receivedAt });
   const subjectLine = sanitizeLine(mime.subject, SUMMARY_LIMITS.maxSubjectChars);
   const subject = subjectLine.length > 0 ? subjectLine : null;
 

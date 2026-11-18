@@ -12,6 +12,9 @@
  * - The gear in the header (next to the language menu) opens SummaryConnect, the summaries
  *   settings.
  * Pull to refresh asks the inbox again (the server re-matches it first), then the other views.
+ * Connect Fathom (FATHOM-CONNECT.md section 9): on open, and forced on every pull, the server is
+ * asked to sync the caller's recent Fathom recordings first (a no-op without a connection), so a
+ * delivery Fathom never sent still shows up here.
  * The inbox is asked before "Filed recently" on every visit, so a summary the re-match files
  * shows up there instead of vanishing from both lists.
  *
@@ -58,6 +61,7 @@ import {
   useSummaryList,
   useSummaryStatus,
 } from '../../services/summaries';
+import { fathomService } from '../../services/summaries/fathom';
 import { componentMetrics, spacing, useAppTheme } from '../../theme';
 import { useFormatters } from '../shared/useFormatters';
 import { AttachMeetingSheet, type AttachMeetingTarget } from './AttachMeetingSheet';
@@ -135,6 +139,8 @@ export function SummaryInboxScreen(): ReactElement {
   const refreshAll = useCallback(async (): Promise<void> => {
     setPulling(true);
     try {
+      // Fathom first: what it stores is then in the lists below.
+      await fathomService.sync({ force: true });
       await refreshStatus();
       // The inbox first: it re-matches, and a re-match can file a summary.
       await refreshWaiting();
@@ -143,6 +149,20 @@ export function SummaryInboxScreen(): ReactElement {
       if (mounted.current) setPulling(false);
     }
   }, [refreshStatus, refreshWaiting, refreshRecent, refreshRefused, refusedOpen]);
+
+  // On open: a Fathom sync (best effort); new summaries make the lists ask again.
+  useEffect(() => {
+    if (!available) return undefined;
+    let active = true;
+    void fathomService.sync().then((outcome) => {
+      if (active && outcome !== null && outcome.imported > 0) {
+        void refreshWaiting().then(() => refreshRecent());
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [available, refreshWaiting, refreshRecent]);
 
   const run = useCallback(
     async (summaryId: string, action: string, work: () => Promise<unknown>, done: string): Promise<void> => {

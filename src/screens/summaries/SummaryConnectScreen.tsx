@@ -140,7 +140,10 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   const [disconnected, setDisconnected] = useState<DisconnectChoice | null>(null);
   // Connect Fathom (docs/v2/FATHOM-CONNECT.md section 7): the main way in when the server offers
   // it; the email setup then sits behind "Other notetakers (email)". null = the default below.
-  const fathom = useFathomConnection();
+  // A sync that stored new summaries changes the activity row: ask the status again.
+  const fathom = useFathomConnection(undefined, () => {
+    void refresh();
+  });
   const [emailOpen, setEmailOpen] = useState<boolean | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
 
