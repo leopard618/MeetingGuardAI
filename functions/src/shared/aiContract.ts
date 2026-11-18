@@ -1495,6 +1495,12 @@ export const summaryListItemSchema = z.object({
   suggestions: z.array(summarySuggestionSchema).max(SUMMARY_LIMITS.maxSuggestions),
   /** M11, optional: the suggested tasks' state and counts, once prepared (filed or kept summaries only). */
   commitments: summaryListCommitmentsSchema.optional(),
+  /**
+   * The notetaker that wrote it, by name ("Fathom", "Otter"), when known: the signing notetaker of
+   * a vendor copy, or the accepted notetaker a hand forward came from. null or absent (older
+   * servers) when unknown.
+   */
+  notetaker: z.string().min(1).max(40).nullable().optional(),
 });
 export type SummaryListItem = z.infer<typeof summaryListItemSchema>;
 

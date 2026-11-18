@@ -386,14 +386,22 @@
     "reviewCount": "Revisar compromisos ({{count}})",
     "retentionLink": "Cuánto tiempo guardamos las minutas",
     "keptUntil": "Esta minuta se guarda hasta el {{date}}.",
-    "truncatedHint": "Al llegar solo se guardó la primera parte. El correo original se queda en tu propio buzón."
+    "truncatedHint": "Al llegar solo se guardó la primera parte. El correo original se queda en tu propio buzón.",
+    "copiesNote_one": "{{count}} asistente de notas envió una minuta de esta reunión.",
+    "copiesNote_other": "{{count}} asistentes de notas enviaron una minuta de esta reunión.",
+    "copiesLabel": "Minutas de esta reunión",
+    "copyTab": "Ver la minuta de {{name}}"
   },
   "meeting": {
     "title_one": "Minuta de tu asistente de notas",
     "title_other": "Minutas de tu asistente de notas",
     "received": "Recibida {{time}}",
     "occurrence": "Para la reunión del {{date}}",
-    "open": "Abrir la minuta {{title}}"
+    "open": "Abrir la minuta {{title}}",
+    "copyNamed": "{{name}}",
+    "copyNamedNumbered": "{{name}} {{number}}",
+    "copyForwarded": "Copia reenviada",
+    "copyForwardedNumbered": "Copia reenviada {{number}}"
   },
   "commitments": {
     "title": "Tareas sugeridas",

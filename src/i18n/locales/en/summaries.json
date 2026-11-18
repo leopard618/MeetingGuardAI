@@ -386,14 +386,22 @@
     "reviewCount": "Review commitments ({{count}})",
     "retentionLink": "How long we keep summaries",
     "keptUntil": "This summary is kept until {{date}}.",
-    "truncatedHint": "Only the first part was kept when it arrived. The original email stays in your own mailbox."
+    "truncatedHint": "Only the first part was kept when it arrived. The original email stays in your own mailbox.",
+    "copiesNote_one": "{{count}} notetaker sent a summary of this meeting.",
+    "copiesNote_other": "{{count}} notetakers sent a summary of this meeting.",
+    "copiesLabel": "Summaries of this meeting",
+    "copyTab": "Show the summary from {{name}}"
   },
   "meeting": {
     "title_one": "Notetaker summary",
     "title_other": "Notetaker summaries",
     "received": "Received {{time}}",
     "occurrence": "For the meeting on {{date}}",
-    "open": "Open the summary {{title}}"
+    "open": "Open the summary {{title}}",
+    "copyNamed": "{{name}}",
+    "copyNamedNumbered": "{{name}} {{number}}",
+    "copyForwarded": "Forwarded copy",
+    "copyForwardedNumbered": "Forwarded copy {{number}}"
   },
   "commitments": {
     "title": "Suggested tasks",

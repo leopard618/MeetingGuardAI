@@ -13,7 +13,7 @@ import { Alert, Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import type { SummaryDetail, SummaryStatusResponse } from '../../../core/aiContract';
+import type { SummaryDetail, SummaryListItem, SummaryStatusResponse } from '../../../core/aiContract';
 import type { RootStackParamList } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
 import { I18nProvider, i18n } from '../../../i18n';
@@ -43,7 +43,15 @@ const mockRefreshStatus = jest.fn(async () => undefined);
 const mockDetach = jest.fn();
 const mockKeep = jest.fn();
 const mockDelete = jest.fn();
+// The meeting's list (other notetakers' copies) and copies by id for the tabs.
+let mockMeetingList: SummaryListItem[] | null = null;
+let mockById: Record<string, SummaryDetail> = {};
+const mockUseSummaryList = jest.fn();
 jest.mock('../../../services/summaries', () => ({
+  useSummaryList: (view: string, meetingId: string | null, options?: { enabled?: boolean }) => {
+    mockUseSummaryList(view, meetingId, options);
+    return { items: options?.enabled === false ? null : mockMeetingList, error: null, hasMore: false, refresh: async () => undefined };
+  },
   useSummaryStatus: () => ({
     status: mockStatus,
     available: mockStatus !== null && mockStatus.enabled && mockStatus.allowed,
@@ -53,7 +61,7 @@ jest.mock('../../../services/summaries', () => ({
   useSummary: (summaryId: string, options?: { enabled?: boolean }) => {
     mockUseSummary(summaryId, options);
     if (options?.enabled === false) return { summary: null, error: null, loading: false, refresh: mockRefresh };
-    return { summary: mockSummary, error: mockError, loading: mockLoading, refresh: mockRefresh };
+    return { summary: mockById[summaryId] ?? mockSummary, error: mockError, loading: mockLoading, refresh: mockRefresh };
   },
   summariesService: {
     detach: (...args: unknown[]) => mockDetach(...args) as Promise<unknown>,
@@ -219,6 +227,9 @@ beforeEach(async () => {
   mockDetach.mockReset();
   mockKeep.mockReset();
   mockDelete.mockReset();
+  mockMeetingList = null;
+  mockById = {};
+  mockUseSummaryList.mockClear();
   mockCopyText.mockClear();
   (Toast.show as jest.Mock).mockClear();
 });
@@ -509,4 +520,59 @@ it('is translated to Spanish', async () => {
   );
   expect(screen.getByText('El resumen de tu propio asistente de notas')).toBeTruthy();
   expect(screen.getByText('No es esta reunión')).toBeTruthy();
+});
+
+describe('several notetakers, one meeting', () => {
+  const OTTER_ID = 'b'.repeat(64);
+  const listItemOf = (detail: SummaryDetail, extra: Partial<SummaryListItem> = {}): SummaryListItem => ({
+    summaryId: detail.summaryId,
+    status: detail.status,
+    title: detail.title,
+    summaryDate: detail.summaryDate,
+    receivedAt: detail.receivedAt,
+    tier: detail.tier,
+    recipientBound: detail.recipientBound,
+    fresh: detail.fresh,
+    inboxReason: detail.inboxReason,
+    refusedReason: null,
+    senderDomain: detail.senderDomain,
+    count: null,
+    match: detail.match,
+    suggestions: [],
+    ...extra,
+  });
+  const OTTER: SummaryDetail = { ...FILED, summaryId: OTTER_ID, title: 'Weekly sync', receivedAt: '2026-10-16T20:30:00.000Z', tier: 'user_forwarded', senderDomain: null };
+
+  it('shows a tab per notetaker and switches to the other copy', async () => {
+    mockMeetingList = [listItemOf(OTTER, { notetaker: 'Otter' }), listItemOf(FILED, { notetaker: 'Fathom' })];
+    mockById = { [ID]: FILED, [OTTER_ID]: OTTER };
+    await renderScreen();
+    expect(mockUseSummaryList).toHaveBeenCalledWith('meeting', 'm1', { enabled: true });
+    expect(screen.getByText('2 notetakers sent a summary of this meeting.')).toBeTruthy();
+    // The notetaker-signed copy comes first.
+    expect(screen.getByTestId('summary-view-copy-0').props.accessibilityLabel).toBe('Show the summary from Fathom');
+    expect(screen.getByTestId('summary-view-copy-1').props.accessibilityLabel).toBe('Show the summary from Otter');
+    expect(screen.getByTestId('summary-view-title').props.children).toBe('Urpayroll launch sync');
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('summary-view-copy-1'));
+    });
+    expect(screen.getByTestId('summary-view-title').props.children).toBe('Weekly sync');
+    expect(mockUseSummary).toHaveBeenLastCalledWith(OTTER_ID, { enabled: true });
+  });
+
+  it('no tabs for a single copy, an inbox summary, or another occurrence', async () => {
+    mockMeetingList = [listItemOf(FILED, { notetaker: 'Fathom' })];
+    await renderScreen();
+    expect(screen.queryByTestId('summary-view-copies')).toBeNull();
+
+    const otherDay = { ...OTTER, match: { ...FILED.match!, occurrenceDate: '2026-10-23' } };
+    mockMeetingList = [listItemOf(FILED), listItemOf(otherDay)];
+    await renderScreen();
+    expect(screen.queryByTestId('summary-view-copies')).toBeNull();
+
+    mockSummary = INBOX_FORWARD;
+    await renderScreen();
+    expect(mockUseSummaryList).toHaveBeenLastCalledWith('meeting', null, { enabled: false });
+    expect(screen.queryByTestId('summary-view-copies')).toBeNull();
+  });
 });

@@ -386,14 +386,22 @@
     "reviewCount": "Zusagen prüfen ({{count}})",
     "retentionLink": "Wie lange wir Protokolle aufbewahren",
     "keptUntil": "Dieses Protokoll wird bis {{date}} aufbewahrt.",
-    "truncatedHint": "Beim Eingang wurde nur der erste Teil gespeichert. Die ursprüngliche E-Mail bleibt in Ihrem eigenen Postfach."
+    "truncatedHint": "Beim Eingang wurde nur der erste Teil gespeichert. Die ursprüngliche E-Mail bleibt in Ihrem eigenen Postfach.",
+    "copiesNote_one": "{{count}} Notizassistent hat ein Protokoll dieser Besprechung gesendet.",
+    "copiesNote_other": "{{count}} Notizassistenten haben ein Protokoll dieser Besprechung gesendet.",
+    "copiesLabel": "Protokolle dieser Besprechung",
+    "copyTab": "Protokoll von {{name}} anzeigen"
   },
   "meeting": {
     "title_one": "Protokoll des Notizassistenten",
     "title_other": "Protokolle des Notizassistenten",
     "received": "Empfangen am {{time}}",
     "occurrence": "Für die Besprechung am {{date}}",
-    "open": "Protokoll {{title}} öffnen"
+    "open": "Protokoll {{title}} öffnen",
+    "copyNamed": "{{name}}",
+    "copyNamedNumbered": "{{name}} {{number}}",
+    "copyForwarded": "Weitergeleitete Kopie",
+    "copyForwardedNumbered": "Weitergeleitete Kopie {{number}}"
   },
   "commitments": {
     "title": "Vorgeschlagene Aufgaben",

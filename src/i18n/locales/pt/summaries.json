@@ -386,14 +386,22 @@
     "reviewCount": "Revisar compromissos ({{count}})",
     "retentionLink": "Por quanto tempo guardamos os resumos",
     "keptUntil": "Este resumo será guardado até {{date}}.",
-    "truncatedHint": "Apenas a primeira parte foi guardada quando ele chegou. O e-mail original continua na sua própria caixa de e-mail."
+    "truncatedHint": "Apenas a primeira parte foi guardada quando ele chegou. O e-mail original continua na sua própria caixa de e-mail.",
+    "copiesNote_one": "{{count}} assistente de anotações enviou um resumo desta reunião.",
+    "copiesNote_other": "{{count}} assistentes de anotações enviaram um resumo desta reunião.",
+    "copiesLabel": "Resumos desta reunião",
+    "copyTab": "Ver o resumo de {{name}}"
   },
   "meeting": {
     "title_one": "Resumo do assistente de anotações",
     "title_other": "Resumos do assistente de anotações",
     "received": "Recebido {{time}}",
     "occurrence": "Para a reunião de {{date}}",
-    "open": "Abrir o resumo {{title}}"
+    "open": "Abrir o resumo {{title}}",
+    "copyNamed": "{{name}}",
+    "copyNamedNumbered": "{{name}} {{number}}",
+    "copyForwarded": "Cópia encaminhada",
+    "copyForwardedNumbered": "Cópia encaminhada {{number}}"
   },
   "commitments": {
     "title": "Tarefas sugeridas",

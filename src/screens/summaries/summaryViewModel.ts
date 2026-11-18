@@ -406,3 +406,71 @@ export function meetingSummaryRows(
   const filed = items.filter((item) => item.status === 'matched');
   return filed.length > 0 ? filed : null;
 }
+
+// ---- Several notetakers, one meeting --------------------------------------------------------------
+
+/**
+ * The summaries filed under one meeting (one occurrence for a series), as Meeting details and
+ * SummaryView show them: one entry, with the notetakers' copies as tabs. `copies` starts with the
+ * primary: a notetaker-signed copy before a hand forward, then the earliest received.
+ */
+export interface MeetingSummaryGroup {
+  key: string;
+  primary: SummaryListItem;
+  copies: readonly SummaryListItem[];
+}
+
+function groupKeyOf(item: SummaryListItem): string {
+  return item.match !== null ? `${item.match.meetingId}|${item.match.occurrenceDate ?? ''}` : `own|${item.summaryId}`;
+}
+
+function copyRank(item: SummaryListItem): number {
+  return item.tier === 'vendor_verified' ? 0 : 1;
+}
+
+/** Filed rows grouped by meeting and occurrence, in the order the rows came (pure). */
+export function meetingSummaryGroups(rows: readonly SummaryListItem[]): MeetingSummaryGroup[] {
+  const byKey = new Map<string, SummaryListItem[]>();
+  for (const row of rows) {
+    const key = groupKeyOf(row);
+    const list = byKey.get(key);
+    if (list === undefined) byKey.set(key, [row]);
+    else list.push(row);
+  }
+  return [...byKey.entries()].map(([key, list]) => {
+    const copies = [...list].sort((a, b) => copyRank(a) - copyRank(b) || a.receivedAt.localeCompare(b.receivedAt) || a.summaryId.localeCompare(b.summaryId));
+    return { key, primary: copies[0] as SummaryListItem, copies };
+  });
+}
+
+/** The copies of the meeting `summaryId` is filed under, primary first; just itself when alone or unknown. */
+export function summaryCopiesOf(items: readonly SummaryListItem[] | null, summaryId: string): readonly SummaryListItem[] {
+  if (items === null) return [];
+  const filed = items.filter((item) => item.status === 'matched');
+  return meetingSummaryGroups(filed).find((group) => group.copies.some((copy) => copy.summaryId === summaryId))?.copies ?? [];
+}
+
+/**
+ * The tab label of one copy: the notetaker's name when the server knows it, else the signing
+ * domain of a notetaker copy, else "Forwarded copy". Several copies with the same label are told
+ * apart by their order ("Otter 2").
+ */
+export function copyLabels(copies: readonly SummaryListItem[]): TextRef[] {
+  const base: TextRef[] = copies.map((copy) => {
+    const name = typeof copy.notetaker === 'string' && copy.notetaker.trim() !== '' ? copy.notetaker.trim() : null;
+    if (name !== null) return { key: 'summaries:meeting.copyNamed', params: { name } };
+    if (copy.tier === 'vendor_verified' && copy.senderDomain !== null) return { key: 'summaries:meeting.copyNamed', params: { name: copy.senderDomain } };
+    return { key: 'summaries:meeting.copyForwarded' };
+  });
+  const seen = new Map<string, number>();
+  const totals = new Map<string, number>();
+  const idOf = (ref: TextRef): string => `${ref.key}|${ref.params?.name ?? ''}`;
+  for (const ref of base) totals.set(idOf(ref), (totals.get(idOf(ref)) ?? 0) + 1);
+  return base.map((ref) => {
+    const id = idOf(ref);
+    if ((totals.get(id) ?? 0) < 2) return ref;
+    const index = (seen.get(id) ?? 0) + 1;
+    seen.set(id, index);
+    return { key: `${ref.key}Numbered`, params: { ...(ref.params ?? {}), number: String(index) } };
+  });
+}

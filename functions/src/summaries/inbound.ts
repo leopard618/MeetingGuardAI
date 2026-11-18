@@ -68,7 +68,7 @@ import type { DNSResolver } from 'mailauth';
 
 import { isPassSig, type MailAuthResult } from '../mail/auth';
 import { parseMailDate, type HeaderFacts } from '../mail/headers';
-import { SUMMARY_LIMITS, type SummaryRefusedReason, type SummaryTier as ContractSummaryTier } from '../shared/aiContract';
+import { SUMMARY_LIMITS, summaryDomainSchema, type SummaryRefusedReason, type SummaryTier as ContractSummaryTier } from '../shared/aiContract';
 import { SealedError, parseKeyring, type Keyring } from '../shared/sealed';
 import { isValidTimeZone, zonedDateTimeToUtcIso } from '../shared/time';
 import { normalizeMailbox, parseAddressTemplate, readSummaryUser, resolveToken, tok8, tokenFromEnvelope, tokenHash } from './address';
@@ -673,12 +673,18 @@ async function storeSummary(
     now: ctx.attemptAt,
   });
 
+  // A hand forward of an accepted notetaker's mail names that notetaker (its domain, plain), so
+  // the app can tell two notetakers' copies of one meeting apart.
+  const forwardedFrom = storingRow === 10 && wrapperIsNotetaker(inner?.wrapper ?? null, ctx.senders) ? (inner?.wrapper?.fromAddress ?? null) : null;
+  const notetakerDomain = forwardedFrom !== null ? forwardedFrom.slice(forwardedFrom.lastIndexOf('@') + 1) : null;
+  const doc = notetakerDomain !== null && summaryDomainSchema.safeParse(notetakerDomain).success ? { ...built.doc, notetakerDomain } : built.doc;
+
   run.stage = 'commit';
   const result = await commitSummary(deps.db, {
     uid,
     tokenHash: ctx.hash,
     summaryId,
-    doc: built.doc,
+    doc,
     reseal: built.reseal,
     claimMarkers: built.claimMarkers,
     messageIdMarkerKey: messageMarkerKey(uid, messageKey),

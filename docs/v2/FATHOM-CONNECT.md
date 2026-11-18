@@ -124,6 +124,41 @@ Setup, in this order:
 
 ## 8. Later
 
-- Backfill the last few days of recordings on connect (`GET /meetings`).
 - The same pattern for other notetakers with an API (Fireflies, tl;dv, Read.ai), after checking
   their docs. Otter stays on email (no public API outside its business plans, to be confirmed).
+
+## 9. Sync (the backup to the webhook)
+
+Fathom sends a webhook only when a recording finalizes with a summary, once, with no resend. If a
+delivery is missed (or the meeting was recorded before the user connected), `fathomConnect
+{op: 'sync'}` picks it up:
+
+- With the user's own token: `GET /meetings?created_after=<7 days ago>&include_action_items=true`
+  (up to 3 pages of 10). OAuth apps may not ask `/meetings` for summaries, so each new recording's
+  summary is read from `GET /recordings/{id}/summary` (at most 5 per sync, within 15 seconds;
+  Fathom allows 30 such calls a minute).
+- A recording already stored, upgraded into an email copy, or deleted by the user is skipped
+  before its summary is fetched (`summaryKnown`). Everything else goes through the same steps as a
+  webhook delivery (`ingestFathomMeeting`: pilot, Auth, address, text, matching, commit), with the
+  same message key `fathom:rec:<recording_id>`, so a webhook and a sync are one summary.
+- At most once a minute per user (`lastSyncAt` on the connection, claimed in a transaction); the
+  app asks at most once a minute too, unless forced.
+- The app syncs when the Summary inbox or Meeting summaries opens, on pull to refresh (forced), and
+  right after connecting (forced: the meetings recorded before).
+- A recording with no summary yet is `pending` and looked at again next time. A Fathom failure ends
+  the sync quietly (`summaries.fathom_sync` log line with the failure code).
+
+## 10. Several notetakers, one meeting
+
+A user may run Fathom and Otter in the same call. Each copy is stored on its own (the user can open
+or delete each), but the app shows one summary per meeting occurrence:
+
+- Meeting details: one row per meeting occurrence with a badge per notetaker; it opens the
+  notetaker-signed copy first (else the earliest).
+- The summary screen: tabs ("Fathom", "Otter") switch between the copies of that meeting.
+- List rows carry `notetaker` (the name from the signing notetaker, or the accepted notetaker a
+  hand forward came from, stored as `notetakerDomain`).
+- Suggested tasks: a task added from one copy marks the same task in the other copy "Maybe added
+  already", also when the notetakers word it differently (the added task's title is compared:
+  most words of the shorter title in the longer one, at least 3).
+

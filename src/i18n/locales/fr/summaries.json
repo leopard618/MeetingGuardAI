@@ -386,14 +386,22 @@
     "reviewCount": "Examiner les engagements ({{count}})",
     "retentionLink": "Durée de conservation des comptes rendus",
     "keptUntil": "Ce compte rendu est conservé jusqu'au {{date}}.",
-    "truncatedHint": "Seule la première partie a été conservée à son arrivée. L'e-mail d'origine reste dans votre propre boîte mail."
+    "truncatedHint": "Seule la première partie a été conservée à son arrivée. L'e-mail d'origine reste dans votre propre boîte mail.",
+    "copiesNote_one": "{{count}} assistant de prise de notes a envoyé un compte rendu de cette réunion.",
+    "copiesNote_other": "{{count}} assistants de prise de notes ont envoyé un compte rendu de cette réunion.",
+    "copiesLabel": "Comptes rendus de cette réunion",
+    "copyTab": "Voir le compte rendu de {{name}}"
   },
   "meeting": {
     "title_one": "Compte rendu de l'assistant de prise de notes",
     "title_other": "Comptes rendus de l'assistant de prise de notes",
     "received": "Reçu {{time}}",
     "occurrence": "Pour la réunion du {{date}}",
-    "open": "Ouvrir le compte rendu {{title}}"
+    "open": "Ouvrir le compte rendu {{title}}",
+    "copyNamed": "{{name}}",
+    "copyNamedNumbered": "{{name}} {{number}}",
+    "copyForwarded": "Copie transférée",
+    "copyForwardedNumbered": "Copie transférée {{number}}"
   },
   "commitments": {
     "title": "Tâches suggérées",
