@@ -31,7 +31,7 @@
           "Abonnements: Wenn Sie Pro oder Premium kaufen, wickeln der App Store oder Google Play die Zahlung ab und wir erhalten nie Ihre Karten- oder Bankdaten. RevenueCat, das die Abonnements in unserem Auftrag verwaltet, sendet unserem Server einen Datensatz zu jedem Abonnementereignis, etwa einem Kauf, einer Verlängerung, einem Tarifwechsel, einem Abrechnungsproblem, einer Kündigung oder einem Ablauf (der Tarif, der Store, das Produkt, der Preis und die Währung, die Daten und, bei einer Kündigung oder einem Ablauf, der Grund), damit wir wissen, welchen Tarif Sie haben und wann er sich verlängert oder endet.",
           "Absturz- und Fehlerberichte sowie Leistungsmessungen einer Stichprobe von App-Sitzungen, wenn die Absturzberichterstattung in Ihrer App-Version aktiviert ist: Gerätemodell, Betriebssystem, App-Version, technische Details des Fehlers und wie lange Bildschirme und Netzwerkanfragen dauern. Wir gestalten diese Berichte so, dass Ihre Besprechungen, Notizen und Nachrichten nicht enthalten sind, und E-Mail-Adressen werden vor dem Senden aus Fehlerberichten entfernt.",
           "WhatsApp: Wenn Sie Ihre WhatsApp-Nummer verknüpfen, speichern wir diese Telefonnummer, Ihren WhatsApp-Profilnamen, das Datum der Verknüpfung und den Gesprächsstatus: die letzten 10 Nachrichten des Chats, Ihre und die des Assistenten, sowie jeden Vorschlag, der auf Ihre Bestätigung wartet (siehe \"WhatsApp-Assistent\").",
-          "Besprechungsprotokolle: Wenn Sie sie aktivieren, speichern wir Ihre private Adresse für Protokolle, die von Ihnen angegebenen Postfächer, die Besprechungsprotokolle, die an dieser Adresse eingehen, und die daraus vorgeschlagenen Aufgaben (siehe \"Besprechungsprotokolle per E-Mail\")."
+          "Besprechungsprotokolle: Wenn Sie sie aktivieren, speichern wir Ihre private Adresse für Protokolle, die von Ihnen angegebenen Postfächer, die Besprechungsprotokolle, die an dieser Adresse eingehen, und die daraus vorgeschlagenen Aufgaben (siehe \"Besprechungsprotokolle per E-Mail\"). Wenn Sie Fathom verbinden, auch die Schlüssel dieser Verbindung, verschlüsselt (siehe \"Besprechungsprotokolle von Fathom\")."
         ]
       },
       "device": {
@@ -138,6 +138,15 @@
           "Kopien außerhalb unserer Datenbank, etwa eine Erinnerung auf Ihrem Sperrbildschirm, Ihr WhatsApp-Chat oder eine nach Microsoft To Do oder Google Tasks kopierte Aufgabe, werden nicht erfasst, wenn Sie ein Protokoll löschen oder die Verbindung trennen: Löschen Sie sie dort."
         ]
       },
+      "fathom": {
+        "title": "Besprechungsprotokolle von Fathom",
+        "body": [
+          "Wenn Sie Fathom nutzen, können Sie es verbinden, statt seine E-Mails weiterzuleiten: Tippen Sie unter Besprechungsprotokolle auf Fathom verbinden und genehmigen Sie den Zugriff in Fathom. Mit der Verbindung erhalten Sie auch Ihre private Adresse für Protokolle (siehe \"Besprechungsprotokolle per E-Mail\"), weil jedes Protokoll mit ihr gespeichert wird.",
+          "Nach jeder Besprechung, die Fathom für Sie aufzeichnet, sendet Fathom unserem Server (Google Cloud Functions) den Titel dieser Besprechung, ihre Zeiten, ihren Videoanruf-Link, das Protokoll von Fathom und seine Aufgaben, mit den Namen und E-Mail-Adressen der Personen, denen sie zugewiesen sind. Unser Server kann Fathom auch nach Ihren Aufzeichnungen der letzten 7 Tage fragen, um eine nicht angekommene nachzuholen. Wir erhalten nur Ihre eigenen Aufzeichnungen und nie die Aufzeichnung selbst, ihr Video oder ihr Transkript.",
+          "Für die Verbindung speichern wir die Schlüssel, die Fathom uns für Ihr Konto gibt (einen Zugriffsschlüssel, einen Schlüssel zu dessen Erneuerung und den Schlüssel, der die Zustellungen von Fathom signiert), verschlüsselt mit unserem eigenen Schlüssel, der im Google Secret Manager liegt, zusammen mit dem Zeitpunkt der Verbindung und dem des letzten Protokolls. Ein Protokoll von Fathom wird danach genauso gespeichert, verschlüsselt, zugeordnet und aufbewahrt wie ein Protokoll per E-Mail, nach denselben Regeln und für dieselbe Dauer.",
+          "Sie können Fathom jederzeit unter Besprechungsprotokolle trennen: Wir bitten Fathom, keine Protokolle mehr zu senden, und löschen die Schlüssel sofort. Wenn Sie die Besprechungsprotokolle trennen oder Ihr Konto löschen, wird Fathom ebenfalls getrennt. Ist Fathom in diesem Moment nicht erreichbar, können Sie die Verbindung in Ihren Fathom-Einstellungen entfernen. Fathom verarbeitet Ihre Besprechungen nach seiner eigenen Datenschutzerklärung."
+        ]
+      },
       "notifications": {
         "title": "Benachrichtigungen",
         "body": [
@@ -153,6 +162,7 @@
           "Google (Firebase Authentication, Cloud Firestore und Cloud Functions), das Ihr Konto und Ihre Daten hostet und unseren Servercode ausführt.",
           "OpenAI, das Ihre Anfragen an den KI-Assistenten verarbeitet und, wenn Sie sie anfordern, die vorgeschlagenen Aufgaben aus einem Besprechungsprotokoll.",
           "Postmark, unseren E-Mail-Anbieter, wenn Sie Besprechungsprotokolle aktivieren: Es empfängt die an Ihre private Adresse für Protokolle gesendeten E-Mails, verarbeitet sie in den Vereinigten Staaten und bewahrt seine Kopie {{summaryProviderDays}} Tage lang auf.",
+          "Fathom, wenn Sie es verbinden: Wir erhalten Ihre Besprechungsprotokolle von Fathom und senden Fathom nur die Anfragen, die für diese Verbindung nötig sind, nie andere Daten aus Ihrem Meeting Guard AI-Konto.",
           "Microsoft, wenn Sie sich mit Microsoft anmelden oder Outlook oder To Do verbinden.",
           "Apple, wenn Sie sich mit Apple anmelden.",
           "Den Spracherkennungsdienst Ihres Telefons (Apple auf einem iPhone, unter Android meist Google), wenn Sie die Spracheingabe nutzen: Er kann die Audioaufnahme erhalten, um sie in Text umzuwandeln.",
@@ -181,7 +191,7 @@
           "Wir bewahren Ihre Informationen auf, solange Ihr Konto besteht."
         ],
         "items": [
-          "Sie können Ihr Konto jederzeit in der App löschen: Einstellungen → Konto → Konto löschen. Dadurch werden Ihr Konto, Ihre Besprechungen, Aufgaben, Notizen, Präferenzen, Besprechungsprotokolle und Ihre private Adresse für Protokolle, die Nutzungsdaten des Assistenten, der Abonnementstatus, die WhatsApp-Verknüpfung und der Microsoft-Anmeldedatensatz dauerhaft von unseren Servern gelöscht, Sie werden abgemeldet und der Zugriff der App auf Ihr Google-Konto oder Apple-Konto wird entfernt. Das Löschen Ihres Kontos kündigt kein im App Store oder bei Google Play gekauftes Abonnement: Kündigen Sie es dort.",
+          "Sie können Ihr Konto jederzeit in der App löschen: Einstellungen → Konto → Konto löschen. Dadurch werden Ihr Konto, Ihre Besprechungen, Aufgaben, Notizen, Präferenzen, Besprechungsprotokolle und Ihre private Adresse für Protokolle, die Verbindung mit Fathom, die Nutzungsdaten des Assistenten, der Abonnementstatus, die WhatsApp-Verknüpfung und der Microsoft-Anmeldedatensatz dauerhaft von unseren Servern gelöscht, Sie werden abgemeldet und der Zugriff der App auf Ihr Google-Konto oder Apple-Konto wird entfernt. Das Löschen Ihres Kontos kündigt kein im App Store oder bei Google Play gekauftes Abonnement: Kündigen Sie es dort.",
           "Wenn Sie sich nicht mehr anmelden können, schreiben Sie von der E-Mail-Adresse Ihres Kontos an {{email}} und bitten Sie uns, es zu löschen.",
           "Wenn Sie eine Besprechung löschen, wird ein minimaler Datensatz ohne ihren Inhalt (Kennungen und Uhrzeit) bis zu 60 Tage lang aufbewahrt, damit die Löschung Ihre anderen Geräte und Kalender erreicht; danach löscht unser Server ihn automatisch.",
           "Termine, die die App zu Google Calendar, Outlook oder dem Kalender Ihres Telefons hinzugefügt hat, und Aufgaben, die sie zu Google Tasks oder Microsoft To Do hinzugefügt hat, bleiben dort, bis Sie sie löschen.",
@@ -211,7 +221,7 @@
           "auf Ihre personenbezogenen Daten zuzugreifen und eine Kopie davon zu erhalten.",
           "unrichtige Daten zu berichtigen. Sie können Ihre Besprechungen, Aufgaben, Notizen und Einstellungen in der App bearbeiten.",
           "Ihre Daten zu löschen (siehe oben).",
-          "einer Verarbeitung zu widersprechen oder sie einschränken zu lassen und Ihre Einwilligung jederzeit zu widerrufen, zum Beispiel indem Sie Google Calendar, Google Tasks, Outlook oder Microsoft To Do trennen, die Verknüpfung mit WhatsApp aufheben, die Besprechungsprotokolle trennen, den Kalenderzugriff deaktivieren oder den KI-Assistenten nicht nutzen.",
+          "einer Verarbeitung zu widersprechen oder sie einschränken zu lassen und Ihre Einwilligung jederzeit zu widerrufen, zum Beispiel indem Sie Google Calendar, Google Tasks, Outlook oder Microsoft To Do trennen, die Verknüpfung mit WhatsApp aufheben, Fathom oder die Besprechungsprotokolle trennen, den Kalenderzugriff deaktivieren oder den KI-Assistenten nicht nutzen.",
           "Ihre Daten in einem übertragbaren Format zu erhalten.",
           "sich bei Ihrer örtlichen Datenschutzbehörde zu beschweren."
         ],

@@ -31,7 +31,7 @@
           "Subscriptions: if you buy Pro or Premium, the App Store or Google Play handles the payment and we never receive your card or bank details. RevenueCat, which manages subscriptions on our behalf, sends our server a record of each subscription event, such as a purchase, renewal, plan change, billing problem, cancellation or expiry (the plan, the store, the product, the price and currency, the dates and, for a cancellation or an expiry, its reason), so we know which plan you have and when it renews or ends.",
           "Crash and error reports, and performance measurements of a sample of app sessions, when crash reporting is enabled in your version of the app: device model, operating system, app version, technical details of the error and how long screens and network requests take. We design these reports to leave out your meetings, notes and messages, and email addresses are removed from error reports before they are sent.",
           "WhatsApp: if you link your WhatsApp number, we store that phone number, your WhatsApp profile name, the date you linked it and the conversation state: the last 10 messages of the chat, yours and the assistant's, and any proposal that waits for your confirmation (see \"WhatsApp assistant\").",
-          "Meeting summaries: if you turn them on, we store your private summary address, the mailboxes you list, the meeting summaries that reach that address and the tasks suggested from them (see \"Meeting summaries by email\")."
+          "Meeting summaries: if you turn them on, we store your private summary address, the mailboxes you list, the meeting summaries that reach that address and the tasks suggested from them (see \"Meeting summaries by email\"). If you connect Fathom, also the keys of that connection, encrypted (see \"Meeting summaries from Fathom\")."
         ]
       },
       "device": {
@@ -138,6 +138,15 @@
           "Copies outside our database, such as a reminder on your lock screen, your WhatsApp chat or a task copied to Microsoft To Do or Google Tasks, are not reached when you delete a summary or disconnect: delete them there."
         ]
       },
+      "fathom": {
+        "title": "Meeting summaries from Fathom",
+        "body": [
+          "If you use Fathom, you can connect it instead of forwarding its emails: tap Connect Fathom under Meeting summaries and approve the access in Fathom. Connecting also gives you your private summary address (see \"Meeting summaries by email\"), because every summary is kept with it.",
+          "After each meeting that Fathom records for you, Fathom sends our server (Google Cloud Functions) that meeting's title, its times, its video-call link, Fathom's summary and its action items, with the names and email addresses of the people they are assigned to. Our server can also ask Fathom for your recordings of the last 7 days, to pick up one that did not arrive. We only receive your own recordings, and never the recording itself, its video or its transcript.",
+          "To keep the connection, we store the keys Fathom gives us for your account (an access key, a key to renew it, and the key that signs Fathom's deliveries), encrypted with our own key kept in Google Secret Manager, together with when you connected and when the last summary arrived. A summary from Fathom is then stored, encrypted, filed and kept exactly like a summary by email, under the same rules and for the same time.",
+          "You can disconnect Fathom at any time under Meeting summaries: we ask Fathom to stop sending summaries and delete the keys at once. Disconnecting meeting summaries or deleting your account also disconnects Fathom. If Fathom cannot be reached at that moment, you can remove the connection in your Fathom settings. Fathom processes your meetings under its own privacy policy."
+        ]
+      },
       "notifications": {
         "title": "Notifications",
         "body": [
@@ -153,6 +162,7 @@
           "Google (Firebase Authentication, Cloud Firestore and Cloud Functions), which hosts your account and data and runs our server code.",
           "OpenAI, which processes your requests to the AI assistant and, when you ask for them, the suggested tasks from a meeting summary.",
           "Postmark, our email provider, when you turn on meeting summaries: it receives the emails sent to your private summary address, processes them in the United States and keeps its copy for {{summaryProviderDays}} days.",
+          "Fathom, when you connect it: we receive your meeting summaries from it, and we send it only the requests needed to keep that connection, never other data from your Meeting Guard AI account.",
           "Microsoft, when you sign in with Microsoft or connect Outlook or To Do.",
           "Apple, when you sign in with Apple.",
           "The speech recognition service of your phone (Apple on an iPhone, usually Google on Android), when you use voice input: it may receive the audio to turn it into text.",
@@ -181,7 +191,7 @@
           "We keep your information while your account exists."
         ],
         "items": [
-          "You can delete your account at any time in the app: Settings → Account → Delete account. This permanently deletes your account, meetings, tasks, notes, preferences, meeting summaries and private summary address, assistant usage records, subscription status, WhatsApp link and Microsoft sign-in record from our servers, signs you out and removes the app's access to your Google account or Apple account. Deleting your account does not cancel a subscription bought in the App Store or Google Play: cancel it there.",
+          "You can delete your account at any time in the app: Settings → Account → Delete account. This permanently deletes your account, meetings, tasks, notes, preferences, meeting summaries and private summary address, Fathom connection, assistant usage records, subscription status, WhatsApp link and Microsoft sign-in record from our servers, signs you out and removes the app's access to your Google account or Apple account. Deleting your account does not cancel a subscription bought in the App Store or Google Play: cancel it there.",
           "If you can't sign in anymore, write to {{email}} from the email address of your account and ask us to delete it.",
           "When you delete a meeting, a minimal record without its content (identifiers and time) is kept for up to 60 days so the deletion reaches your other devices and calendars; after that our server erases it automatically.",
           "Events that the app added to Google Calendar, Outlook or your phone's calendar, and tasks it added to Google Tasks or Microsoft To Do, stay there until you delete them.",
@@ -211,7 +221,7 @@
           "Access your personal data and get a copy of it.",
           "Correct inaccurate data. You can edit your meetings, tasks, notes and settings in the app.",
           "Delete your data (see above).",
-          "Object to or restrict some processing, and withdraw your consent at any time, for example by disconnecting Google Calendar, Google Tasks, Outlook or Microsoft To Do, unlinking WhatsApp, disconnecting meeting summaries, turning off calendar access or not using the AI assistant.",
+          "Object to or restrict some processing, and withdraw your consent at any time, for example by disconnecting Google Calendar, Google Tasks, Outlook or Microsoft To Do, unlinking WhatsApp, disconnecting Fathom or meeting summaries, turning off calendar access or not using the AI assistant.",
           "Receive your data in a portable format.",
           "Complain to your local data protection authority."
         ],

@@ -31,7 +31,7 @@
           "Abonnements : si vous achetez Pro ou Premium, l'App Store ou Google Play gère le paiement et nous ne recevons jamais vos coordonnées bancaires ni celles de votre carte. RevenueCat, qui gère les abonnements pour notre compte, envoie à notre serveur un enregistrement de chaque événement d'abonnement, comme un achat, un renouvellement, un changement d'offre, un problème de facturation, une résiliation ou une expiration (l'offre, la boutique, le produit, le prix et la devise, les dates et, pour une résiliation ou une expiration, son motif), afin que nous sachions quelle offre vous avez et quand elle se renouvelle ou prend fin.",
           "Rapports de plantage et d'erreur, et mesures de performance d'un échantillon de sessions de l'application, lorsque le signalement des plantages est activé dans votre version de l'application : modèle de l'appareil, système d'exploitation, version de l'application, détails techniques de l'erreur et temps de chargement des écrans et des requêtes réseau. Nous concevons ces rapports pour qu'ils excluent vos réunions, notes et messages, et les adresses e-mail sont retirées des rapports d'erreur avant leur envoi.",
           "WhatsApp : si vous associez votre numéro WhatsApp, nous enregistrons ce numéro de téléphone, votre nom de profil WhatsApp, la date de l'association et l'état de la conversation : les 10 derniers messages de la discussion, les vôtres et ceux de l'assistant, et toute proposition en attente de votre confirmation (voir \"Assistant WhatsApp\").",
-          "Comptes rendus de réunion : si vous les activez, nous enregistrons votre adresse privée de comptes rendus, les boîtes mail que vous indiquez, les comptes rendus de réunion qui arrivent à cette adresse et les tâches suggérées à partir de ceux-ci (voir \"Comptes rendus de réunion par e-mail\")."
+          "Comptes rendus de réunion : si vous les activez, nous enregistrons votre adresse privée de comptes rendus, les boîtes mail que vous indiquez, les comptes rendus de réunion qui arrivent à cette adresse et les tâches suggérées à partir de ceux-ci (voir \"Comptes rendus de réunion par e-mail\"). Si vous connectez Fathom, également les clés de cette connexion, chiffrées (voir \"Comptes rendus de réunion depuis Fathom\")."
         ]
       },
       "device": {
@@ -138,6 +138,15 @@
           "Les copies hors de notre base de données, comme un rappel sur votre écran de verrouillage, votre discussion WhatsApp ou une tâche copiée dans Microsoft To Do ou Google Tasks, ne sont pas concernées lorsque vous supprimez un compte rendu ou déconnectez les comptes rendus : supprimez-les là où elles se trouvent."
         ]
       },
+      "fathom": {
+        "title": "Comptes rendus de réunion depuis Fathom",
+        "body": [
+          "Si vous utilisez Fathom, vous pouvez le connecter au lieu de transférer ses e-mails : touchez Connecter Fathom dans Comptes rendus de réunion et approuvez l'accès dans Fathom. La connexion vous donne aussi votre adresse privée de comptes rendus (voir \"Comptes rendus de réunion par e-mail\"), car chaque compte rendu est conservé avec elle.",
+          "Après chaque réunion que Fathom enregistre pour vous, Fathom envoie à notre serveur (Google Cloud Functions) le titre de cette réunion, ses horaires, son lien de visioconférence, le compte rendu de Fathom et ses actions à mener, avec les noms et les adresses e-mail des personnes auxquelles elles sont attribuées. Notre serveur peut aussi demander à Fathom vos enregistrements des 7 derniers jours, pour récupérer celui qui ne serait pas arrivé. Nous ne recevons que vos propres enregistrements, et jamais l'enregistrement lui-même, sa vidéo ou sa transcription.",
+          "Pour maintenir la connexion, nous conservons les clés que Fathom nous donne pour votre compte (une clé d'accès, une clé pour la renouveler et la clé qui signe les envois de Fathom), chiffrées avec notre propre clé conservée dans Google Secret Manager, ainsi que la date de votre connexion et celle du dernier compte rendu reçu. Un compte rendu de Fathom est ensuite enregistré, chiffré, classé et conservé exactement comme un compte rendu par e-mail, selon les mêmes règles et pour la même durée.",
+          "Vous pouvez déconnecter Fathom à tout moment dans Comptes rendus de réunion : nous demandons à Fathom d'arrêter d'envoyer des comptes rendus et nous supprimons les clés immédiatement. Déconnecter les comptes rendus de réunion ou supprimer votre compte déconnecte aussi Fathom. Si Fathom ne peut pas être joint à ce moment-là, vous pouvez supprimer la connexion dans vos paramètres Fathom. Fathom traite vos réunions selon sa propre politique de confidentialité."
+        ]
+      },
       "notifications": {
         "title": "Notifications",
         "body": [
@@ -153,6 +162,7 @@
           "Google (Firebase Authentication, Cloud Firestore et Cloud Functions), qui héberge votre compte et vos données et exécute le code de notre serveur.",
           "OpenAI, qui traite vos demandes à l'assistant IA et, lorsque vous les demandez, les tâches suggérées à partir d'un compte rendu de réunion.",
           "Postmark, notre fournisseur d'e-mail, lorsque vous activez les comptes rendus de réunion : il reçoit les e-mails envoyés à votre adresse privée de comptes rendus, les traite aux États-Unis et conserve sa copie pendant {{summaryProviderDays}} jours.",
+          "Fathom, lorsque vous le connectez : nous recevons vos comptes rendus de réunion depuis Fathom et nous ne lui envoyons que les requêtes nécessaires pour maintenir cette connexion, jamais d'autres données de votre compte Meeting Guard AI.",
           "Microsoft, lorsque vous vous connectez avec Microsoft ou connectez Outlook ou To Do.",
           "Apple, lorsque vous vous connectez avec Apple.",
           "Le service de reconnaissance vocale de votre téléphone (Apple sur un iPhone, généralement Google sur Android), lorsque vous utilisez la saisie vocale : il peut recevoir l'audio pour le transformer en texte.",
@@ -181,7 +191,7 @@
           "Nous conservons vos informations tant que votre compte existe."
         ],
         "items": [
-          "Vous pouvez supprimer votre compte à tout moment dans l'application : Paramètres → Compte → Supprimer le compte. Cela supprime définitivement de nos serveurs votre compte, vos réunions, tâches, notes, préférences, comptes rendus de réunion et votre adresse privée de comptes rendus, vos enregistrements d'utilisation de l'assistant, l'état de votre abonnement, votre association WhatsApp et votre enregistrement de connexion Microsoft, vous déconnecte et retire l'accès de l'application à votre compte Google ou à votre compte Apple. La suppression de votre compte ne résilie pas un abonnement acheté dans l'App Store ou Google Play : résiliez-le à cet endroit.",
+          "Vous pouvez supprimer votre compte à tout moment dans l'application : Paramètres → Compte → Supprimer le compte. Cela supprime définitivement de nos serveurs votre compte, vos réunions, tâches, notes, préférences, comptes rendus de réunion et votre adresse privée de comptes rendus, votre connexion Fathom, vos enregistrements d'utilisation de l'assistant, l'état de votre abonnement, votre association WhatsApp et votre enregistrement de connexion Microsoft, vous déconnecte et retire l'accès de l'application à votre compte Google ou à votre compte Apple. La suppression de votre compte ne résilie pas un abonnement acheté dans l'App Store ou Google Play : résiliez-le à cet endroit.",
           "Si vous ne pouvez plus vous connecter, écrivez à {{email}} depuis l'adresse e-mail de votre compte et demandez-nous de le supprimer.",
           "Lorsque vous supprimez une réunion, un enregistrement minimal sans son contenu (identifiants et heure) est conservé jusqu'à 60 jours afin que la suppression atteigne vos autres appareils et calendriers ; ensuite, notre serveur l'efface automatiquement.",
           "Les événements que l'application a ajoutés à Google Calendar, à Outlook ou au calendrier de votre téléphone, et les tâches qu'elle a ajoutées à Google Tasks ou à Microsoft To Do, y restent jusqu'à ce que vous les supprimiez.",
@@ -211,7 +221,7 @@
           "Accéder à vos données personnelles et en obtenir une copie.",
           "Rectifier des données inexactes. Vous pouvez modifier vos réunions, tâches, notes et paramètres dans l'application.",
           "Supprimer vos données (voir ci-dessus).",
-          "Vous opposer à certains traitements ou les limiter, et retirer votre consentement à tout moment, par exemple en déconnectant Google Calendar, Google Tasks, Outlook ou Microsoft To Do, en dissociant WhatsApp, en déconnectant les comptes rendus de réunion, en désactivant l'accès au calendrier ou en n'utilisant pas l'assistant IA.",
+          "Vous opposer à certains traitements ou les limiter, et retirer votre consentement à tout moment, par exemple en déconnectant Google Calendar, Google Tasks, Outlook ou Microsoft To Do, en dissociant WhatsApp, en déconnectant Fathom ou les comptes rendus de réunion, en désactivant l'accès au calendrier ou en n'utilisant pas l'assistant IA.",
           "Recevoir vos données dans un format portable.",
           "Introduire une réclamation auprès de votre autorité locale de protection des données."
         ],
