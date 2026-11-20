@@ -30,6 +30,11 @@ export interface BannerProps {
   title?: string;
   text: string;
   action?: BannerAction;
+  /**
+   * "end" (default): the action trails the text. "below": under the text, for a long label
+   * (a trailing long label would squeeze the text into a narrow column).
+   */
+  actionPlacement?: 'end' | 'below';
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -54,7 +59,7 @@ function toneColors(colors: MGColors, tone: BannerTone): { bg: string; fg: strin
 const SLIDE_MS = 200;
 const SLIDE_FROM = -8;
 
-export function Banner({ tone = 'info', icon, title, text, action, style, testID }: BannerProps): ReactElement {
+export function Banner({ tone = 'info', icon, title, text, action, actionPlacement = 'end', style, testID }: BannerProps): ReactElement {
   const { colors } = useAppTheme();
   const reduceMotion = useReducedMotion();
   const [progress] = useState(() => new Animated.Value(0));
@@ -71,6 +76,18 @@ export function Banner({ tone = 'info', icon, title, text, action, style, testID
   }, [progress, reduceMotion]);
 
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [SLIDE_FROM, 0] });
+  const below = actionPlacement === 'below';
+  const actionButton = action ? (
+    <Pressable
+      onPress={action.onPress}
+      hitSlop={12}
+      style={({ pressed }) => [below ? styles.actionBelow : styles.actionEnd, pressed && styles.pressed]}
+      accessibilityRole="button"
+      testID={testID ? `${testID}-action` : undefined}
+    >
+      <Text style={[styles.actionLabel, { color: fg }]}>{action.label}</Text>
+    </Pressable>
+  ) : null;
 
   return (
     <Animated.View
@@ -89,18 +106,9 @@ export function Banner({ tone = 'info', icon, title, text, action, style, testID
       <View style={styles.texts}>
         {title ? <Text style={[styles.title, { color: fg }]}>{title}</Text> : null}
         <Text style={[styles.text, { color: fg }]}>{text}</Text>
+        {below ? actionButton : null}
       </View>
-      {action ? (
-        <Pressable
-          onPress={action.onPress}
-          hitSlop={12}
-          style={({ pressed }) => [pressed && styles.pressed]}
-          accessibilityRole="button"
-          testID={testID ? `${testID}-action` : undefined}
-        >
-          <Text style={[styles.actionLabel, { color: fg }]}>{action.label}</Text>
-        </Pressable>
-      ) : null}
+      {below ? null : actionButton}
     </Animated.View>
   );
 }
@@ -125,6 +133,14 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     ...typography.labelL,
+  },
+  // A trailing label never takes more than 40% of the row, so the text keeps its width.
+  actionEnd: {
+    maxWidth: '40%',
+  },
+  actionBelow: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
   },
   pressed: {
     opacity: pressedDimOpacity,
