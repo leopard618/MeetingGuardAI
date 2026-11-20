@@ -15,6 +15,14 @@
  * - Google etag / Outlook changeKey unchanged -> nothing to do.
  * - Refs-only changes (etag, updated) are written silently (not reported as changes).
  * - New events -> meeting with source = provider, written with outbox mode "create".
+ * - Copies across Google and Outlook (sameMeetingCopy): with both calendars connected, the
+ *   invitation one calendar emails to the user's address in the other calendar arrives there as a
+ *   second event of the same meeting. A new Google/Outlook event with the exact title, start and
+ *   end of an active Meeting Guard meeting, or of a meeting imported from the other calendar, is
+ *   that copy: not imported (counted unchanged). A copy imported before this rule is removed by
+ *   the next batch from its calendar when it matches a Meeting Guard meeting (the meeting the
+ *   user created wins), and is never brought back while it does. Removals are local only: write origin calendar_<provider> is
+ *   never pushed, so the provider's event stays.
  */
 import type { CalendarProvider, ExternalMeetingUpsert, UpsertExternalResult } from '../../core/contracts';
 import { meetingIdFromGoogleEventId } from '../../core/identifiers';
@@ -56,6 +64,50 @@ export interface ExternalUpsertPlan {
 }
 
 type MeetingLookup = ReadonlyMap<string, Meeting>;
+
+/** Sources that come from a calendar; every other source is a meeting made in Meeting Guard. */
+const CALENDAR_SOURCES: ReadonlySet<string> = new Set<CalendarProvider>(['google', 'outlook', 'device']);
+
+/** Exact title (case and spacing ignored), start and end: the same meeting in another calendar. */
+function copySignature(title: string, startAt: string, durationMinutes: number): string | null {
+  const startMs = isoMs(startAt);
+  if (startMs === null || !Number.isFinite(durationMinutes)) return null;
+  const name = title.trim().replace(/\s+/g, ' ').toLowerCase();
+  if (name.length === 0) return null;
+  return `${name}|${startMs}|${durationMinutes}`;
+}
+
+function signatureOfMeeting(meeting: Meeting): string | null {
+  return copySignature(meeting.title, meeting.startAt, meeting.durationMinutes);
+}
+
+/**
+ * The active meeting this Google/Outlook event only copies, or null. `candidate` is the event's
+ * meeting as it would be stored; `self` (the event's own meeting, when it has one) never counts.
+ * `ownOnly`: only Meeting Guard meetings count (removing an existing copy).
+ */
+function sameMeetingCopy(
+  index: ReadonlyMap<string, readonly Meeting[]>,
+  working: MeetingLookup,
+  provider: CalendarProvider,
+  candidate: { title: string; startAt: string; durationMinutes: number },
+  self: Meeting | null,
+  ownOnly: boolean,
+): Meeting | null {
+  if (provider === 'device') return null;
+  const signature = copySignature(candidate.title, candidate.startAt, candidate.durationMinutes);
+  if (signature === null) return null;
+  const other: CalendarProvider = provider === 'google' ? 'outlook' : 'google';
+  for (const indexed of index.get(signature) ?? []) {
+    const meeting = working.get(indexed.id) ?? indexed;
+    if (self !== null && meeting.id === self.id) continue;
+    if (meeting.deletedAt !== null || meeting.status !== 'scheduled') continue;
+    if (signatureOfMeeting(meeting) !== signature) continue;
+    const own = !CALENDAR_SOURCES.has(meeting.source);
+    if (own || (!ownOnly && meeting.source === other)) return meeting;
+  }
+  return null;
+}
 
 function matchesExternal(meeting: Meeting, provider: CalendarProvider, externalId: string, calendarId?: string): boolean {
   if (provider === 'google') return meeting.external.googleEventId === externalId;
@@ -131,6 +183,18 @@ function newMeetingId(item: ExternalMeetingUpsert): string {
   return externalMeetingId(item.provider, item.calendarId, item.externalId);
 }
 
+/** The fields a copy is compared on, from an event's payload (missing ones never match). */
+function candidateOf(
+  payload: ExternalMeetingUpsert['meeting'],
+  fallback: Meeting | null,
+): { title: string; startAt: string; durationMinutes: number } {
+  return {
+    title: payload?.title ?? fallback?.title ?? '',
+    startAt: payload?.startAt ?? fallback?.startAt ?? '',
+    durationMinutes: payload?.durationMinutes ?? fallback?.durationMinutes ?? Number.NaN,
+  };
+}
+
 function describeError(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'code' in error) return String((error as { code: unknown }).code);
   return 'invalid';
@@ -146,6 +210,16 @@ export function planExternalUpserts(
   const result: ExternalUpsertResultWithInvalid = { created: 0, updated: 0, removed: 0, unchanged: 0, changedIds: [], invalid: 0 };
   const invalidItems: ExternalUpsertPlan['invalidItems'] = [];
   const changed = new Set<string>();
+  /** Meetings by copySignature (for sameMeetingCopy); meetings created in this batch are added. */
+  const bySignature = new Map<string, Meeting[]>();
+  const indexMeeting = (meeting: Meeting): void => {
+    const signature = signatureOfMeeting(meeting);
+    if (signature === null) return;
+    const list = bySignature.get(signature);
+    if (list) list.push(meeting);
+    else bySignature.set(signature, [meeting]);
+  };
+  for (const meeting of meetings.values()) indexMeeting(meeting);
 
   const record = (planned: PlannedExternalWrite): void => {
     const previous = writes.get(planned.meeting.id);
@@ -153,6 +227,7 @@ export function planExternalUpserts(
     const mode = previous?.mode === 'create' ? 'create' : planned.mode;
     writes.set(planned.meeting.id, { ...planned, mode });
     working.set(planned.meeting.id, planned.meeting);
+    if (planned.outcome === 'created' || planned.outcome === 'updated') indexMeeting(planned.meeting);
     if (planned.outcome === 'refs_only') {
       result.unchanged += 1;
       return;
@@ -190,6 +265,10 @@ export function planExternalUpserts(
       if (!item.meeting) throw new Error('missing meeting payload');
 
       if (!existing) {
+        if (sameMeetingCopy(bySignature, working, item.provider, candidateOf(item.meeting, null), null, false)) {
+          result.unchanged += 1;
+          return;
+        }
         const meeting = buildMeeting(
           { ...item.meeting, source: item.provider, external: refs },
           {
@@ -227,6 +306,11 @@ export function planExternalUpserts(
           return;
         }
         const patched = applyMeetingPatch(existing, { ...patchFrom(item), external: refs }, nextTimestamp(ctx.now, existing.updatedAt));
+        // A removed copy of a Meeting Guard meeting stays removed while it still copies it.
+        if (existing.source === item.provider && sameMeetingCopy(bySignature, working, item.provider, patched, existing, true)) {
+          result.unchanged += 1;
+          return;
+        }
         record({ meeting: { ...patched, deletedAt: null }, mode: 'set', outcome: 'updated', provider: item.provider });
         return;
       }
@@ -252,6 +336,17 @@ export function planExternalUpserts(
       invalidItems.push({ index, externalId: item.externalId, reason: describeError(error) });
     }
   });
+
+  // Copies imported before the copy rule (see the header): every batch from Google or Outlook
+  // removes that calendar's imported copies of Meeting Guard meetings, locally only.
+  const batchProviders = new Set<CalendarProvider>(items.map((item) => item.provider).filter((provider) => provider !== 'device'));
+  for (const meeting of [...working.values()]) {
+    if (!batchProviders.has(meeting.source as CalendarProvider)) continue;
+    if (meeting.deletedAt !== null || meeting.status !== 'scheduled') continue;
+    const provider = meeting.source as CalendarProvider;
+    if (!sameMeetingCopy(bySignature, working, provider, meeting, meeting, true)) continue;
+    record({ meeting: tombstoneMeeting(meeting, nextTimestamp(ctx.now, meeting.updatedAt)), mode: 'set', outcome: 'removed', provider });
+  }
 
   result.changedIds = [...changed];
   return { writes: [...writes.values()], result, invalidItems };
