@@ -38,11 +38,12 @@ import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { attachmentService } from '../../services/attachments';
 import { useAuth } from '../../services/auth';
 import { useCalendarStatus } from '../../services/calendar';
-import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
+import { meetingRepository, useMeeting, useMeetings, usePreferences } from '../../services/data';
 import { useZoomStatus, zoomService } from '../../services/zoom';
 import { addErrorMessage, showAddResult } from '../attachments/attachmentMessages';
 import { alertTimeChoices, alertTimeLabel, toggleAlertTime } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
+import { knownParticipants, suggestParticipants, type KnownParticipant } from './participantSuggestions';
 import { ScreenBody, Section } from '../shared/Section';
 import { needsEmailVerification } from '../shared/VerifyEmailBanner';
 import { capitalizeFirst } from '../shared/text';
@@ -155,6 +156,12 @@ function MeetingForm({
   // unverified email user must never be promised a link the server will always refuse - zoom
   // stays plain paste for them (`zoom` absent) and Save never fires ensureLink.
   const { authUser } = useAuth();
+  // Participant suggestions: addresses from the user's own meetings (no contacts permission).
+  const { meetings: allMeetings } = useMeetings();
+  const ownEmail = authUser?.email ?? null;
+  const known = useMemo(() => knownParticipants(allMeetings, ownEmail), [allMeetings, ownEmail]);
+  /** The participant row whose email field is being typed in (suggestions show under it). */
+  const [suggestRow, setSuggestRow] = useState<number | null>(null);
   const zoomAllowed = !needsEmailVerification(authUser);
   const conferenceCalendar: ConferenceCalendarState = useMemo(
     () =>
@@ -704,11 +711,30 @@ function MeetingForm({
                 dense
                 label={t('meetings:form.participantEmail')}
                 value={row.email}
-                onChangeText={(value) => setParticipant(index, { email: value })}
+                onChangeText={(value) => {
+                  setSuggestRow(index);
+                  setParticipant(index, { email: value });
+                }}
+                onFocus={() => setSuggestRow(index)}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
+                testID={`meeting-form-participant-${index}-email`}
               />
+              {suggestRow === index ? (
+                <ParticipantSuggestions
+                  suggestions={suggestParticipants(
+                    known,
+                    row.email,
+                    draft.participants.filter((_, i) => i !== index).map((other) => other.email),
+                  )}
+                  onPick={(picked) => {
+                    setSuggestRow(null);
+                    setParticipant(index, { email: picked.email, name: row.name.trim() ? row.name : (picked.name ?? '') });
+                  }}
+                  testID={`meeting-form-participant-${index}-suggestions`}
+                />
+              ) : null}
               <TextInput
                 mode="outlined"
                 outlineStyle={styles.inputOutline}
@@ -716,13 +742,17 @@ function MeetingForm({
                 label={t('meetings:form.participantName')}
                 value={row.name}
                 onChangeText={(value) => setParticipant(index, { name: value })}
+                onFocus={() => setSuggestRow(null)}
                 style={styles.fieldTight}
               />
             </View>
             <IconButton
               icon="close"
               accessibilityLabel={t('meetings:form.removeParticipant')}
-              onPress={() => change({ participants: draft.participants.filter((_, i) => i !== index) })}
+              onPress={() => {
+                setSuggestRow(null);
+                change({ participants: draft.participants.filter((_, i) => i !== index) });
+              }}
             />
           </View>
         ))}
@@ -881,6 +911,33 @@ function MeetingForm({
   );
 }
 
+/** Up to four known addresses under a participant's email field; a tap fills the row. */
+function ParticipantSuggestions({
+  suggestions,
+  onPick,
+  testID,
+}: {
+  suggestions: readonly KnownParticipant[];
+  onPick: (participant: KnownParticipant) => void;
+  testID: string;
+}): ReactElement | null {
+  if (suggestions.length === 0) return null;
+  return (
+    <ListGroup style={styles.suggestions} testID={testID}>
+      {suggestions.map((suggestion, i) => (
+        <ListRow
+          key={suggestion.email}
+          icon="account-outline"
+          title={suggestion.name ?? suggestion.email}
+          supporting={suggestion.name ? suggestion.email : undefined}
+          onPress={() => onPick(suggestion)}
+          testID={`${testID}-${i}`}
+        />
+      ))}
+    </ListGroup>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -923,6 +980,9 @@ const styles = StyleSheet.create({
   chip: {
     marginRight: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  suggestions: {
+    marginTop: spacing.xs,
   },
   participantRow: {
     flexDirection: 'row',

@@ -26,6 +26,8 @@ function setMeeting(next: Meeting): void {
 
 const mockCreate = jest.fn();
 const mockUpdate = jest.fn();
+/** Every meeting of the user (participant suggestions). */
+let mockAllMeetings: Meeting[] = [];
 jest.mock('../../../services/data', () => {
   const React = jest.requireActual('react');
   const { createDefaultPreferences: defaults } = jest.requireActual('../../../core/types');
@@ -41,6 +43,7 @@ jest.mock('../../../services/data', () => {
       }, []);
       return { meeting: id === null ? null : mockMeeting, isLoading: false, error: null };
     },
+    useMeetings: () => ({ meetings: mockAllMeetings, isLoading: false, error: null, refresh: jest.fn() }),
     usePreferences: () => ({ preferences: defaults({ language: 'en', timezone: 'UTC' }), isLoaded: true, error: null }),
     meetingRepository: {
       create: (...args: unknown[]) => mockCreate(...args),
@@ -148,6 +151,7 @@ beforeEach(async () => {
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   mockCalendar = { google: { enabled: false, hasScope: false, connected: false }, device: { enabled: false } };
   mockMeeting = meeting();
+  mockAllMeetings = [];
   mockCreate.mockReset();
   mockUpdate.mockReset();
   mockZoomConfigured = null;
@@ -558,4 +562,33 @@ describe('zoom save hooks (§24)', () => {
     expect(mockSyncIfNeeded.mock.calls[0]![1]).toMatchObject({ title: 'Renamed' });
     expect(mockEnsureLink).not.toHaveBeenCalled();
   });
+});
+
+it('suggests addresses from earlier meetings while typing a participant, and a tap fills the row', async () => {
+  mockAllMeetings = [
+    meeting({
+      title: 'Kickoff',
+      participants: [
+        { email: 'fran@amin-tech.com', name: 'Fran' },
+        { email: 'ME@own.com', name: 'Me' },
+      ],
+    }),
+  ];
+  mockAuthUser = { ...mockAuthUser!, email: 'me@own.com' };
+  await renderForm('EditMeeting');
+  await act(async () => {
+    fireEvent.press(screen.getByText('Add participant'));
+  });
+  await act(async () => {
+    fireEvent.changeText(screen.getByTestId('meeting-form-participant-0-email'), 'fr');
+  });
+  expect(screen.getByTestId('meeting-form-participant-0-suggestions')).toBeTruthy();
+  // The signed-in account's own address is never suggested.
+  expect(screen.queryByText('me@own.com')).toBeNull();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-form-participant-0-suggestions-0'));
+  });
+  expect(screen.getByDisplayValue('fran@amin-tech.com')).toBeTruthy();
+  expect(screen.getByDisplayValue('Fran')).toBeTruthy();
+  expect(screen.queryByTestId('meeting-form-participant-0-suggestions')).toBeNull();
 });
