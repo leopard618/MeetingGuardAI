@@ -19,7 +19,7 @@
 import { ThemedDateTimePicker as DateTimePicker, type DateTimePickerEvent } from '../shared/ThemedDateTimePicker';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Alert, Platform, StyleSheet, View } from 'react-native';
 import { Chip, HelperText, IconButton, Switch, Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
@@ -37,7 +37,7 @@ import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { attachmentService } from '../../services/attachments';
 import { useAuth } from '../../services/auth';
-import { useCalendarStatus } from '../../services/calendar';
+import { useCalendarStatus, useInvitationsChoice, type InvitationCalendar } from '../../services/calendar';
 import { meetingRepository, useMeeting, useMeetings, usePreferences } from '../../services/data';
 import { useZoomStatus, zoomService } from '../../services/zoom';
 import { addErrorMessage, showAddResult } from '../attachments/attachmentMessages';
@@ -129,6 +129,7 @@ function MeetingForm({
   const fmt = useFormatters();
   const { preferences } = usePreferences();
   const calendar = useCalendarStatus();
+  const invitationsChoice = useInvitationsChoice();
   const deviceZone = getDeviceTimeZone();
   const [original] = useState<MeetingFormDraft>(() =>
     meeting
@@ -264,10 +265,28 @@ function MeetingForm({
     }
   };
 
-  const save = async (): Promise<void> => {
+  const save = async (options?: { invitesAsked?: boolean }): Promise<void> => {
     setSubmitted(true);
     if (!valid) {
       Toast.show({ type: 'error', text1: t('meetings:form.fixErrors') });
+      return;
+    }
+    // Google + Outlook both connected: asked once which calendar sends the invitations, the first
+    // time a meeting with guests is saved (services/calendar/invitations.ts).
+    const hasGuests = draft.participants.some((row) => row.email.trim() !== '');
+    if (hasGuests && invitationsChoice.both && invitationsChoice.invitationsFrom === null && options?.invitesAsked !== true) {
+      const choose = (choice: InvitationCalendar): void => {
+        void invitationsChoice.set(choice).finally(() => void save({ invitesAsked: true }));
+      };
+      Alert.alert(
+        t('calendar:invitations.questionTitle'),
+        t('calendar:invitations.questionBody'),
+        [
+          { text: t('calendar:invitations.google'), onPress: () => choose('google') },
+          { text: t('calendar:invitations.outlook'), onPress: () => choose('outlook') },
+        ],
+        { cancelable: true },
+      );
       return;
     }
     setSaving(true);

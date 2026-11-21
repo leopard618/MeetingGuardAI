@@ -154,8 +154,8 @@ describe('scoped writes', () => {
 
   it('endNowWrite shortens a running meeting to the elapsed whole minutes and does nothing otherwise', () => {
     const m = meeting();
-    expect(endNowWrite(m, new Date('2026-10-06T15:20:30.000Z'))).toEqual({ scope: 'meeting', meetingId: 'm1', patch: { durationMinutes: 21 } });
-    expect(endNowWrite(m, new Date('2026-10-06T15:00:10.000Z'))).toEqual({ scope: 'meeting', meetingId: 'm1', patch: { durationMinutes: 1 } });
+    expect(endNowWrite(m, new Date('2026-10-06T15:20:30.000Z'))).toEqual({ scope: 'meeting', meetingId: 'm1', patch: { durationMinutes: 21 }, localOnly: true });
+    expect(endNowWrite(m, new Date('2026-10-06T15:00:10.000Z'))).toEqual({ scope: 'meeting', meetingId: 'm1', patch: { durationMinutes: 1 }, localOnly: true });
     expect(endNowWrite(m, new Date('2026-10-06T14:50:00.000Z'))).toBeNull();
     expect(endNowWrite(m, new Date('2026-10-06T16:30:00.000Z'))).toBeNull();
   });

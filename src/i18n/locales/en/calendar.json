@@ -55,6 +55,15 @@
     "disconnectedTitle": "Outlook sync is off",
     "untitledEvent": "(No title)"
   },
+  "invitations": {
+    "title": "Send invitations from",
+    "google": "Google Calendar",
+    "outlook": "Outlook",
+    "hint": "Google Calendar and Outlook are both connected. Only this calendar emails the invitations, so your guests get one. Meetings you already have keep theirs.",
+    "notChosen": "Not chosen yet. Google Calendar sends them until you choose.",
+    "questionTitle": "Which calendar sends the invitations?",
+    "questionBody": "Google Calendar and Outlook are both connected. Pick one so your guests get a single invitation. You can change it later in the calendar settings."
+  },
   "todo": {
     "title": "Microsoft To Do",
     "description": "Two-way sync of your tasks with Microsoft To Do on the same Microsoft account as Outlook. Title, notes, due date, reminder and done state go both ways. When Google Tasks sync is on too, tasks from To Do are also copied to your Google Tasks list.",

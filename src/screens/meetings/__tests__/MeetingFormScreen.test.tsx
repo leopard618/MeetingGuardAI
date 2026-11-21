@@ -58,8 +58,12 @@ let mockCalendar: {
   device: { enabled: boolean };
   outlook?: { configured: boolean; connected: boolean };
 } = { google: { enabled: false, hasScope: false, connected: false }, device: { enabled: false } };
+// Google + Outlook invitations choice (null = not chosen yet).
+let mockInvitations: { both: boolean; invitationsFrom: 'google' | 'outlook' | null } = { both: false, invitationsFrom: null };
+const mockSetInvitations = jest.fn(async (_choice: string) => undefined);
 jest.mock('../../../services/calendar', () => ({
   useCalendarStatus: () => mockCalendar,
+  useInvitationsChoice: () => ({ ...mockInvitations, set: (choice: string) => mockSetInvitations(choice) }),
 }));
 
 // §24: the session's zoomStatus answer (null = unknown) and the post-save zoom hooks.
@@ -152,6 +156,8 @@ beforeEach(async () => {
   mockCalendar = { google: { enabled: false, hasScope: false, connected: false }, device: { enabled: false } };
   mockMeeting = meeting();
   mockAllMeetings = [];
+  mockInvitations = { both: false, invitationsFrom: null };
+  mockSetInvitations.mockClear();
   mockCreate.mockReset();
   mockUpdate.mockReset();
   mockZoomConfigured = null;
@@ -591,4 +597,29 @@ it('suggests addresses from earlier meetings while typing a participant, and a t
   expect(screen.getByDisplayValue('fran@amin-tech.com')).toBeTruthy();
   expect(screen.getByDisplayValue('Fran')).toBeTruthy();
   expect(screen.queryByTestId('meeting-form-participant-0-suggestions')).toBeNull();
+});
+
+it('with Google and Outlook both connected, asks once which calendar sends the invitations, then saves', async () => {
+  mockInvitations = { both: true, invitationsFrom: null };
+  mockUpdate.mockResolvedValue(meeting());
+  await renderForm('EditMeeting');
+  await act(async () => {
+    fireEvent.press(screen.getByText('Add participant'));
+  });
+  await act(async () => {
+    fireEvent.changeText(screen.getByTestId('meeting-form-participant-0-email'), 'guest@example.com');
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-form-save'));
+  });
+  expect(Alert.alert).toHaveBeenCalledWith('Which calendar sends the invitations?', expect.stringContaining('single invitation'), expect.any(Array), { cancelable: true });
+  expect(mockUpdate).not.toHaveBeenCalled();
+  const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  expect(buttons.map((button) => button.text)).toEqual(['Google Calendar', 'Outlook']);
+  await act(async () => {
+    buttons[1]!.onPress?.();
+  });
+  expect(mockSetInvitations).toHaveBeenCalledWith('outlook');
+  expect(mockUpdate).toHaveBeenCalledTimes(1);
+  expect((Alert.alert as jest.Mock).mock.calls).toHaveLength(1);
 });

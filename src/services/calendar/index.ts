@@ -52,6 +52,7 @@ import {
   googleSyncStateSchema,
 } from './stateStore';
 import { calendarStatusStore } from './status';
+import { invitationRouter } from './invitations';
 
 const log = createLogger('calendar');
 
@@ -114,6 +115,7 @@ const googleInternal = createGoogleCalendarService({
   defaultTimeZone: getDeviceTimeZone,
   untitledTitle,
   holdPush: calendarPushHold.isHeld,
+  invitations: invitationRouter,
 });
 
 const deviceInternal = createDeviceCalendarService({
@@ -205,6 +207,9 @@ export { todoSyncService };
 
 /** Contract object (GoogleTasksSyncService; ../tasks/gtasks owns the wiring, same Google sign-in). */
 export { googleTasksSyncService };
+
+/** Google + Outlook both connected: which calendar sends the invitations (./invitations.ts). */
+export { useInvitationsChoice, type InvitationCalendar, type InvitationsChoice } from './invitations';
 
 export const deviceCalendarService: DeviceCalendarService = {
   getPermission: deviceInternal.getPermission,

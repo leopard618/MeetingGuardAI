@@ -55,6 +55,15 @@
     "disconnectedTitle": "A sincronização com o Outlook está desativada",
     "untitledEvent": "(Sem título)"
   },
+  "invitations": {
+    "title": "Enviar convites a partir de",
+    "google": "Google Calendar",
+    "outlook": "Outlook",
+    "hint": "O Google Calendar e o Outlook estão conectados. Só este calendário envia os convites por e-mail, assim seus convidados recebem um só. As reuniões que você já tem não mudam.",
+    "notChosen": "Ainda não escolhido. O Google Calendar envia até você escolher.",
+    "questionTitle": "Qual calendário envia os convites?",
+    "questionBody": "O Google Calendar e o Outlook estão conectados. Escolha um para que seus convidados recebam um só convite. Você pode mudar depois nas configurações do calendário."
+  },
   "todo": {
     "title": "Microsoft To Do",
     "description": "Sincronização bidirecional das suas tarefas com o Microsoft To Do na mesma conta Microsoft do Outlook. Título, notas, prazo, lembrete e status de concluída vão nos dois sentidos. Quando a sincronização com o Google Tasks também está ativa, as tarefas do To Do também são copiadas para sua lista do Google Tasks.",
