@@ -23,6 +23,8 @@
  *   the next batch from its calendar when it matches a Meeting Guard meeting (the meeting the
  *   user created wins), and is never brought back while it does. Removals are local only: write origin calendar_<provider> is
  *   never pushed, so the provider's event stays.
+ * - A Google/Outlook event of a Meeting Guard meeting with no guests never clears the meeting's
+ *   participants (the guest-less copy of services/calendar/invitations.ts).
  */
 import type { CalendarProvider, ExternalMeetingUpsert, UpsertExternalResult } from '../../core/contracts';
 import { meetingIdFromGoogleEventId } from '../../core/identifiers';
@@ -162,10 +164,16 @@ function refsFor(item: ExternalMeetingUpsert): Partial<ExternalRefs> {
   return { deviceEventId: item.externalId, deviceCalendarId: item.calendarId };
 }
 
-function patchFrom(item: ExternalMeetingUpsert): MeetingPatch {
+function patchFrom(item: ExternalMeetingUpsert, existing?: Meeting): MeetingPatch {
   const patch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(item.meeting ?? {})) {
     if (value !== undefined) patch[key] = value;
+  }
+  // Google + Outlook (services/calendar/invitations.ts): the guests of a Meeting Guard meeting live
+  // in one calendar, the other holds a guest-less copy. That copy never clears them.
+  const participants = patch.participants;
+  if (existing !== undefined && !CALENDAR_SOURCES.has(existing.source) && Array.isArray(participants) && participants.length === 0) {
+    delete patch.participants;
   }
   return patch as MeetingPatch;
 }
@@ -305,7 +313,7 @@ export function planExternalUpserts(
           result.unchanged += 1;
           return;
         }
-        const patched = applyMeetingPatch(existing, { ...patchFrom(item), external: refs }, nextTimestamp(ctx.now, existing.updatedAt));
+        const patched = applyMeetingPatch(existing, { ...patchFrom(item, existing), external: refs }, nextTimestamp(ctx.now, existing.updatedAt));
         // A removed copy of a Meeting Guard meeting stays removed while it still copies it.
         if (existing.source === item.provider && sameMeetingCopy(bySignature, working, item.provider, patched, existing, true)) {
           result.unchanged += 1;
@@ -322,7 +330,7 @@ export function planExternalUpserts(
       // before it upserts. Device imports keep last-writer-wins on updatedAt.
       const localNewer = item.provider === 'device' && providerMs !== null && existingMs > providerMs;
       const timestamp = nextTimestamp(ctx.now, existing.updatedAt);
-      const contentPatch = providerChanged && !localNewer ? patchFrom(item) : {};
+      const contentPatch = providerChanged && !localNewer ? patchFrom(item, existing) : {};
       const next = applyMeetingPatch(existing, { ...contentPatch, external: refs }, timestamp);
       const contentChanged = !deepEqual(withoutVolatile(next), withoutVolatile(existing));
       const refsChanged = !deepEqual(next.external, existing.external);

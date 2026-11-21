@@ -25,6 +25,7 @@ import { t } from '../../../i18n';
 import { clearMicrosoftToken, getMicrosoftRefreshToken, saveMicrosoftRefreshToken } from '../../auth/microsoftTokens';
 import { registerSessionCleanup } from '../../auth/authService';
 import { dataService, meetingRepository } from '../../data';
+import { invitationRouter } from '../invitations';
 import { createUserStateStore } from '../stateStore';
 import { calendarStatusStore } from '../status';
 import { createMicrosoftAuthPort } from './authAdapter';
@@ -87,6 +88,7 @@ export const outlookInternal: OutlookCalendarServiceInternal = createOutlookCale
   defaultTimeZone: getDeviceTimeZone,
   untitledTitle: () => t('calendar:outlook.untitledEvent'),
   holdPush: calendarPushHold.isHeld,
+  invitations: invitationRouter,
   config: { clientId: env.msal.clientId, tenant: env.msal.tenant },
 });
 

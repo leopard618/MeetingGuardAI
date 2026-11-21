@@ -153,6 +153,27 @@ describe('planExternalUpserts', () => {
     expect(plan.writes[0]?.meeting).toMatchObject({ source: 'device', external: { deviceEventId: 'ABC:DEF/1', deviceCalendarId: 'cal:1' } });
   });
 
+  it("a guest-less calendar copy never clears a Meeting Guard meeting's participants; an imported one follows its calendar", () => {
+    const own = buildMeeting(
+      { title: 'Prueba', startAt: '2026-10-06T09:00:00.000Z', source: 'manual', participants: [{ email: 'guest@example.com' }] },
+      { id: 'meet1', userId: 'u1', now, defaultTimezone: 'Europe/Madrid', defaultLanguage: 'en' },
+    );
+    const plan = planExternalUpserts(
+      [googleItem({ externalId: googleEventIdForMeeting('meet1'), providerUpdatedAt: '2026-10-01T11:00:00.000Z', meeting: { title: 'Prueba 2', startAt: '2026-10-06T09:00:00.000Z', participants: [] } })],
+      lookup(own),
+      { ...ctx, now: new Date('2026-10-01T11:01:00.000Z') },
+    );
+    expect(plan.writes[0]?.meeting).toMatchObject({ title: 'Prueba 2', participants: [{ email: 'guest@example.com' }] });
+
+    const imported = planExternalUpserts([googleItem({ meeting: { ...googleItem().meeting!, participants: [{ email: 'guest@example.com' }] } })], new Map(), ctx).writes[0]!.meeting;
+    const cleared = planExternalUpserts(
+      [googleItem({ etag: '"e2"', providerUpdatedAt: '2026-10-01T11:00:00.000Z', meeting: { ...googleItem().meeting!, participants: [] } })],
+      lookup(imported),
+      { ...ctx, now: new Date('2026-10-01T11:01:00.000Z') },
+    );
+    expect(cleared.writes[0]?.meeting.participants).toEqual([]);
+  });
+
   describe('copies of one meeting across Google and Outlook (both connected)', () => {
     const own = buildMeeting(
       { title: 'Reunión Dusko', startAt: '2026-10-05T17:53:00.000Z', durationMinutes: 4, source: 'manual' },

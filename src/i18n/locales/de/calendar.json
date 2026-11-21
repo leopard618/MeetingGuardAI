@@ -55,6 +55,15 @@
     "disconnectedTitle": "Synchronisierung mit Outlook ist aus",
     "untitledEvent": "(Ohne Titel)"
   },
+  "invitations": {
+    "title": "Einladungen senden über",
+    "google": "Google Calendar",
+    "outlook": "Outlook",
+    "hint": "Google Calendar und Outlook sind beide verbunden. Nur dieser Kalender verschickt die Einladungen per E-Mail, damit Ihre Gäste nur eine erhalten. Ihre bestehenden Besprechungen bleiben, wie sie sind.",
+    "notChosen": "Noch nicht gewählt. Bis dahin verschickt Google Calendar sie.",
+    "questionTitle": "Welcher Kalender verschickt die Einladungen?",
+    "questionBody": "Google Calendar und Outlook sind beide verbunden. Wählen Sie einen, damit Ihre Gäste nur eine Einladung erhalten. Sie können das später in den Kalendereinstellungen ändern."
+  },
   "todo": {
     "title": "Microsoft To Do",
     "description": "Synchronisierung Ihrer Aufgaben in beide Richtungen mit Microsoft To Do über dasselbe Microsoft-Konto wie Outlook. Titel, Notizen, Fälligkeitsdatum, Erinnerung und Erledigt-Status werden in beide Richtungen übertragen. Ist auch die Synchronisierung mit Google Tasks aktiv, werden Aufgaben aus To Do zusätzlich in Ihre Google Tasks-Liste kopiert.",

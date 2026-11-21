@@ -22,6 +22,7 @@ import { createLogger } from '../../../core/logger';
 import { addMinutesIso, isLocalDate, toUtcIso } from '../../../core/time';
 import type { ExternalRefs, Meeting, MeetingPatch } from '../../../core/types';
 import { chunk, isOwnMeeting, overlapsWindow, stableHash, syncWindow, type SyncWindow } from '../shared';
+import type { InvitationRouter } from '../invitationRouting';
 import type { StateStore } from '../stateStore';
 import { graphHttpStatus, type OutlookGraphApi } from './api';
 import {
@@ -87,6 +88,16 @@ export interface OutlookSyncDeps {
   sleep(ms: number): Promise<void>;
   /** true while the meeting waits for its Zoom link: its queued push is skipped, not dropped. */
   holdPush?(meetingId: string): boolean;
+  /**
+   * Google + Outlook both connected: which calendar's event carries a meeting's guests
+   * (../invitations.ts). Absent: every event carries them.
+   */
+  invitations?: Pick<InvitationRouter, 'withoutGuests' | 'withoutGuestsSync' | 'load'>;
+}
+
+/** What Outlook is sent for a Meeting Guard meeting whose guests another calendar carries. */
+function guestsView<T extends Pick<Meeting, 'participants'>>(meeting: T, withoutGuests: boolean): T {
+  return withoutGuests ? { ...meeting, participants: [] } : meeting;
 }
 
 function updatedIso(event: GraphEvent): string | null {
@@ -357,9 +368,13 @@ export async function pullOutlookChanges(deps: OutlookSyncDeps, options: { full?
     for (const meeting of await deps.meetings.list({ includeDeleted: true, includeCancelled: true })) {
       if (meeting.external.outlookEventId !== null && meeting.deletedAt === null) stored.set(meeting.external.outlookEventId, meeting);
     }
+    // Hashed as pushed: a guest-less event of a Meeting Guard meeting hashes without its guests.
+    const invites = deps.invitations ? await deps.invitations.load() : null;
     for (const eventId of appliedIds) {
       const meeting = stored.get(eventId);
-      storedHashes[eventId] = meeting ? outlookVisibleHash(meeting, defaultTimeZone) : null;
+      const withoutGuests =
+        meeting !== undefined && invites !== null && meeting.source !== 'outlook' && deps.invitations!.withoutGuestsSync(invites, 'outlook', meeting.id);
+      storedHashes[eventId] = meeting ? outlookVisibleHash(guestsView(meeting, withoutGuests), defaultTimeZone) : null;
     }
   }
 
@@ -615,6 +630,11 @@ export async function pushOutlookMeeting(
   const writeOptions = { requestTeamsLink, onlineMeetingProvider: onlineMeetingProvider ?? undefined };
   const defaultTimeZone = deps.defaultTimeZone();
   const wantedKind = kindOf(meeting);
+  // Google + Outlook: the guests of a Meeting Guard meeting live in one calendar only.
+  const withoutGuests =
+    meeting.source !== 'outlook' && deps.invitations !== undefined
+      ? await deps.invitations.withoutGuests('outlook', meeting, linkedId === null)
+      : false;
   let current = meeting;
   let recreateTransactionId: string | null = null;
 
@@ -631,7 +651,7 @@ export async function pushOutlookMeeting(
       recreateTransactionId = `${outlookTransactionId(meeting.id)}-k${stableHash(linkedId)}`;
       current = await writeBack(deps, meeting, { external: { ...CLEARED_OUTLOOK_REFS } });
       linkedId = null;
-    } else if (!requestTeamsLink && state.hashes[linkedId] === outlookVisibleHash(meeting, defaultTimeZone)) {
+    } else if (!requestTeamsLink && state.hashes[linkedId] === outlookVisibleHash(guestsView(meeting, withoutGuests), defaultTimeZone)) {
       return { meeting, sent: false };
     }
   }
@@ -642,7 +662,7 @@ export async function pushOutlookMeeting(
     // An existing event becomes an online meeting through a PATCH of the online-meeting fields
     // (Graph, "Update a meeting to enable attendees to meet online"); an account that refuses
     // them (400) still gets the plain update, and the card keeps offering paste.
-    const body = meetingToOutlookEvent(current);
+    const body = meetingToOutlookEvent(guestsView(current, withoutGuests));
     try {
       if (requestTeamsLink) {
         try {
@@ -663,7 +683,7 @@ export async function pushOutlookMeeting(
         // deterministic per old link, so a lost response is replayed) - reusing the original one
         // could replay the deleted event.
         const transactionId = `${outlookTransactionId(current.id)}-r${stableHash(linkedId)}`;
-        event = await deps.api.createEvent(meetingToOutlookEvent(current, { transactionId, ...writeOptions }));
+        event = await deps.api.createEvent(meetingToOutlookEvent(guestsView(current, withoutGuests), { transactionId, ...writeOptions }));
         createdWithTeams = requestTeamsLink;
       } else {
         throw error;
@@ -671,7 +691,7 @@ export async function pushOutlookMeeting(
     }
   } else {
     event = await deps.api.createEvent(
-      meetingToOutlookEvent(current, { transactionId: recreateTransactionId ?? outlookTransactionId(current.id), ...writeOptions }),
+      meetingToOutlookEvent(guestsView(current, withoutGuests), { transactionId: recreateTransactionId ?? outlookTransactionId(current.id), ...writeOptions }),
     );
     createdWithTeams = requestTeamsLink;
   }
@@ -706,7 +726,7 @@ export async function pushOutlookMeeting(
   }
   const updated = await writeBack(deps, current, patch);
   await setKind(deps, event.id, wantedKind);
-  await setHash(deps, event.id, outlookVisibleHash(updated, defaultTimeZone));
+  await setHash(deps, event.id, outlookVisibleHash(guestsView(updated, withoutGuests), defaultTimeZone));
   return { meeting: updated, sent: true };
 }
 

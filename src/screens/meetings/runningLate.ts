@@ -122,10 +122,14 @@ export function shareOutcome(result: 'shared' | 'dismissed', platform: string): 
   return platform === 'ios' ? 'confirmed' : 'handed_over';
 }
 
-/** A write scoped to the row in hand: the one-off meeting, or one occurrence of a series. */
-export type ScopedMeetingWrite =
+/**
+ * A write scoped to the row in hand: the one-off meeting, or one occurrence of a series.
+ * `localOnly`: kept in Meeting Guard, never sent to Google / Outlook (no update email to guests).
+ */
+export type ScopedMeetingWrite = (
   | { scope: 'meeting'; meetingId: string; patch: Pick<MeetingPatch, 'startAt' | 'durationMinutes'> }
-  | { scope: 'occurrence'; meetingId: string; localDateKey: string; patch: Pick<MeetingPatch, 'startAt' | 'durationMinutes'> };
+  | { scope: 'occurrence'; meetingId: string; localDateKey: string; patch: Pick<MeetingPatch, 'startAt' | 'durationMinutes'> }
+) & { localOnly?: true };
 
 function scoped(meeting: DisplayMeeting, patch: Pick<MeetingPatch, 'startAt' | 'durationMinutes'>): ScopedMeetingWrite {
   return meeting.occurrence !== undefined && meeting.recurrence !== null
@@ -140,14 +144,15 @@ export function runningLateMove(meeting: DisplayMeeting, newStartAt: string): Sc
 
 /**
  * "End meeting now": shortens the running meeting so it ends at `now` (whole minutes, at least
- * one). Null when the meeting is not running: nothing to end.
+ * one). Null when the meeting is not running: nothing to end. Local only: the calendars keep the
+ * planned end, so the guests never get an "updated invitation" for a meeting that is over.
  */
 export function endNowWrite(meeting: DisplayMeeting, now: Date): ScopedMeetingWrite | null {
   if (!isRunningNow(meeting, now)) return null;
   const elapsed = Math.ceil((now.getTime() - Date.parse(meeting.startAt)) / MINUTE_MS);
   const durationMinutes = Math.max(1, Math.min(meeting.durationMinutes, elapsed));
   if (durationMinutes === meeting.durationMinutes) return null;
-  return scoped(meeting, { durationMinutes });
+  return { ...scoped(meeting, { durationMinutes }), localOnly: true };
 }
 
 /** Names for the mail composer and the hint: "Ana, bob@example.com". */
