@@ -101,6 +101,13 @@
           "La réunion est hébergée sur notre compte Zoom : lorsque quelqu'un la rejoint, Zoom gère l'appel selon ses propres conditions et sa propre politique de confidentialité et peut mettre à notre disposition, en tant qu'hôte, ses rapports de réunion habituels (par exemple, qui a rejoint la réunion et quand)."
         ]
       },
+      "guests": {
+        "title": "Liens de réponse pour les invités",
+        "body": [
+          "Quand vous ajoutez un lien de réponse à une réunion avec des invités, l'invitation contient un lien vers une page de Meeting Guard AI. Toute personne qui a le lien voit le titre, la date, l'heure, le fuseau horaire et votre nom, jamais les autres invités, la description, le lieu ni le lien de l'appel, et peut répondre : accepter, refuser ou proposer un autre horaire, avec un nom, un e-mail et un mot si elle le souhaite. Nous conservons chaque réponse dans votre compte pour que vous la voyiez dans l'application. Un horaire proposé ne change votre réunion que si vous l'approuvez.",
+          "Le lien est un long code aléatoire que notre serveur ne conserve que sous une forme brouillée. Vous pouvez le désactiver à tout moment sur la réunion, et il cesse de fonctionner quand la réunion est annulée ou terminée. Les réponses sont supprimées avec votre compte. Pour limiter les abus, nous comptons les requêtes de chaque adresse réseau pendant une journée, sans conserver l'adresse elle-même."
+        ]
+      },
       "whatsapp": {
         "title": "Assistant WhatsApp",
         "body": [

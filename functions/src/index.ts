@@ -58,6 +58,8 @@ export {
 // M13/M14 admin additions (WhatsApp panel, alerts health view, user page) and the phones' alerts
 // health reports (src/admin/operations.ts; read-only for viewers, no secrets).
 export { adminGetAlertsHealth, adminGetUser, adminGetWhatsapp, reportAlertHealth } from './admin/operations';
+// M14 guest invitation links (src/guests): no secrets, always deployed.
+export { guestLinkCreate, guestLinkRevoke, guestRespond, guestView } from './guests';
 // The write callables are `undefined` while ZOOM_ENABLED is false at deploy time (the loader
 // skips undefined exports), so a deploy without the ZOOM_* secrets always succeeds.
 export { zoomCreateMeeting, zoomDeleteMeeting, zoomStatus, zoomSyncMeeting } from './zoom';

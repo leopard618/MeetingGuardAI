@@ -101,6 +101,13 @@
           "A reunião é hospedada na nossa conta do Zoom; por isso, quando alguém entra nela, o Zoom cuida da chamada sob seus próprios termos e política de privacidade e pode disponibilizar para nós, como anfitriões, seus relatórios habituais da reunião (por exemplo, quem entrou e quando)."
         ]
       },
+      "guests": {
+        "title": "Links de resposta para convidados",
+        "body": [
+          "Quando você adiciona um link de resposta a uma reunião com convidados, o convite leva um link para uma página do Meeting Guard AI. Quem tiver o link vê o título, a data, o horário, o fuso horário e o seu nome, nunca os outros convidados, a descrição, o local ou o link da chamada, e pode responder: aceitar, recusar ou propor outro horário, com um nome, um e-mail e uma nota curta se quiser. Guardamos cada resposta na sua conta para você ver no app. Um horário proposto só muda a sua reunião se você aprovar.",
+          "O link é um código longo e aleatório que o nosso servidor guarda só de forma embaralhada. Você pode desativá-lo a qualquer momento na reunião, e ele para de funcionar quando a reunião é cancelada ou termina. As respostas são apagadas com a sua conta. Para limitar abusos, contamos as solicitações de cada endereço de rede por um dia, sem guardar o endereço."
+        ]
+      },
       "whatsapp": {
         "title": "Assistente do WhatsApp",
         "body": [

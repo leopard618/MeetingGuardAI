@@ -35,6 +35,7 @@ import { I18nProvider } from '../i18n';
 import { alertEngine, briefingScheduler, startAlertHealthReporter, statusNotification, taskReminders } from '../services/alerts';
 import { AuthProvider } from '../services/auth';
 import { DataProvider } from '../services/data';
+import { startGuestNotifier } from '../services/guests';
 import { captureException } from '../services/sentry';
 import { reportUpdateLaunch } from '../services/updates';
 import { registerWhatsAppZoneRefresh } from '../services/whatsapp';
@@ -107,7 +108,10 @@ export function AppRoot(): ReactElement | null {
     const offWhatsAppZone = registerWhatsAppZoneRefresh();
     // M14: the alarm health of this phone for the admin alerts health view, once per session.
     const offAlertHealth = startAlertHealthReporter(() => alertEngine.getStatus());
+    // M14: a notification when a guest answers a reply link (while a session is active).
+    const offGuests = startGuestNotifier();
     return () => {
+      offGuests();
       offWhatsAppZone();
       offAlertHealth();
       setErrorReporter(null);

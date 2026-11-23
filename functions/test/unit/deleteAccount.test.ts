@@ -65,6 +65,9 @@ function fakePorts(options: { failOn?: string; failOnce?: string; userExists?: b
     deleteMatterLookups: jest.fn(async (uid: string) => {
       calls.push(`matters:${uid}`);
     }),
+    deleteGuestLinks: jest.fn(async (uid: string) => {
+      calls.push(`guests:${uid}`);
+    }),
   };
   return { ports, calls };
 }
@@ -85,6 +88,7 @@ describe('deleteAccount', () => {
       'zoom:u1',
       'microsoft:u1',
       'matters:u1',
+      'guests:u1',
       'auth:u1',
       'recursive:users/u1',
       'summaries:u1',

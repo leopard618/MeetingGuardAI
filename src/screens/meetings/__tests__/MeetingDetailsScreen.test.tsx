@@ -15,6 +15,8 @@ jest.mock('expo-localization', () => ({
 }));
 jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
 // The attachments section has its own tests (src/screens/attachments/__tests__).
+// M14: the guest replies section has its own tests and reads Firestore.
+jest.mock('../MeetingGuestReplies', () => ({ MeetingGuestReplies: () => null }));
 jest.mock('../../attachments/MeetingAttachmentsSection', () => {
   const { Text: MockText } = jest.requireActual('react-native');
   return { MeetingAttachmentsSection: ({ meetingId }: { meetingId: string }) => <MockText testID={`attachments-${meetingId}`} /> };

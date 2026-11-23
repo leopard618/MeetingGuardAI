@@ -66,6 +66,16 @@ export function firestoreMaintenancePorts(db: Firestore = adminDb()): Maintenanc
         .get();
       return snapshot.docs.map((document) => document.ref.path);
     },
+    // M14: guest link state; each carries its own expiresAt (guests/index.ts).
+    async listExpiredGuestDocs(nowIso, limit) {
+      const paths: string[] = [];
+      for (const name of ['guestCounters', 'guestLinks', 'guestMeetings']) {
+        if (paths.length >= limit) break;
+        const snapshot = await db.collection(name).where('expiresAt', '<', nowIso).orderBy('expiresAt').limit(limit - paths.length).select().get();
+        paths.push(...snapshot.docs.map((document) => document.ref.path));
+      }
+      return paths;
+    },
     // M13: the send log of the bot-started messages (whatsapp/outboundStore.ts).
     async listExpiredWhatsappSends(nowIso, limit) {
       const snapshot = await db.collection(WHATSAPP_SENDS_COLLECTION).where('expiresAt', '<', nowIso).orderBy('expiresAt').limit(limit).select().get();

@@ -368,6 +368,7 @@ describe('account deletion wiring', () => {
         await h.db.doc(`accountDeletions/${uid}`).set({ deletedAt: deletedAtIso });
       },
       revokeRefreshTokens: async () => true,
+      deleteGuestLinks: async () => undefined,
       deleteSummaryData: (uid) => real.deleteSummaryData(uid),
       recursiveDelete: async (path) => {
         if (path.startsWith('users/')) {
@@ -518,6 +519,7 @@ describe('dailyMaintenance summary purges (Firestore ports)', () => {
       whatsappCodesPurged: 0,
       whatsappSessionsPurged: 0,
       whatsappSendsPurged: 0,
+      guestDocsPurged: 0,
       meetingSummariesPurged: 2,
       summaryEventsPurged: 2,
       complete: true,

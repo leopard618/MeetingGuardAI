@@ -684,6 +684,9 @@ describe('WhatsApp bot and Microsoft sign-in state (docs/v1/ARCHITECTURE.md 27 a
     ['whatsappSends (M13)', `whatsappSends/${'ab'.repeat(16)}`, { uid: 'alice', kind: 'agenda', status: 'queued', queuedDueAt: ISO }],
     ['whatsappTemplates (M13)', 'whatsappTemplates/mg_daily_agenda_v1_en', { status: 'APPROVED', category: 'UTILITY' }],
     ['alertHealth (M14)', 'alertHealth/alice', { installations: {}, updatedAt: ISO }],
+    ['guestLinks (M14)', `guestLinks/${'cd'.repeat(32)}`, { uid: 'alice', meetingId: 'm1', expiresAt: ISO, revokedAt: null }],
+    ['guestMeetings (M14)', 'guestMeetings/alice__m1', { token: 'A'.repeat(43), linkHash: 'cd'.repeat(32) }],
+    ['guestCounters (M14)', 'guestCounters/ip_x', { count: 1, expiresAt: ISO }],
     ['microsoftIdentities', 'microsoftIdentities/00000000-0000-0000-0000-000000000001', { uid: 'alice', createdAt: ISO }],
   ];
 
@@ -771,5 +774,40 @@ describe('executive assistant matters (docs/v1/ARCHITECTURE.md 36)', () => {
       await assertFails(setDoc(doc(alice(), path), { uid: 'alice' }));
       await assertFails(deleteDoc(doc(alice(), path)));
     }
+  });
+});
+
+describe('M14 guest answers (users/{uid}/guestResponses)', () => {
+  const PATH = 'users/alice/guestResponses/r1';
+  const ANSWER = {
+    v: 1,
+    meetingId: 'm1',
+    kind: 'proposed',
+    guestName: 'Ana',
+    guestEmail: null,
+    proposedStartAt: ISO,
+    message: null,
+    meetingStartAtSeen: ISO,
+    createdAt: ISO,
+    updatedAt: ISO,
+    state: 'new',
+    decidedAt: null,
+  };
+
+  it('the owner reads them and only marks them seen or decided', async () => {
+    await seed(PATH, ANSWER);
+    await assertSucceeds(getDoc(doc(alice(), PATH)));
+    await assertSucceeds(updateDoc(doc(alice(), PATH), { state: 'approved', decidedAt: ISO, updatedAt: ISO }));
+    await assertFails(updateDoc(doc(alice(), PATH), { state: 'new', updatedAt: ISO }));
+    await assertFails(updateDoc(doc(alice(), PATH), { proposedStartAt: '2030-01-01T00:00:00.000Z', updatedAt: ISO }));
+    await assertFails(setDoc(doc(alice(), 'users/alice/guestResponses/r2'), ANSWER));
+    await assertFails(deleteDoc(doc(alice(), PATH)));
+  });
+
+  it('nobody else reads or writes them', async () => {
+    await seed(PATH, ANSWER);
+    await assertFails(getDoc(doc(bob(), PATH)));
+    await assertFails(getDoc(doc(anonymous(), PATH)));
+    await assertFails(updateDoc(doc(bob(), PATH), { state: 'seen', updatedAt: ISO }));
   });
 });

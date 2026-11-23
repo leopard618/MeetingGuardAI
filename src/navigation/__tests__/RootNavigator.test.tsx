@@ -26,6 +26,13 @@ jest.mock('../../services/auth', () => ({
 
 
 // §24: the details screen and the row actions read the zoom service (zoomStatus + hooks).
+// M14: the guest replies section and the form's reply link read Firestore and a callable.
+jest.mock('../../services/guests', () => ({
+  ...jest.requireActual('../../services/guests/guestLinks'),
+  useGuestAnswers: () => [],
+  guestService: { createLink: jest.fn(), revokeLink: jest.fn(), decide: jest.fn(), subscribe: () => () => undefined },
+  startGuestNotifier: () => () => undefined,
+}));
 jest.mock('../../services/zoom', () => ({
   useZoomStatus: () => ({ configured: null, refresh: jest.fn() }),
   zoomService: {

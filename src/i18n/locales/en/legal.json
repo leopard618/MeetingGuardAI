@@ -101,6 +101,13 @@
           "The meeting is hosted on our Zoom account, so when anyone joins it, Zoom handles the call under its own terms and privacy policy and may make its usual meeting reports (for example, who joined and when) available to us as the host."
         ]
       },
+      "guests": {
+        "title": "Reply links for guests",
+        "body": [
+          "When you add a reply link to a meeting with guests, the invitation carries a link to a page of Meeting Guard AI. Anyone with the link sees the meeting's title, date, time, time zone and your name, never the other guests, the description, the place or the call link, and can answer: accept, decline or propose another time, with a name, an email and a short note if they want. We store each answer in your account so you see it in the app. A proposed time changes your meeting only if you approve it.",
+          "The link is a long random code that our server keeps only in a scrambled form. You can turn it off at any time on the meeting, and it stops working when the meeting is cancelled or over. The answers are deleted with your account. To limit abuse we count the requests of each network address for a day, without storing the address itself."
+        ]
+      },
       "whatsapp": {
         "title": "WhatsApp assistant",
         "body": [

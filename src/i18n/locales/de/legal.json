@@ -101,6 +101,13 @@
           "Die Besprechung wird über unser Zoom-Konto ausgerichtet. Wenn jemand daran teilnimmt, wickelt Zoom den Anruf daher nach seinen eigenen Bedingungen und seiner eigenen Datenschutzerklärung ab und kann uns als Gastgeber seine üblichen Besprechungsberichte (zum Beispiel, wer wann teilgenommen hat) zur Verfügung stellen."
         ]
       },
+      "guests": {
+        "title": "Antwortlinks für Gäste",
+        "body": [
+          "Wenn Sie einem Meeting mit Gästen einen Antwortlink hinzufügen, enthält die Einladung einen Link zu einer Seite von Meeting Guard AI. Wer den Link hat, sieht Titel, Datum, Uhrzeit, Zeitzone und Ihren Namen, nie die anderen Gäste, die Beschreibung, den Ort oder den Anruf-Link, und kann antworten: zusagen, absagen oder eine andere Zeit vorschlagen, auf Wunsch mit Name, E-Mail und einer kurzen Notiz. Wir speichern jede Antwort in Ihrem Konto, damit Sie sie in der App sehen. Eine vorgeschlagene Zeit ändert Ihr Meeting nur, wenn Sie sie bestätigen.",
+          "Der Link ist ein langer Zufallscode, den unser Server nur in verschlüsselter Form speichert. Sie können ihn jederzeit am Meeting ausschalten, und er funktioniert nicht mehr, wenn das Meeting abgesagt oder vorbei ist. Die Antworten werden mit Ihrem Konto gelöscht. Um Missbrauch zu begrenzen, zählen wir die Anfragen jeder Netzwerkadresse einen Tag lang, ohne die Adresse selbst zu speichern."
+        ]
+      },
       "whatsapp": {
         "title": "WhatsApp-Assistent",
         "body": [

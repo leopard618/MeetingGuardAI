@@ -101,6 +101,13 @@
           "La reunión se aloja en nuestra cuenta de Zoom, así que cuando alguien se une a ella, Zoom gestiona la llamada según sus propios términos y su política de privacidad y puede poner a nuestra disposición, como anfitriones, sus informes habituales de la reunión (por ejemplo, quién se unió y cuándo)."
         ]
       },
+      "guests": {
+        "title": "Enlaces de respuesta para invitados",
+        "body": [
+          "Cuando agregas un enlace de respuesta a una reunión con invitados, la invitación lleva un enlace a una página de Meeting Guard AI. Quien tenga el enlace ve el título, la fecha, la hora, la zona horaria y tu nombre, nunca los demás invitados, la descripción, el lugar ni el enlace de la llamada, y puede responder: aceptar, rechazar o proponer otra hora, con un nombre, un correo y una nota breve si quiere. Guardamos cada respuesta en tu cuenta para que la veas en la app. Una hora propuesta cambia tu reunión solo si la apruebas.",
+          "El enlace es un código largo y aleatorio que nuestro servidor guarda solo en forma cifrada. Puedes desactivarlo cuando quieras en la reunión, y deja de funcionar cuando la reunión se cancela o termina. Las respuestas se eliminan con tu cuenta. Para limitar abusos contamos las solicitudes de cada dirección de red durante un día, sin guardar la dirección."
+        ]
+      },
       "whatsapp": {
         "title": "Asistente de WhatsApp",
         "body": [
