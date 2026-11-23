@@ -64,9 +64,13 @@ import { summaryRouteDepsAtLoad } from './summaryPort';
 import { firestoreQuotaStore, peekQuota } from '../assistant/quota';
 import { instanceOpenAiKeyProvider } from '../openaiKey';
 import { createGraphMediaFetcher, createOpenAiTranscriber, createVoicePort } from './voice';
+import { firestoreOutboundReader } from './outboundFirestore';
+import { firestoreOutboundStore } from './outboundStore';
 import { processWebhookPayload, type WebhookDeps } from './webhook';
 
 export { whatsappError } from './link';
+// M13: the opt-in callable, the scheduler and the reminder trigger (./messagesIndex.ts).
+export { whatsappMessages, whatsappTaskReminderSync, whatsappTick } from './messagesIndex';
 
 /**
  * Whether the WHATSAPP_ENABLED param is true while this module is LOADED (CLI discovery and
@@ -208,6 +212,8 @@ function webhookDeps(): WebhookDeps {
       hasAllowance: (uid, now) => peekQuota(firestoreQuotaStore(db), uid, now),
       log: (event, fields) => logger.info(event, fields),
     }),
+    // M13: STOP, the template buttons and the delivery statuses.
+    outbound: { store: firestoreOutboundStore(db), reader: firestoreOutboundReader(db) },
   };
 }
 

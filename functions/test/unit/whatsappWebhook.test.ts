@@ -33,6 +33,8 @@ import {
 import type { MeetingStore } from '../../src/whatsapp/executor';
 import type { WhatsappButton, WhatsappSender } from '../../src/whatsapp/send';
 import type { VoicePort, VoiceResult } from '../../src/whatsapp/voice';
+import { OUTBOUND_TEXTS } from '../../src/whatsapp/outboundTexts';
+import { MemoryOutboundStore, MemoryReader } from './whatsappOutboundFakes';
 import {
   CANCEL_BUTTON_PREFIX,
   CONFIRM_BUTTON_PREFIX,
@@ -890,5 +892,66 @@ describe('re-linking a linked phone', () => {
     await processInboundMessage(textMessage({ text: '123456' }), deps);
     expect(requests).toHaveLength(1); // 'invalid' falls through to the bridge
     expect(requests[0]?.request.messages.at(-1)?.content).toBe('123456');
+  });
+});
+
+describe('M13: STOP, template buttons and the debrief', () => {
+  function withOutbound(store: FakeStore, sender: FakeSender) {
+    const made = makeDeps(store, sender);
+    const outbound = new MemoryOutboundStore();
+    const reader = new MemoryReader();
+    reader.links.set(PHONE, 'u1');
+    outbound.link('u1', PHONE, { switches: { agenda: true, debrief: true, confirmations: false, commitments: false, reminders: true } });
+    made.deps.outbound = { store: outbound, reader };
+    return { ...made, outbound, reader };
+  }
+
+  it('STOP turns every switch off at no AI action, even past the daily cap', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests, outbound } = withOutbound(store, sender);
+    deps.dailyLimit = 0;
+    await processInboundMessage(textMessage({ text: 'Stop.' }), deps);
+    expect(requests).toHaveLength(0);
+    expect(Object.values(outbound.records.get('u1')!.switches).every((on) => !on)).toBe(true);
+    expect(outbound.records.get('u1')!.stoppedAt).toBe(NOW.toISOString());
+    expect(sender.sent.map((m) => m.body)).toEqual([OUTBOUND_TEXTS.en.stopped]);
+  });
+
+  it('a template quick reply (type button) is read by its payload, or by its label when it has none', () => {
+    const messages = extractInboundMessages({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                messages: [
+                  { id: 'w1', from: PHONE, type: 'button', button: { payload: 'wa_skip:0123456789abcdef0123456789abcdef', text: 'Not this time' } },
+                  { id: 'w2', from: PHONE, type: 'button', button: { text: 'Commitments' } },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(messages[0]).toMatchObject({ buttonReplyId: 'wa_skip:0123456789abcdef0123456789abcdef', text: null });
+    expect(messages[1]).toMatchObject({ buttonReplyId: null, text: 'Commitments' });
+  });
+
+  it('after Debrief, the next message alone goes to the assistant in debrief mode', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests, outbound } = withOutbound(store, sender);
+    await processInboundMessage(textMessage({ text: 'Earlier chat turn' }), deps);
+    await outbound.armDebrief(PHONE, { uid: 'u1', meetingId: 'm1', occurrenceDate: null, title: 'Weekly sync', expiresAt: '2099-01-01T00:00:00.000Z' });
+    await processInboundMessage(textMessage({ text: 'Ana sends the proposal by Friday' }), deps);
+    const last = requests.at(-1)!.request;
+    expect(last).toMatchObject({ mode: 'debrief', followUpMeetingId: 'm1' });
+    expect(last.messages).toEqual([{ role: 'user', content: 'Ana sends the proposal by Friday' }]);
+    await processInboundMessage(textMessage({ text: 'And now a normal question' }), deps);
+    expect(requests.at(-1)!.request.mode).toBe('chat');
   });
 });

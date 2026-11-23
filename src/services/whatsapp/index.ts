@@ -4,3 +4,6 @@
  */
 export { whatsappService } from './whatsappService';
 export { useWhatsAppStatus } from './useWhatsAppStatus';
+// M13: the opt-in to the messages the bot starts.
+export { registerWhatsAppZoneRefresh, useWhatsAppMessages, whatsappMessagesService } from './whatsappMessages';
+export type { WhatsAppMessagesService, WhatsAppMessagesState } from './whatsappMessages';

@@ -34,5 +34,31 @@
   "error": {
     "rateLimited": "Sie haben heute zu viele Codes angefordert. Versuchen Sie es morgen erneut.",
     "generic": "Etwas ist schiefgelaufen. Versuchen Sie es erneut."
+  },
+  "messages": {
+    "title": "Nachrichten von Meeting Guard AI",
+    "explainer": "Wählen Sie, welche Nachrichten Meeting Guard AI Ihnen auf WhatsApp senden darf, ohne dass Sie zuerst schreiben. Antworten Sie im Chat mit STOP, um alle auszuschalten.",
+    "stopped": "Sie haben diese Nachrichten im Chat mit STOP ausgeschaltet. Schalten Sie hier eine ein, um sie wieder zu erhalten.",
+    "error": "Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    "agenda": {
+      "title": "Tagesagenda",
+      "hint": "Ihr Tag zur Zeit Ihrer täglichen Übersicht, die ganze Liste mit einem Tippen."
+    },
+    "debrief": {
+      "title": "Hinweise zur Nachbesprechung",
+      "hint": "Nach einem Meeting ein Hinweis, um festzuhalten, wer was bis wann erledigt."
+    },
+    "confirmations": {
+      "title": "Meeting-Bestätigungen",
+      "hint": "Wenn Meeting Guard AI außerhalb dieses Chats ein Meeting für Sie speichert."
+    },
+    "commitments": {
+      "title": "Zusagen zur Prüfung (Pilot)",
+      "hint": "Wenn eine Meeting-Zusammenfassung mit Zusagen abgelegt wird."
+    },
+    "reminders": {
+      "title": "Aufgaben-Erinnerungen",
+      "hint": "Zur Erinnerungszeit der Aufgaben, die Sie aus einer Zusammenfassung übernommen haben."
+    }
   }
 }

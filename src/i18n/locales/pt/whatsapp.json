@@ -34,5 +34,31 @@
   "error": {
     "rateLimited": "Você solicitou códigos demais hoje. Tente novamente amanhã.",
     "generic": "Algo deu errado. Tente novamente."
+  },
+  "messages": {
+    "title": "Mensagens do Meeting Guard AI",
+    "explainer": "Escolha quais mensagens o Meeting Guard AI pode enviar no WhatsApp sem que você escreva primeiro. Responda STOP no chat para desativar todas.",
+    "stopped": "Você desativou estas mensagens com STOP no chat. Ative uma aqui para voltar a recebê-la.",
+    "error": "Não foi possível salvar a alteração. Tente de novo.",
+    "agenda": {
+      "title": "Agenda diária",
+      "hint": "Seu dia no horário do seu resumo diário, com a lista completa a um toque."
+    },
+    "debrief": {
+      "title": "Avisos de resumo",
+      "hint": "Quando uma reunião termina, um aviso para anotar quem faz o quê e até quando."
+    },
+    "confirmations": {
+      "title": "Confirmações de reuniões",
+      "hint": "Quando o Meeting Guard AI salva uma reunião para você fora deste chat."
+    },
+    "commitments": {
+      "title": "Compromissos para revisar (piloto)",
+      "hint": "Quando um resumo de reunião com compromissos é arquivado."
+    },
+    "reminders": {
+      "title": "Lembretes de tarefas",
+      "hint": "No horário do lembrete das tarefas que você aceitou de um resumo."
+    }
   }
 }

@@ -112,6 +112,10 @@ export const CALLABLES = {
   whatsappLinkStart: 'whatsappLinkStart',
   whatsappLinkStatus: 'whatsappLinkStatus',
   whatsappUnlink: 'whatsappUnlink',
+  /** M13: the opt-in to messages the bot starts (daily agenda, debrief prompts, reminders). */
+  whatsappMessages: 'whatsappMessages',
+  /** M14: the phone reports its alarm health for the admin alerts health view. */
+  reportAlertHealth: 'reportAlertHealth',
   summaryStatus: 'summaryStatus',
   summaryAction: 'summaryAction',
   summaryRead: 'summaryRead',
@@ -991,6 +995,66 @@ export const whatsappUnlinkResponseSchema = z.object({
   unlinked: z.boolean(),
 });
 export type WhatsappUnlinkResponse = z.infer<typeof whatsappUnlinkResponseSchema>;
+
+// M13: messages the bot starts by itself (docs/v2/WhatsApp-Templates-2026-11-12.md section 7).
+// All switches are off until the user turns one on in the app; STOP in the chat turns all off.
+// The record is server-only (whatsappUsers/{uid}.messages) and tied to the linked phone.
+export const WHATSAPP_MESSAGE_SWITCHES = ['agenda', 'debrief', 'confirmations', 'commitments', 'reminders'] as const;
+export type WhatsappMessageSwitch = (typeof WHATSAPP_MESSAGE_SWITCHES)[number];
+export const whatsappMessageSwitchesSchema = z.object({
+  agenda: z.boolean(),
+  debrief: z.boolean(),
+  confirmations: z.boolean(),
+  commitments: z.boolean(),
+  reminders: z.boolean(),
+});
+export type WhatsappMessageSwitches = z.infer<typeof whatsappMessageSwitchesSchema>;
+/** The opt-in wording the app shows; stored with the opt-in (bump when the text changes). */
+export const WHATSAPP_MESSAGES_WORDING_VERSION = 1;
+
+export const whatsappMessagesRequestSchema = z.discriminatedUnion('op', [
+  /** Reads the record; also refreshes the device zone of an opted-in user (every app start). */
+  z.object({ op: z.literal('get'), deviceTimeZone: timeZoneSchema.nullable().optional() }),
+  z.object({
+    op: z.literal('set'),
+    switches: whatsappMessageSwitchesSchema,
+    deviceTimeZone: timeZoneSchema.nullable().optional(),
+    wordingVersion: z.number().int().min(1).max(1000),
+  }),
+]);
+export type WhatsappMessagesRequest = z.infer<typeof whatsappMessagesRequestSchema>;
+export const whatsappMessagesResponseSchema = z.object({
+  /** false while the bot cannot start messages (templates mode off): the app hides the section. */
+  available: z.boolean(),
+  linked: z.boolean(),
+  switches: whatsappMessageSwitchesSchema,
+  /** The switches this account may use (commitments: summaries pilot; confirmations: not yet). */
+  offered: whatsappMessageSwitchesSchema,
+  /** ISO time of the last STOP written in the chat, or null. */
+  stoppedAt: z.string().nullable(),
+});
+export type WhatsappMessagesResponse = z.infer<typeof whatsappMessagesResponseSchema>;
+
+// M14: alerts health (reportAlertHealth; the admin alerts health view reads alertHealth/{uid}).
+// What the phone knows about its own alarms, nothing about meetings: permissions, how many alarms
+// are scheduled and when they were last planned. One entry per installation of the app.
+export const reportAlertHealthRequestSchema = z.object({
+  installationId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+  platform: z.enum(['ios', 'android', 'web']),
+  appVersion: z.string().min(1).max(32),
+  notifications: z.enum(['granted', 'denied', 'undetermined']),
+  /** Android exact alarms; null where they are not needed or not known. */
+  exactAlarms: z.boolean().nullable(),
+  /** Android full-screen alarms; null on iOS. */
+  fullScreen: z.boolean().nullable(),
+  /** Android battery optimization off for the app; null when not known. */
+  batteryUnrestricted: z.boolean().nullable(),
+  scheduledCount: z.number().int().min(0).max(10_000),
+  lastReconcileAt: isoDateTimeSchema.nullable(),
+});
+export type ReportAlertHealthRequest = z.infer<typeof reportAlertHealthRequestSchema>;
+export const reportAlertHealthResponseSchema = z.object({ ok: z.literal(true) });
+export type ReportAlertHealthResponse = z.infer<typeof reportAlertHealthResponseSchema>;
 
 /** Error taxonomy of the whatsapp* callables (details.reason, like the zoom ones). */
 export const WHATSAPP_ERROR_CODES = [

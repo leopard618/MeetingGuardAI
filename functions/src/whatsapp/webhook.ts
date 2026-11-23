@@ -34,6 +34,12 @@ import { eventDocId, hashLinkCode, phoneLogId } from './signature';
 import { emptySession, pushTurn, sessionPatch, withFreshContext, type WhatsappSession, type WhatsappStore } from './session';
 import type { WhatsappSender } from './send';
 import type { InboundAudio, VoicePort } from './voice';
+// M13: messages the bot starts (opt-in, STOP, template taps, statuses).
+import { applyStop, isStopRequest } from './optin';
+import type { OutboundReader } from './outbound';
+import type { OutboundStore } from './outboundStore';
+import { outboundTexts } from './outboundTexts';
+import { applyStatusEvents, handleTap } from './taps';
 // M11 (docs/v2/M11-DESIGN.md section 4.1): suggested tasks from summaries, pilot users only.
 import type { SummaryRouteDeps } from './summaryPort';
 import { routeSummaryButton, routeSummaryText } from './summaryRoute';
@@ -86,12 +92,17 @@ export function extractInboundMessages(payload: unknown): InboundMessage[] {
         const interactive = asRecord(message.interactive);
         const buttonReply = asRecord(interactive?.button_reply);
         const audio = asRecord(message.audio);
+        // M13: a template quick reply arrives as type 'button' with button.payload and button.text.
+        const templateButton = asRecord(message.button);
+        const templatePayload = typeof templateButton?.payload === 'string' && templateButton.payload.length > 0 ? templateButton.payload : null;
+        const templateLabel = typeof templateButton?.text === 'string' ? templateButton.text : null;
         result.push({
           wamid: message.id,
           from: message.from,
           type: typeof message.type === 'string' ? message.type : 'unknown',
-          text: typeof text?.body === 'string' ? text.body : null,
-          buttonReplyId: typeof buttonReply?.id === 'string' ? buttonReply.id : null,
+          // With no payload, the template button's label is read as text (section 7).
+          text: typeof text?.body === 'string' ? text.body : templatePayload === null ? templateLabel : null,
+          buttonReplyId: typeof buttonReply?.id === 'string' ? buttonReply.id : templatePayload,
           profileName,
           timestamp: typeof message.timestamp === 'string' ? message.timestamp : null,
           audio:
@@ -129,6 +140,8 @@ export interface WebhookDeps {
   summaries?: SummaryRouteDeps;
   /** M13: voice notes (whatsapp/voice.ts); absent means audio gets the "text only" answer. */
   voice?: VoicePort;
+  /** M13: the bot-started messages (STOP, template taps, statuses); absent in older wirings. */
+  outbound?: { store: OutboundStore; reader: OutboundReader };
 }
 
 function defaultNonce(): string {
@@ -296,6 +309,7 @@ async function handleBridge(
   language: AppLanguage,
   timezone: string,
   deps: WebhookDeps,
+  debrief?: { meetingId: string },
 ): Promise<void> {
   const phone = message.from;
   const s = botStrings(language);
@@ -307,12 +321,12 @@ async function handleBridge(
   session.turns = pushTurn(session.turns, { role: 'user', text: userText, atIso: now.toISOString() });
 
   const request: AssistantRequest = {
-    messages: session.turns.map((turn) => ({ role: turn.role, content: turn.text })),
+    messages: debrief ? [{ role: 'user', content: userText }] : session.turns.map((turn) => ({ role: turn.role, content: turn.text })),
     language,
     timezone,
     nowIso: now.toISOString(),
-    mode: 'chat',
-    followUpMeetingId: null,
+    mode: debrief ? 'debrief' : 'chat',
+    followUpMeetingId: debrief ? debrief.meetingId : null,
     // v5: this bridge executes task actions server-side (executor.ts), so it may receive them.
     contractVersion: AI_CONTRACT_VERSION,
   };
@@ -466,6 +480,19 @@ export async function processInboundMessage(inbound: InboundMessage, deps: Webho
   }
   if (!(await deps.store.claimEvent(eventDocId(message.wamid), deps.now()))) return; // redelivery
 
+  // M13: STOP right after the dedupe claim and BEFORE the daily cap, so an opt-out is never lost
+  // to the limit; linked users only, no AI action.
+  if (deps.outbound !== undefined && message.text !== null && isStopRequest(message.text)) {
+    const stopUid = await deps.store.getLinkUid(phone);
+    if (stopUid !== null) {
+      await applyStop(stopUid, deps.outbound.store, deps.now());
+      const stopPrefs = await deps.store.getPreferences(stopUid);
+      logger.info('whatsapp.stop', { uid: stopUid, wamid: message.wamid });
+      await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, outboundTexts(stopPrefs.uiLanguage).stopped));
+      return;
+    }
+  }
+
   const now = deps.now();
   // Per-phone daily cap (§27), counted ATOMICALLY first (racing deliveries cannot undercount):
   // one notice right past the limit, then silence.
@@ -497,6 +524,23 @@ export async function processInboundMessage(inbound: InboundMessage, deps: Webho
   const timezone = isValidTimeZone(prefs.timezone) ? prefs.timezone : 'UTC';
 
   // Button taps (counters are already persisted; the claim tx owns the pending fields).
+  if (message.buttonReplyId !== null && deps.outbound !== undefined) {
+    // M13: the buttons of the messages the bot starts (wa_agenda, wa_debrief, wa_done, ...).
+    const tap = await handleTap(message.buttonReplyId, phone, uid, language, {
+      store: deps.outbound.store,
+      reader: deps.outbound.reader,
+      sender: deps.sender,
+      ...(deps.executor.tasks ? { tasks: deps.executor.tasks } : {}),
+      now: deps.now,
+    });
+    if (tap.handled && tap.commitments === true && deps.summaries !== undefined) {
+      // "Commitments": the typed trigger's flow (the newest eligible summary).
+      const routed = { message: { ...message, buttonReplyId: null, text: 'commitments' }, session, uid, language, batchStartedMs: batch?.startedMs ?? null };
+      await routeSummaryText(routed, { summaries: deps.summaries, sender: deps.sender, now: deps.now });
+      return;
+    }
+    if (tap.handled) return;
+  }
   if (message.buttonReplyId !== null) {
     if (message.buttonReplyId.startsWith(CONFIRM_BUTTON_PREFIX)) {
       await handleConfirm(phone, message.wamid, message.buttonReplyId.slice(CONFIRM_BUTTON_PREFIX.length), language, timezone, deps);
@@ -549,6 +593,16 @@ export async function processInboundMessage(inbound: InboundMessage, deps: Webho
     return;
   }
 
+  // M13: the message after a "Debrief" tap is the debrief of that meeting (mode 'debrief', this
+  // message only, so earlier chat turns never become tasks).
+  if (deps.outbound !== undefined) {
+    const arm = await deps.outbound.store.takeDebrief(phone, uid, now);
+    if (arm !== null) {
+      await handleBridge(message, session, uid, language, timezone, deps, { meetingId: arm.meetingId });
+      return;
+    }
+  }
+
   // M11: "commitments" and the replies to a live suggested-tasks offer, pilot users only. It runs
   // before the bridge and never touches session.turns (docs/v2/M11-DESIGN.md section 4.1 step 7).
   if (deps.summaries !== undefined) {
@@ -567,6 +621,14 @@ export async function processInboundMessage(inbound: InboundMessage, deps: Webho
  */
 export async function processWebhookPayload(payload: unknown, deps: WebhookDeps): Promise<boolean> {
   const startedMs = deps.now().getTime();
+  // M13: delivery statuses of the sends and template status updates (never block the messages).
+  if (deps.outbound !== undefined) {
+    try {
+      await applyStatusEvents(payload, deps.outbound.store, deps.now());
+    } catch (error) {
+      logger.warn('whatsapp.status_events_failed', { errorName: error instanceof Error ? error.name : typeof error });
+    }
+  }
   const messages = extractInboundMessages(payload);
   let processed = 0;
   for (const message of messages) {

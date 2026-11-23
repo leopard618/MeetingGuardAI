@@ -24,6 +24,7 @@ import { spacing, useAppTheme } from '../../theme';
 import { ScreenBody, Section } from '../shared/Section';
 import { useLiveNow } from '../shared/useLiveNow';
 import { actionErrorKey, codeMessageUrl, connectView, copyText, formatCountdown, remainingSeconds } from './whatsappConnectModel';
+import { WhatsAppMessagesSection } from './WhatsAppMessagesSection';
 
 /** Ask the server again this often while a code is waiting to be redeemed. */
 const LINK_POLL_MS = 8_000;
@@ -184,6 +185,8 @@ export function WhatsAppConnectScreen(): ReactElement {
             {t('whatsapp:open')}
           </MGButton>
         </Section>
+        {/* M13: the opt-in to the messages the bot starts (hidden while the server cannot send them). */}
+        <WhatsAppMessagesSection />
         <ListGroup>
           <ListRow
             icon="link-off"

@@ -15,7 +15,7 @@ rules_version = '2';
 //   adminStats/ai/days/{day}/**        admin aggregates   server only (no client access at all)
 //   adminAudit/{entryId}               admin audit log    server only (no client access at all)
 //   zoomMeetings/{zoomMeetingId}       Zoom owner registry server only (no client access at all)
-//   whatsapp*/** (5 collections)       WhatsApp bot state server only (no client access at all)
+//   whatsapp*/** (7 collections)       WhatsApp bot state server only (no client access at all)
 //   microsoftIdentities/{oid}          Microsoft sign-in  server only (no client access at all)
 //   summaryAddresses/{tokenHash}       M10 address index  server only (no client access at all)
 //   summaryUsers/{uid}                 M10 address state  server only (no client access at all)
@@ -508,6 +508,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /whatsappEvents/{eventId} {
+      allow read, write: if false;
+    }
+    // M13: the send log of the messages the bot starts (whatsappSends/{sendId}: uid, phone, kind,
+    // ids of the meeting, task or summary, status) and the template states Meta reports
+    // (whatsappTemplates/{name}_{language}). Server only, like the rest of the bot state.
+    match /whatsappSends/{sendId} {
+      allow read, write: if false;
+    }
+    match /whatsappTemplates/{templateKey} {
+      allow read, write: if false;
+    }
+    // M14: the alarm health each phone reports (reportAlertHealth callable) for the admin alerts
+    // health view: permissions and alarm counts, no meeting data. Server only.
+    match /alertHealth/{uid} {
       allow read, write: if false;
     }
 

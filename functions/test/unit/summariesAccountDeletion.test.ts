@@ -517,6 +517,7 @@ describe('dailyMaintenance summary purges (Firestore ports)', () => {
       whatsappEventsPurged: 0,
       whatsappCodesPurged: 0,
       whatsappSessionsPurged: 0,
+      whatsappSendsPurged: 0,
       meetingSummariesPurged: 2,
       summaryEventsPurged: 2,
       complete: true,

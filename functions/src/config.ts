@@ -230,6 +230,48 @@ export const WHATSAPP_ACCESS_TOKEN = defineSecret('WHATSAPP_ACCESS_TOKEN');
 export const WHATSAPP_APP_SECRET = defineSecret('WHATSAPP_APP_SECRET');
 export const WHATSAPP_VERIFY_TOKEN = defineSecret('WHATSAPP_VERIFY_TOKEN');
 
+// M13: messages the bot starts by itself (docs/v2/WhatsApp-Templates-2026-11-12.md section 7).
+/**
+ * off: the bot never starts a message and the app hides the opt-in. preview: the messages go out
+ * as ordinary in-window messages (they reach only users who wrote in the last 24 hours), for the
+ * test before Meta approves the templates. live: approved templates (each checked against the
+ * stored template status, category and validity before every send).
+ */
+export const WHATSAPP_TEMPLATES_MODE = defineString('WHATSAPP_TEMPLATES_MODE', {
+  default: 'off',
+  description: 'off, preview or live: how the WhatsApp bot sends the messages it starts (M13).',
+});
+/** The WhatsApp Business account id, for the hourly template status sync (empty: no sync). */
+export const WHATSAPP_WABA_ID = defineString('WHATSAPP_WABA_ID', {
+  default: '',
+  description: 'WhatsApp Business account id (digits) for the template status sync. Not a secret.',
+});
+
+/** Caps and timings of the messages the bot starts (whatsapp/outbound*.ts). */
+export const WHATSAPP_OUTBOUND_TUNING = {
+  /** The scheduler runs every this many minutes. */
+  tickMinutes: 5,
+  /** A debrief prompt goes out this long after the meeting ends (the phone's FOLLOW_UP_DELAY_MINUTES). */
+  debriefDelayMinutes: 5,
+  /** Debrief prompts per user per local day. */
+  debriefPerDay: 3,
+  /** Quiet hours in the user zone: [start, end) local hours. */
+  quietStartHour: 21,
+  quietEndHour: 7,
+  /** The daily agenda is sent only within this many minutes after the briefing time. */
+  agendaGraceMinutes: 180,
+  /** A tap on a sent message is honoured for this long after the send. */
+  tapValidityHours: 24,
+  /** Sends handled per tick (oldest due first); the rest wait for the next tick. */
+  maxSendsPerTick: 200,
+  /** Opted-in users scanned per tick for the agenda and debrief slots. */
+  maxUsersPerTick: 500,
+  /** Send log entries are purged this many days after creation (dailyMaintenance). */
+  sendRetentionDays: 30,
+  /** "Remind me in 1 hour". */
+  snoozeMinutes: 60,
+} as const;
+
 export const WHATSAPP_TUNING = {
   /**
    * The webhook processes inline (no task queue); the assistant deadline is 50 s (§27). The

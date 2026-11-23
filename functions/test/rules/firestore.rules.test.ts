@@ -681,6 +681,9 @@ describe('WhatsApp bot and Microsoft sign-in state (docs/v1/ARCHITECTURE.md 27 a
     ['whatsappLinkCodes', `whatsappLinkCodes/${'ef'.repeat(32)}`, { uid: 'alice', expiresAt: ISO }],
     ['whatsappSessions', `whatsappSessions/${PHONE}`, { updatedAt: ISO }],
     ['whatsappEvents', `whatsappEvents/${'01'.repeat(32)}`, { receivedAt: ISO, expiresAt: ISO }],
+    ['whatsappSends (M13)', `whatsappSends/${'ab'.repeat(16)}`, { uid: 'alice', kind: 'agenda', status: 'queued', queuedDueAt: ISO }],
+    ['whatsappTemplates (M13)', 'whatsappTemplates/mg_daily_agenda_v1_en', { status: 'APPROVED', category: 'UTILITY' }],
+    ['alertHealth (M14)', 'alertHealth/alice', { installations: {}, updatedAt: ISO }],
     ['microsoftIdentities', 'microsoftIdentities/00000000-0000-0000-0000-000000000001', { uid: 'alice', createdAt: ISO }],
   ];
 

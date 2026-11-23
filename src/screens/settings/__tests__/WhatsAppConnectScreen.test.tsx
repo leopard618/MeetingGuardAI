@@ -23,8 +23,13 @@ let mockError: AppError | null = null;
 const mockRefresh = jest.fn(async () => undefined);
 const mockStartLink = jest.fn();
 const mockUnlink = jest.fn();
+// M13: the messages section reads its own hook.
+type MockMessages = { available: boolean; linked: boolean; switches: Record<string, boolean>; offered: Record<string, boolean>; stoppedAt: string | null } | null;
+let mockMessages: MockMessages = null;
+const mockToggle = jest.fn(async (_key: string, _value: boolean) => undefined);
 jest.mock('../../../services/whatsapp', () => ({
   useWhatsAppStatus: () => ({ status: mockStatus, error: mockError, refresh: mockRefresh }),
+  useWhatsAppMessages: () => ({ state: mockMessages, loading: false, error: null, saving: null, toggle: mockToggle, reload: jest.fn() }),
   whatsappService: {
     startLink: (): Promise<unknown> => mockStartLink() as Promise<unknown>,
     unlink: (): Promise<void> => mockUnlink() as Promise<void>,
@@ -171,4 +176,36 @@ it('is translated to Spanish', async () => {
   await i18n.changeLanguage('es');
   await renderScreen();
   expect(screen.getByText('Generar código')).toBeTruthy();
+});
+
+describe('M13: messages from Meeting Guard AI', () => {
+  const OFF = { agenda: false, debrief: false, confirmations: false, commitments: false, reminders: false };
+
+  it('stays hidden while the server cannot send them', async () => {
+    mockStatus = { ...ENABLED, linked: true, linkedLast4: '4567' };
+    mockMessages = { available: false, linked: true, switches: OFF, offered: { ...OFF, agenda: true }, stoppedAt: null };
+    await renderScreen();
+    expect(screen.queryByTestId('whatsapp-messages')).toBeNull();
+  });
+
+  it('shows one switch per offered message, all off, and turns one on', async () => {
+    mockStatus = { ...ENABLED, linked: true, linkedLast4: '4567' };
+    mockMessages = { available: true, linked: true, switches: OFF, offered: { agenda: true, debrief: true, confirmations: false, commitments: false, reminders: true }, stoppedAt: null };
+    await renderScreen();
+    expect(screen.getByText('Messages from Meeting Guard AI')).toBeTruthy();
+    expect(screen.getByTestId('whatsapp-messages-agenda').props.value).toBe(false);
+    expect(screen.queryByTestId('whatsapp-messages-confirmations')).toBeNull();
+    expect(screen.queryByTestId('whatsapp-messages-commitments')).toBeNull();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('whatsapp-messages-row-reminders'));
+    });
+    expect(mockToggle).toHaveBeenCalledWith('reminders', true);
+  });
+
+  it('says when STOP turned them off', async () => {
+    mockStatus = { ...ENABLED, linked: true, linkedLast4: '4567' };
+    mockMessages = { available: true, linked: true, switches: OFF, offered: { ...OFF, agenda: true }, stoppedAt: '2026-10-01T10:00:00.000Z' };
+    await renderScreen();
+    expect(screen.getByTestId('whatsapp-messages-stopped')).toBeTruthy();
+  });
 });
