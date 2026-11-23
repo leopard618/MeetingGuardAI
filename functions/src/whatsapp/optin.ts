@@ -107,11 +107,17 @@ export async function handleMessages(uid: string, request: WhatsappMessagesReque
   return { available, linked: true, switches: next, offered, stoppedAt: record.stoppedAt };
 }
 
-/** STOP in the chat: every switch off and every queued message removed. */
-export async function applyStop(uid: string, store: OutboundStore, now: Date): Promise<void> {
+/**
+ * STOP in the chat: every switch off and every queued message removed. false when the account was
+ * already stopped (no switch on since the last STOP): then nothing is written and the webhook
+ * stays silent, so a looping "stop" costs nothing.
+ */
+export async function applyStop(uid: string, store: OutboundStore, now: Date): Promise<boolean> {
   const { record } = await store.getMessages(uid);
+  if (record.stoppedAt !== null && !anySwitchOn(record.switches)) return false;
   await store.saveMessages(uid, { ...record, switches: { ...NO_SWITCHES }, stoppedAt: now.toISOString(), updatedAt: now.toISOString() });
   await store.dropQueuedForUid(uid);
+  return true;
 }
 
 // ---------------------------------------------------------------------------------------------

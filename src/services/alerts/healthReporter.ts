@@ -17,7 +17,8 @@ import { appEvents, type AppEventMap, type EventBus } from '../../core/events';
 import { GLOBAL_STORAGE_KEYS } from '../../core/identifiers';
 import { functions } from '../../config/firebase';
 
-const DAY_MS = 86_400_000;
+/** A report older than this is sent again even when nothing changed (the admin view flags plans older than a day). */
+const RESEND_MS = 12 * 3_600_000;
 export const HEALTH_REPORT_DELAY_MS = 30_000;
 
 interface StoredState {
@@ -62,10 +63,11 @@ export function healthReportOf(status: AlertEngineStatus, installationId: string
   };
 }
 
-function hashOf(report: ReportAlertHealthRequest): string {
-  // lastReconcileAt changes on every reconcile; the hash keys on the state that matters.
+function hashOf(report: ReportAlertHealthRequest, uid: string | null): string {
+  // lastReconcileAt changes on every reconcile; the hash keys on the state that matters and the
+  // account (another account on this phone reports at once).
   const { lastReconcileAt: _ignored, ...rest } = report;
-  return JSON.stringify(rest);
+  return JSON.stringify({ uid, ...rest });
 }
 
 async function readState(deps: HealthReporterDeps): Promise<StoredState> {
@@ -82,15 +84,15 @@ async function readState(deps: HealthReporterDeps): Promise<StoredState> {
 }
 
 /** One report if due. Returns whether it was sent. Never throws. */
-export async function reportAlertHealthOnce(deps: HealthReporterDeps): Promise<boolean> {
+export async function reportAlertHealthOnce(deps: HealthReporterDeps, uid: string | null = null): Promise<boolean> {
   try {
     const state = await readState(deps);
     const status = await deps.getStatus();
     if (!status.initialized) return false;
     const report = reportAlertHealthRequestSchema.parse(healthReportOf(status, state.installationId, deps.platform, deps.appVersion));
-    const hash = hashOf(report);
+    const hash = hashOf(report, uid);
     const now = deps.now();
-    if (state.lastHash === hash && state.lastAt !== null && now - state.lastAt < DAY_MS) return false;
+    if (state.lastHash === hash && state.lastAt !== null && now - state.lastAt < RESEND_MS) return false;
     await deps.send(report);
     await deps.storage.setItem(GLOBAL_STORAGE_KEYS.alertHealth, JSON.stringify({ installationId: state.installationId, lastHash: hash, lastAt: now }));
     return true;
@@ -118,11 +120,11 @@ export function startAlertHealthReporter(
     ...overrides,
   };
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const off = events.on('session:started', () => {
+  const off = events.on('session:started', ({ uid }) => {
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      void reportAlertHealthOnce(deps);
+      void reportAlertHealthOnce(deps, uid);
     }, HEALTH_REPORT_DELAY_MS);
   });
   return () => {

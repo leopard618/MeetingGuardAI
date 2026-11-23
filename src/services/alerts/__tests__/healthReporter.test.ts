@@ -74,4 +74,11 @@ describe('alerts health report (M14)', () => {
     expect(await reportAlertHealthOnce(early.value)).toBe(false);
     expect(early.sent).toHaveLength(0);
   });
+
+  it('another account on the same phone reports at once', async () => {
+    const d = deps();
+    expect(await reportAlertHealthOnce(d.value, 'u1')).toBe(true);
+    expect(await reportAlertHealthOnce(d.value, 'u1')).toBe(false);
+    expect(await reportAlertHealthOnce(d.value, 'u2')).toBe(true);
+  });
 });

@@ -22,7 +22,7 @@ import {
   type TaskView,
 } from '../../src/whatsapp/outbound';
 import { emptyMessagesRecord, newSend, sendIdOf, type MessagesRecord } from '../../src/whatsapp/outboundStore';
-import { OptInError, handleMessages, isStopRequest, rebuildReminders, syncTaskReminder } from '../../src/whatsapp/optin';
+import { OptInError, applyStop, handleMessages, isStopRequest, rebuildReminders, syncTaskReminder } from '../../src/whatsapp/optin';
 import { OUTBOUND_TEXTS } from '../../src/whatsapp/outboundTexts';
 import { applyStatusEvents, extractStatusEvents, handleTap } from '../../src/whatsapp/taps';
 import { TEMPLATES, atTime, cleanValue, dueMoment, parseTap, previewText, renderTemplate, shortDate, weekdayDate } from '../../src/whatsapp/templates';
@@ -599,5 +599,45 @@ describe('status webhooks', () => {
     expect(await syncTemplateStates(store, '123456789', 'tok', NOW, fetchImpl)).toBe(1);
     expect(await store.getTemplate('mg_task_reminder_v1', 'en')).toEqual({ status: 'APPROVED', category: 'UTILITY', ttlSeconds: 3600, updatedAt: NOW.toISOString() });
     expect(await syncTemplateStates(store, 'not-an-id', 'tok', NOW, fetchImpl)).toBe(0);
+  });
+});
+
+describe('review fixes', () => {
+  it('commitments keep a cursor, so summaries past the first 10 are still planned', async () => {
+    const w = world();
+    optIn(w.store);
+    w.reader.pilot.add(UID);
+    const summaries = Array.from({ length: 12 }, (_, i) => ({
+      summaryId: `s${i}`,
+      status: 'matched',
+      receivedAt: `2026-11-21T${String(10 + i).padStart(2, '0')}:00:00.000Z`,
+      meetingTitle: 'Sync',
+      meetingDate: '2026-11-21',
+      items: 2,
+      handled: false,
+    }));
+    w.reader.summaries.set(UID, summaries);
+    expect(await planCommitments((await w.store.listOptedIn(10))[0]!, w.deps)).toBe(10);
+    expect(w.store.records.get(UID)!.commitmentsCursor).toBe('2026-11-21T19:00:00.000Z');
+    expect(await planCommitments((await w.store.listOptedIn(10))[0]!, w.deps)).toBe(2);
+  });
+
+  it('Mark as done leaves the other tasks reminders queued', async () => {
+    const w = world();
+    optIn(w.store);
+    w.reader.tasks.set(UID, [task('sm_1'), task('sm_2')]);
+    await rebuildReminders(UID, { store: w.store, reader: w.reader, now: () => NOW });
+    const first = [...w.store.sends.values()].find((s) => s.target.taskId === 'sm_1')!;
+    w.store.sends.set(first.sendId, { ...first, status: 'sent', queuedDueAt: null, phone: PHONE, tapExpiresAt: '2099-01-01T00:00:00.000Z' });
+    const tasks = { getTask: async () => undefined, createTask: async () => undefined, updateTaskFields: async () => undefined, deleteTask: async () => undefined, newTaskId: () => 't' };
+    await handleTap(`wa_done:${first.sendId}`, PHONE, UID, 'en', { store: w.store, reader: w.reader, sender: w.sender, tasks, now: () => NOW });
+    expect([...w.store.sends.values()].filter((s) => s.status === 'queued').map((s) => s.target.taskId)).toEqual(['sm_2']);
+  });
+
+  it('STOP on an account already stopped does nothing and asks for no reply', async () => {
+    const w = world();
+    optIn(w.store);
+    expect(await applyStop(UID, w.store, NOW)).toBe(true);
+    expect(await applyStop(UID, w.store, NOW)).toBe(false);
   });
 });

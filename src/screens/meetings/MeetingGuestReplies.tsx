@@ -34,7 +34,8 @@ export function MeetingGuestReplies({ meeting }: { meeting: Meeting }): ReactEle
   const answers = useGuestAnswers(meeting.id);
   const [busy, setBusy] = useState<string | null>(null);
   const linked = hasGuestLink(meeting.description ?? '');
-  const canHaveLink = meeting.participants.length > 0 && meeting.recurrence === null && meeting.status !== 'cancelled';
+  // A series takes accept and decline (the page shows its next occurrence), so it has the link too.
+  const canHaveLink = meeting.participants.length > 0 && meeting.status !== 'cancelled';
   if (!canHaveLink && answers.length === 0) return null;
 
   const fail = (caught: unknown): void => {

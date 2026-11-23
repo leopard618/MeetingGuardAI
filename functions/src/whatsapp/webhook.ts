@@ -485,7 +485,7 @@ export async function processInboundMessage(inbound: InboundMessage, deps: Webho
   if (deps.outbound !== undefined && message.text !== null && isStopRequest(message.text)) {
     const stopUid = await deps.store.getLinkUid(phone);
     if (stopUid !== null) {
-      await applyStop(stopUid, deps.outbound.store, deps.now());
+      if (!(await applyStop(stopUid, deps.outbound.store, deps.now()))) return;
       const stopPrefs = await deps.store.getPreferences(stopUid);
       logger.info('whatsapp.stop', { uid: stopUid, wamid: message.wamid });
       await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, outboundTexts(stopPrefs.uiLanguage).stopped));

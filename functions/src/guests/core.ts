@@ -225,12 +225,14 @@ export async function handleView(request: { token: string; clientId?: string | u
     if (stored !== null && stored.meetingId === resolved.link.meetingId) myResponse = { kind: stored.kind, proposedStartAt: stored.proposedStartAt };
   }
   deps.log?.('guests.view', { link: resolved.linkHash.slice(0, 8), state: resolved.state });
+  const visible = resolved.state === 'open' || resolved.state === 'past';
   return {
     state: resolved.state,
-    meeting: resolved.state === 'open' || resolved.state === 'past' ? resolved.meeting : null,
-    organizerName: owner.name,
+    meeting: visible ? resolved.meeting : null,
+    organizerName: visible ? owner.name : null,
     language: languageOf(owner.language),
-    canPropose: resolved.state === 'open' && resolved.meeting !== null && !resolved.meeting.recurring,
+    // A series takes accept and decline only; an all-day meeting has no time to propose.
+    canPropose: resolved.state === 'open' && resolved.meeting !== null && !resolved.meeting.recurring && !resolved.meeting.allDay,
     myResponse,
   };
 }
@@ -260,7 +262,7 @@ export async function handleRespond(request: GuestRespondRequest, ip: string | n
   if (responses > GUEST_TUNING.responsesPerLinkPerDay) throw new GuestError('rate_limited');
   let proposedStartAt: string | null = null;
   if (request.kind === 'proposed') {
-    if (resolved.meeting.recurring) throw new GuestError('invalid_request');
+    if (resolved.meeting.recurring || resolved.meeting.allDay) throw new GuestError('invalid_request');
     const ms = Date.parse(request.proposedStartAt ?? '');
     if (!Number.isFinite(ms) || ms <= now.getTime() || ms > now.getTime() + GUEST_TUNING.proposalHorizonDays * DAY_MS) throw new GuestError('invalid_request');
     proposedStartAt = new Date(ms).toISOString();

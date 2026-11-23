@@ -125,11 +125,17 @@ function guestHttpsError(error: unknown): never {
 const OWNER_OPTIONS = { region: FUNCTIONS_REGION, enforceAppCheck: false, timeoutSeconds: 15, memory: '256MiB', maxInstances: 10 } as const;
 const GUEST_OPTIONS = { region: FUNCTIONS_REGION, enforceAppCheck: false, cors: true, timeoutSeconds: 10, memory: '256MiB', maxInstances: 10 } as const;
 
-function ipOf(rawRequest: { ip?: string; headers?: Record<string, unknown> } | undefined): string | null {
+/**
+ * The address the limits count. Google's front end APPENDS the caller's address to
+ * X-Forwarded-For (anything before it is what the caller sent), followed by its own hop, so the
+ * entry before the last one is the real client; a single entry is that client. Anything
+ * unreadable shares one bucket, never "no limit".
+ */
+export function clientIpOf(rawRequest: { ip?: string; headers?: Record<string, unknown> } | undefined): string {
   const forwarded = rawRequest?.headers?.['x-forwarded-for'];
-  const first = typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : null;
-  const ip = first || rawRequest?.ip || null;
-  return ip !== null && ip.length <= 64 ? ip : null;
+  const entries = typeof forwarded === 'string' ? forwarded.split(',').map((entry) => entry.trim()).filter(Boolean) : [];
+  const candidate = entries.length >= 2 ? entries[entries.length - 2] : entries[0] ?? rawRequest?.ip ?? '';
+  return candidate && /^[0-9A-Fa-f:.]{2,45}$/.test(candidate) ? candidate : 'unknown';
 }
 
 export const guestLinkCreate = onCall(OWNER_OPTIONS, async (request): Promise<GuestLinkCreateResponse> => {
@@ -150,7 +156,7 @@ export const guestView = onCall(GUEST_OPTIONS, async (request): Promise<GuestVie
   const parsed = guestViewRequestSchema.safeParse(request.data ?? {});
   if (!parsed.success) throw new HttpsError('invalid-argument', 'invalid_request', { reason: 'invalid_request' });
   try {
-    return await handleView(parsed.data, ipOf(request.rawRequest as never), deps());
+    return await handleView(parsed.data, clientIpOf(request.rawRequest as never), deps());
   } catch (error) {
     guestHttpsError(error);
   }
@@ -160,7 +166,7 @@ export const guestRespond = onCall(GUEST_OPTIONS, async (request): Promise<Guest
   const parsed = guestRespondRequestSchema.safeParse(request.data ?? {});
   if (!parsed.success) throw new HttpsError('invalid-argument', 'invalid_request', { reason: 'invalid_request' });
   try {
-    return await handleRespond(parsed.data, ipOf(request.rawRequest as never), deps());
+    return await handleRespond(parsed.data, clientIpOf(request.rawRequest as never), deps());
   } catch (error) {
     guestHttpsError(error);
   }

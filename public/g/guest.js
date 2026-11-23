@@ -216,7 +216,22 @@ const $ = (id) => document.getElementById(id);
 
 function parseHash() {
   const params = new URLSearchParams((location.hash || '').replace(/^#/, ''));
-  return { token: params.get('t') || '', lang: params.get('l') || '' };
+  let token = params.get('t') || '';
+  let lang = params.get('l') || '';
+  // The address bar loses the token below; this tab keeps it, so a reload still works.
+  try {
+    if (token) sessionStorage.setItem('mg-guest-link', JSON.stringify({ token, lang }));
+    else {
+      const kept = JSON.parse(sessionStorage.getItem('mg-guest-link') || 'null');
+      if (kept && typeof kept.token === 'string') {
+        token = kept.token;
+        lang = typeof kept.lang === 'string' ? kept.lang : '';
+      }
+    }
+  } catch {
+    // private mode: the link has to be opened again
+  }
+  return { token, lang };
 }
 
 function pickLanguage(requested, ownerLanguage) {

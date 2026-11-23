@@ -333,17 +333,21 @@ export async function planDebriefs(user: OptedInUser, prefs: UserPrefs, deps: Ou
 export async function planCommitments(user: OptedInUser, deps: OutboundDeps): Promise<number> {
   const { record, uid } = user;
   if (!record.switches.commitments || !linkedHere(user) || !deps.reader.isCommitmentsPilot(uid)) return 0;
-  const after = record.optedInAt ?? deps.now().toISOString();
+  const now = deps.now();
+  const optedIn = record.optedInAt ?? now.toISOString();
+  const after = record.commitmentsCursor !== null && record.commitmentsCursor > optedIn ? record.commitmentsCursor : optedIn;
   const summaries = await deps.reader.summariesAfter(uid, after, 10);
   let planned = 0;
-  const now = deps.now();
+  let cursor = after;
   for (const summary of summaries) {
+    if (summary.receivedAt > cursor) cursor = summary.receivedAt;
     if (summary.status !== 'matched' || summary.items === 0 || summary.handled) continue;
     const created = await deps.store.queue(
       newSend({ dedupeKey: `commit:${uid}:${summary.summaryId}`, uid, kind: 'commitments', target: { summaryId: summary.summaryId }, dueAt: now.toISOString(), now }),
     );
     if (created) planned += 1;
   }
+  if (cursor !== after) await deps.store.patchMessages(uid, { commitmentsCursor: cursor });
   return planned;
 }
 

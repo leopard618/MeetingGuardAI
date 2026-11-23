@@ -89,6 +89,14 @@ If the web agenda later serves its own guest page, that page calls the same two 
 - A guest link abused: turn it off on the meeting (the owner), or lower `GUEST_TUNING` and
   redeploy `guestView` and `guestRespond`.
 
+Known limits accepted for this release (from the code review):
+
+- The scheduler plans the agenda, debrief and commitments messages for the first 500 opted-in
+  users per run (`WHATSAPP_OUTBOUND_TUNING.maxUsersPerTick`); add paging before that many users
+  opt in. Reminders are not affected (they are queued by the task trigger).
+- Turning off a reply link removes the whole line that holds the link, including any text the
+  owner typed on that same line.
+
 ## 5. What can go wrong
 
 | Symptom | Cause | What to do |

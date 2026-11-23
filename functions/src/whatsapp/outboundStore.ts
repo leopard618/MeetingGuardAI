@@ -41,6 +41,8 @@ export interface MessagesRecord {
   /** Debrief prompts are planned for occurrences ending after this instant. */
   debriefCursor: string | null;
   debriefDay: { date: string; count: number } | null;
+  /** Commitments messages are planned for summaries received after this instant. */
+  commitmentsCursor: string | null;
 }
 
 export const NO_SWITCHES: WhatsappMessageSwitches = Object.freeze({
@@ -63,6 +65,7 @@ export function emptyMessagesRecord(): MessagesRecord {
     lastAgendaDate: null,
     debriefCursor: null,
     debriefDay: null,
+    commitmentsCursor: null,
   };
 }
 
@@ -85,6 +88,7 @@ export function parseMessagesRecord(raw: unknown): MessagesRecord {
   record.deviceTimeZone = str(data.deviceTimeZone);
   record.lastAgendaDate = str(data.lastAgendaDate);
   record.debriefCursor = str(data.debriefCursor);
+  record.commitmentsCursor = str(data.commitmentsCursor);
   const day = data.debriefDay as Record<string, unknown> | null | undefined;
   record.debriefDay = day && typeof day.date === 'string' && typeof day.count === 'number' ? { date: day.date, count: day.count } : null;
   return record;
@@ -180,7 +184,7 @@ export interface OutboundStore {
   /** Merge-writes the record and the messagesActive flag. */
   saveMessages(uid: string, record: MessagesRecord): Promise<void>;
   /** Merge-writes some fields of the record (scheduler cursors), never the switches. */
-  patchMessages(uid: string, patch: Partial<Pick<MessagesRecord, 'lastAgendaDate' | 'debriefCursor' | 'debriefDay' | 'deviceTimeZone'>>): Promise<void>;
+  patchMessages(uid: string, patch: Partial<Pick<MessagesRecord, 'lastAgendaDate' | 'debriefCursor' | 'debriefDay' | 'deviceTimeZone' | 'commitmentsCursor'>>): Promise<void>;
   listOptedIn(limit: number): Promise<OptedInUser[]>;
   /** Creates the entry; false when it exists already (the dedupe). */
   queue(send: SendRecord): Promise<boolean>;
@@ -280,17 +284,21 @@ export function firestoreOutboundStore(db: Firestore): OutboundStore {
       });
     },
     async dropQueuedForUid(uid, kinds) {
-      const snapshot = await db.collection(WHATSAPP_SENDS_COLLECTION).where('uid', '==', uid).limit(500).get();
+      const snapshot = await db.collection(WHATSAPP_SENDS_COLLECTION).where('uid', '==', uid).where('status', '==', 'queued').limit(500).get();
       let dropped = 0;
-      const batch = db.batch();
       for (const doc of snapshot.docs) {
         const send = parseSend(doc.id, doc.data());
-        if (send === null || send.status !== 'queued') continue;
+        if (send === null) continue;
         if (kinds !== undefined && !kinds.includes(send.kind)) continue;
-        batch.delete(doc.ref);
-        dropped += 1;
+        // Per document, inside a transaction: a tick may have claimed it since the query.
+        const removed = await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(doc.ref);
+          if (!fresh.exists || (fresh.data() as Record<string, unknown>).status !== 'queued') return false;
+          tx.delete(doc.ref);
+          return true;
+        });
+        if (removed) dropped += 1;
       }
-      if (dropped > 0) await batch.commit();
       return dropped;
     },
     async listDue(nowIso, limit) {
@@ -307,7 +315,15 @@ export function firestoreOutboundStore(db: Firestore): OutboundStore {
       });
     },
     async finish(sendId, patch) {
-      await sendRef(sendId).set(patch, { merge: true });
+      // update, never set: an entry deleted meanwhile (STOP, unlink, account deletion, purge) must
+      // not come back as a fragment holding a phone number.
+      try {
+        await sendRef(sendId).update(patch);
+      } catch (error) {
+        const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : null;
+        if (code === 5 || code === 'not-found') return;
+        throw error;
+      }
     },
     async get(sendId) {
       const snapshot = await sendRef(sendId).get();

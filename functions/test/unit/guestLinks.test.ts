@@ -15,6 +15,7 @@ import {
   type GuestLinkRecord,
   type GuestStore,
 } from '../../src/guests/core';
+import { clientIpOf } from '../../src/guests/index';
 
 const NOW = new Date('2026-11-23T12:00:00.000Z');
 const TOKEN = 'A'.repeat(43);
@@ -198,5 +199,28 @@ describe('answers', () => {
     expect(cleanGuestText('   ', 10)).toBeNull();
     expect(cleanGuestEmail(' Ana@Example.COM ')).toBe('ana@example.com');
     expect(cleanGuestEmail('not an email')).toBeNull();
+  });
+});
+
+describe('review fixes', () => {
+  it('an all-day meeting takes no proposals', async () => {
+    const { deps } = setup({ allDay: true, startAt: '2026-11-25T06:00:00.000Z', durationMinutes: 1440 });
+    await handleLinkCreate('u1', 'm1', deps);
+    expect((await handleView({ token: TOKEN }, null, deps)).canPropose).toBe(false);
+    await expect(handleRespond({ token: TOKEN, clientId: CLIENT, kind: 'proposed', proposedStartAt: '2026-11-26T15:00:00.000Z' }, null, deps)).rejects.toEqual(new GuestError('invalid_request'));
+  });
+
+  it('a closed link no longer shows the organizer', async () => {
+    const { deps } = setup();
+    await handleLinkCreate('u1', 'm1', deps);
+    await handleLinkRevoke('u1', 'm1', deps);
+    expect((await handleView({ token: TOKEN }, null, deps)).organizerName).toBeNull();
+  });
+
+  it('the client address is the one Google appended; anything odd shares one bucket', () => {
+    expect(clientIpOf({ headers: { 'x-forwarded-for': 'spoofed, 203.0.113.7, 35.191.0.1' } })).toBe('203.0.113.7');
+    expect(clientIpOf({ headers: { 'x-forwarded-for': '203.0.113.7' } })).toBe('203.0.113.7');
+    expect(clientIpOf({ headers: { 'x-forwarded-for': `${'x'.repeat(80)}, ${'y'.repeat(80)}` } })).toBe('unknown');
+    expect(clientIpOf(undefined)).toBe('unknown');
   });
 });

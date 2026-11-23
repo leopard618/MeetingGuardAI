@@ -136,7 +136,7 @@ async function route(action: TapAction, send: SendRecord, phone: string, uid: st
       const nowIso = now.toISOString();
       // The fields taskChangesToFieldUpdates writes (the app rejects done without completedAt).
       await deps.tasks.updateTaskFields(uid, taskId, { status: 'done', completedAt: nowIso, updatedAt: nowIso, pushPending: true });
-      await deps.store.dropQueuedForUid(uid, ['task', 'followup']).catch(() => 0);
+      // This task's queued reminder goes with the task write (whatsappTaskReminderSync).
       await say(deps, phone, fill(texts.markedDone, { title: task.title }));
       return { handled: true };
     }
