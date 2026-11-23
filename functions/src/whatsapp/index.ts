@@ -60,6 +60,10 @@ import { firestoreWhatsappStore } from './session';
 import { SIGNATURE_HEADER, verifyHandshake, verifyWebhookSignature } from './signature';
 // M11 (docs/v2/M11-DESIGN.md section 4.3): the port to the summaryWhatsApp worker (no data key here).
 import { summaryRouteDepsAtLoad } from './summaryPort';
+// M13: voice notes (download from Graph, transcription by OpenAI, read-only allowance check).
+import { firestoreQuotaStore, peekQuota } from '../assistant/quota';
+import { instanceOpenAiKeyProvider } from '../openaiKey';
+import { createGraphMediaFetcher, createOpenAiTranscriber, createVoicePort } from './voice';
 import { processWebhookPayload, type WebhookDeps } from './webhook';
 
 export { whatsappError } from './link';
@@ -198,6 +202,12 @@ function webhookDeps(): WebhookDeps {
     displayNumber: WHATSAPP_DISPLAY_NUMBER.value().replace(/[^0-9]/g, ''),
     now: () => new Date(),
     ...(summaries === undefined ? {} : { summaries }),
+    voice: createVoicePort({
+      media: createGraphMediaFetcher({ accessToken: WHATSAPP_ACCESS_TOKEN.value() }),
+      transcriber: createOpenAiTranscriber(async () => (await instanceOpenAiKeyProvider().get()).key),
+      hasAllowance: (uid, now) => peekQuota(firestoreQuotaStore(db), uid, now),
+      log: (event, fields) => logger.info(event, fields),
+    }),
   };
 }
 

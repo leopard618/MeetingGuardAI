@@ -29,10 +29,11 @@ import {
 import { WHATSAPP_TUNING } from '../config';
 import { isValidTimeZone } from '../assistant/time';
 import { executeConfirmedActions, formatMeetingForShare, formatMeetingList, formatTaskList, type ExecutorDeps } from './executor';
-import { bilingual, botStrings, formatConfirmPrompt } from './messages';
+import { bilingual, botStrings, formatConfirmPrompt, formatVoiceHeard } from './messages';
 import { eventDocId, hashLinkCode, phoneLogId } from './signature';
 import { emptySession, pushTurn, sessionPatch, withFreshContext, type WhatsappSession, type WhatsappStore } from './session';
 import type { WhatsappSender } from './send';
+import type { InboundAudio, VoicePort } from './voice';
 // M11 (docs/v2/M11-DESIGN.md section 4.1): suggested tasks from summaries, pilot users only.
 import type { SummaryRouteDeps } from './summaryPort';
 import { routeSummaryButton, routeSummaryText } from './summaryRoute';
@@ -54,6 +55,8 @@ export interface InboundMessage {
   profileName: string | null;
   /** Meta's messages[].timestamp (epoch seconds as a string), or null when absent. */
   timestamp: string | null;
+  /** M13: a voice note or audio file (message.audio), or null. */
+  audio: InboundAudio | null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -82,6 +85,7 @@ export function extractInboundMessages(payload: unknown): InboundMessage[] {
         const text = asRecord(message.text);
         const interactive = asRecord(message.interactive);
         const buttonReply = asRecord(interactive?.button_reply);
+        const audio = asRecord(message.audio);
         result.push({
           wamid: message.id,
           from: message.from,
@@ -90,6 +94,10 @@ export function extractInboundMessages(payload: unknown): InboundMessage[] {
           buttonReplyId: typeof buttonReply?.id === 'string' ? buttonReply.id : null,
           profileName,
           timestamp: typeof message.timestamp === 'string' ? message.timestamp : null,
+          audio:
+            message.type === 'audio' && typeof audio?.id === 'string'
+              ? { mediaId: audio.id, mimeType: typeof audio.mime_type === 'string' ? audio.mime_type : null, voice: audio.voice === true }
+              : null,
         });
       }
     }
@@ -119,6 +127,8 @@ export interface WebhookDeps {
    * load (whatsapp/summaryPort.ts summaryRouteDepsAtLoad), and then nothing below changes.
    */
   summaries?: SummaryRouteDeps;
+  /** M13: voice notes (whatsapp/voice.ts); absent means audio gets the "text only" answer. */
+  voice?: VoicePort;
 }
 
 function defaultNonce(): string {
@@ -411,10 +421,42 @@ export function isStaleMessage(message: InboundMessage, now: Date): boolean {
 }
 
 /**
+ * M13: downloads and transcribes a voice note, echoes what was heard, and answers the failures.
+ * Returns the transcript, or null when the user was already answered (no allowance left, too
+ * long, unreadable). The allowance is checked BEFORE the download, so a user with no AI action
+ * left costs nothing; the action itself is charged by the assistant bridge as for typed text.
+ */
+async function transcribeVoiceNote(message: InboundMessage, uid: string, language: AppLanguage, voice: VoicePort, deps: WebhookDeps): Promise<string | null> {
+  const phone = message.from;
+  const s = botStrings(language);
+  let allowed: boolean;
+  try {
+    allowed = await voice.hasAllowance(uid, deps.now());
+  } catch {
+    allowed = true; // the bridge charges and refuses on its own; never block on a read error
+  }
+  if (!allowed) {
+    logger.info('whatsapp.voice_no_allowance', { uid, wamid: message.wamid });
+    await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, s.quotaExceeded));
+    return null;
+  }
+  const result = await voice.transcribe(message.audio!, language);
+  if (!result.ok) {
+    logger.info('whatsapp.voice_unread', { uid, wamid: message.wamid, reason: result.reason });
+    const text = result.reason === 'too_long' ? s.voiceTooLong : s.voiceUnread;
+    await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, text));
+    return null;
+  }
+  await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, formatVoiceHeard(language, result.text)));
+  return result.text;
+}
+
+/**
  * One inbound message, end to end. Never throws (errors are logged; Meta always gets its 200).
  * `batch.startedMs` (M11) is when processWebhookPayload started, for the summary port's timeout.
  */
-export async function processInboundMessage(message: InboundMessage, deps: WebhookDeps, batch?: { startedMs: number }): Promise<void> {
+export async function processInboundMessage(inbound: InboundMessage, deps: WebhookDeps, batch?: { startedMs: number }): Promise<void> {
+  let message = inbound;
   const phone = message.from;
   if (!WHATSAPP_PHONE_PATTERN.test(phone)) return;
   if (deps.displayNumber.length > 0 && phone === deps.displayNumber) return; // our own echo
@@ -472,14 +514,25 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
     return; // unknown button id: ignore
   }
 
+  // M13: a voice note becomes the text it says, then follows the typed path below. It never
+  // re-links and never answers a pending proposal (a misheard "yes" must not confirm anything:
+  // the Confirm button or a typed 1 does).
+  let viaVoice = false;
+  if (message.audio !== null && deps.voice !== undefined) {
+    const transcript = await transcribeVoiceNote(message, uid, language, deps.voice, deps);
+    if (transcript === null) return;
+    message = { ...message, text: transcript };
+    viaVoice = true;
+  }
+
   // A 6-digit code from a linked phone: re-link (account switch on the same phone).
-  if (message.text !== null && WHATSAPP_LINK_CODE_PATTERN.test(message.text.trim())) {
+  if (!viaVoice && message.text !== null && WHATSAPP_LINK_CODE_PATTERN.test(message.text.trim())) {
     if (await tryRelink(message, session, language, deps)) return;
     // 'invalid': fall through - it may be a genuine message for the assistant.
   }
 
   // Text fallback for the pending proposal (1/yes/si/ok vs 2/no/cancel).
-  if (message.text !== null && session.pendingActions !== null) {
+  if (!viaVoice && message.text !== null && session.pendingActions !== null) {
     const answer = textAnswerOf(message.text);
     if (answer !== null) {
       if (answer === 'confirm') {

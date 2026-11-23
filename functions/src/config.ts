@@ -275,6 +275,13 @@ export const WHATSAPP_TUNING = {
   eventTtlDays: 7,
   /** Sessions idle longer than this are purged by dailyMaintenance. */
   sessionPurgeDays: 30,
+  // M13 voice notes (whatsapp/voice.ts): download cap, transcription model and caps.
+  /** About 4 minutes of a WhatsApp voice note (opus near 16 kbit/s); larger notes are refused. */
+  voiceMaxBytes: 500_000,
+  voiceModel: 'gpt-4o-mini-transcribe',
+  voiceTimeoutMs: 30_000,
+  /** The transcript is cut to this length, like a long typed message. */
+  voiceMaxTranscriptChars: 2_000,
 } as const;
 
 // ---------------------------------------------------------------------------------------------

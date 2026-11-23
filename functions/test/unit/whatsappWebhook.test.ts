@@ -32,6 +32,7 @@ import {
 } from '../../src/whatsapp/session';
 import type { MeetingStore } from '../../src/whatsapp/executor';
 import type { WhatsappButton, WhatsappSender } from '../../src/whatsapp/send';
+import type { VoicePort, VoiceResult } from '../../src/whatsapp/voice';
 import {
   CANCEL_BUTTON_PREFIX,
   CONFIRM_BUTTON_PREFIX,
@@ -221,6 +222,7 @@ function textMessage(overrides: Partial<InboundMessage> = {}): InboundMessage {
     buttonReplyId: null,
     profileName: 'Ana',
     timestamp: null,
+    audio: null,
     ...overrides,
   };
 }
@@ -267,6 +269,7 @@ describe('extractInboundMessages', () => {
               contacts: [{ wa_id: PHONE, profile: { name: 'Ana' } }],
               messages: [
                 { id: 'wamid.text', from: PHONE, type: 'text', text: { body: 'hola' } },
+                { id: 'wamid.voice', from: PHONE, type: 'audio', audio: { id: 'media9', mime_type: 'audio/ogg; codecs=opus', voice: true } },
                 {
                   id: 'wamid.button',
                   from: PHONE,
@@ -285,9 +288,10 @@ describe('extractInboundMessages', () => {
 
   it('flattens messages, keeps the profile name, and drops statuses and other fields', () => {
     const messages = extractInboundMessages(payload);
-    expect(messages).toHaveLength(2);
-    expect(messages[0]).toMatchObject({ wamid: 'wamid.text', from: PHONE, text: 'hola', buttonReplyId: null, profileName: 'Ana' });
-    expect(messages[1]).toMatchObject({ wamid: 'wamid.button', buttonReplyId: 'wa_confirm:n1', text: null });
+    expect(messages).toHaveLength(3);
+    expect(messages[0]).toMatchObject({ wamid: 'wamid.text', from: PHONE, text: 'hola', buttonReplyId: null, profileName: 'Ana', audio: null });
+    expect(messages[1]).toMatchObject({ wamid: 'wamid.voice', text: null, audio: { mediaId: 'media9', mimeType: 'audio/ogg; codecs=opus', voice: true } });
+    expect(messages[2]).toMatchObject({ wamid: 'wamid.button', buttonReplyId: 'wa_confirm:n1', text: null });
   });
 
   it('ignores foreign objects and malformed payloads', () => {
@@ -480,7 +484,16 @@ describe('assistant bridge (linked phones)', () => {
     const store = linkedStore();
     const sender = new FakeSender();
     const { deps, requests } = makeDeps(store, sender);
-    await processInboundMessage(textMessage({ type: 'audio', text: null }), deps);
+    await processInboundMessage(textMessage({ type: 'image', text: null }), deps);
+    expect(requests).toHaveLength(0);
+    expect(sender.sent[0]?.body).toBe(BOT_STRINGS.en.unsupportedType);
+  });
+
+  it('replies unsupportedType to a voice note while voice is not wired', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    await processInboundMessage(voiceMessage(), deps);
     expect(requests).toHaveLength(0);
     expect(sender.sent[0]?.body).toBe(BOT_STRINGS.en.unsupportedType);
   });
@@ -492,6 +505,76 @@ describe('assistant bridge (linked phones)', () => {
     const { deps } = makeDeps(store, sender);
     await expect(processInboundMessage(textMessage(), deps)).resolves.toBeUndefined();
     expect(store.sessions.get(PHONE)?.turns.length).toBeGreaterThan(0);
+  });
+});
+
+function voiceMessage(): InboundMessage {
+  return textMessage({ type: 'audio', text: null, audio: { mediaId: 'media1', mimeType: 'audio/ogg; codecs=opus', voice: true } });
+}
+
+function fakeVoice(result: VoiceResult, allowance = true): VoicePort & { calls: number } {
+  const port = {
+    calls: 0,
+    hasAllowance: async () => allowance,
+    async transcribe() {
+      port.calls += 1;
+      return result;
+    },
+  };
+  return port;
+}
+
+describe('voice notes (M13)', () => {
+  it('a voice note is echoed and then answered like the same typed text', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    deps.voice = fakeVoice({ ok: true, text: 'What do I have tomorrow?' });
+    await processInboundMessage(voiceMessage(), deps);
+    expect(sender.sent[0]?.body).toBe('I heard: "What do I have tomorrow?"');
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.request.messages.at(-1)).toEqual({ role: 'user', content: 'What do I have tomorrow?' });
+    expect(sender.sent[1]?.body).toBe('Here you go.');
+  });
+
+  it('a voice note never answers a pending proposal (a heard "yes" goes to the assistant)', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, meetings, requests } = makeDeps(store, sender, undefined);
+    const session = store.sessions.get(PHONE) ?? emptySession(NOW);
+    store.sessions.set(PHONE, { ...session, uid: 'u1', pendingActions: [createAction], pendingNonce: 'n0', actionsExpireAt: '2099-01-01T00:00:00.000Z' });
+    deps.voice = fakeVoice({ ok: true, text: 'yes' });
+    await processInboundMessage(voiceMessage(), deps);
+    expect(meetings.docs.size).toBe(0);
+    expect(requests).toHaveLength(1);
+  });
+
+  it('no AI action left: nothing is downloaded and the allowance text is sent', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    const voice = fakeVoice({ ok: true, text: 'x' }, false);
+    deps.voice = voice;
+    await processInboundMessage(voiceMessage(), deps);
+    expect(voice.calls).toBe(0);
+    expect(requests).toHaveLength(0);
+    expect(sender.sent.map((m) => m.body)).toEqual([BOT_STRINGS.en.quotaExceeded]);
+  });
+
+  it('a note too long or unreadable gets its own answer and no assistant call', async () => {
+    for (const [reason, text] of [
+      ['too_long', BOT_STRINGS.en.voiceTooLong],
+      ['failed', BOT_STRINGS.en.voiceUnread],
+      ['empty', BOT_STRINGS.en.voiceUnread],
+    ] as const) {
+      const store = linkedStore();
+      const sender = new FakeSender();
+      const { deps, requests } = makeDeps(store, sender);
+      deps.voice = fakeVoice({ ok: false, reason });
+      await processInboundMessage(voiceMessage(), deps);
+      expect(requests).toHaveLength(0);
+      expect(sender.sent.map((m) => m.body)).toEqual([text]);
+    }
   });
 });
 
