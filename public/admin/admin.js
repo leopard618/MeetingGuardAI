@@ -49,7 +49,7 @@ import {
 const DEFAULT_REGION = 'us-central1';
 const PLANS = ['free', 'pro', 'premium'];
 const PAGE_SIZE = 50;
-const TABS = ['overview', 'users', 'revenue', 'ai', 'settings'];
+const TABS = ['overview', 'users', 'revenue', 'ai', 'whatsapp', 'alerts', 'settings'];
 
 // ---------------------------------------------------------------------------------------------
 // Tiny DOM helpers
@@ -212,6 +212,8 @@ const TAB_LOADERS = {
   revenue: () => { void loadRevenue(revenueState.days); },
   ai: () => { void loadAiStats(aiState.days); },
   settings: () => { void loadHealth(false); },
+  whatsapp: () => { void loadWhatsapp(); },
+  alerts: () => { void loadAlertsHealth(); },
 };
 
 function showTab(name) {
@@ -520,7 +522,11 @@ function buildUserCell(row) {
   const ident = el('div', 'ident');
   if (row.displayName) ident.appendChild(el('div', 'name', row.displayName));
   if (row.email) ident.appendChild(el('div', 'email', row.email));
-  ident.appendChild(el('div', 'uid', row.uid));
+  const uidNode = el('button', 'uid uid-link', row.uid);
+  uidNode.type = 'button';
+  uidNode.title = 'Open the user page';
+  uidNode.addEventListener('click', () => { void openUserPage(row.uid); });
+  ident.appendChild(uidNode);
   wrap.append(avatar, ident);
   cell.appendChild(wrap);
   return cell;
@@ -818,6 +824,128 @@ async function rotateKey() {
 // Auth flow
 // ---------------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------------
+// M13 WhatsApp panel, M14 alerts health and the user page (read-only; textContent only)
+// ---------------------------------------------------------------------------------------------
+
+function fillKv(id, pairs) {
+  const node = $(id);
+  node.replaceChildren();
+  if (pairs.length === 0) {
+    node.appendChild(el('dt', 'muted', 'None'));
+    node.appendChild(el('dd', '', '-'));
+    return;
+  }
+  for (const [key, value] of pairs) {
+    node.appendChild(el('dt', '', String(key)));
+    node.appendChild(el('dd', 'num', String(value)));
+  }
+}
+
+function fillRows(id, rows) {
+  const body = $(id);
+  body.replaceChildren();
+  for (const cells of rows) {
+    const tr = el('tr');
+    for (const cell of cells) tr.appendChild(el('td', '', cell === null || cell === undefined ? '-' : String(cell)));
+    body.appendChild(tr);
+  }
+  if (rows.length === 0) {
+    const tr = el('tr');
+    const td = el('td', 'muted', 'Nothing yet.');
+    td.colSpan = 6;
+    tr.appendChild(td);
+    body.appendChild(tr);
+  }
+}
+
+function setStatus(id, message, isError = false) {
+  const node = $(id);
+  node.hidden = message === null;
+  node.textContent = message ?? '';
+  node.classList.toggle('error-text', isError);
+}
+
+async function loadWhatsapp() {
+  setStatus('whatsapp-status', 'Loading...');
+  try {
+    const { data } = await callables.getWhatsapp({});
+    $('wa-mode').textContent = data.mode;
+    setStat('wa-linked', data.linkedUsers);
+    setStat('wa-optedin', data.optedIn);
+    setStat('wa-stopped', data.stoppedLast30Days);
+    fillKv('wa-switches', Object.entries(data.switches));
+    const sends = [];
+    for (const [kind, statuses] of Object.entries(data.sends7d)) {
+      sends.push([kind, Object.entries(statuses).map(([status, count]) => `${status} ${count}`).join(', ')]);
+    }
+    fillKv('wa-sends', sends);
+    fillRows('wa-templates', data.templates.map((t) => [t.name, t.language, t.status, t.category, t.ttlSeconds === null ? `- (${t.expectedTtlSeconds} s)` : `${t.ttlSeconds} s`, t.usable ? 'yes' : 'no']));
+    fillRows('wa-recent', data.recent.map((r) => [formatDateTime(r.createdAt), r.kind, r.status, r.errorCode !== null ? r.errorCode : r.reason, r.uid]));
+    setStatus('whatsapp-status', null);
+  } catch (error) {
+    setStatus('whatsapp-status', `Could not load: ${callableErrorMessage(error)}`, true);
+  }
+}
+
+async function loadAlertsHealth() {
+  setStatus('alerts-status', 'Loading...');
+  try {
+    const { data } = await callables.getAlertsHealth({});
+    setStat('al-installations', data.installations);
+    setStat('al-notifications', data.notificationsOff);
+    setStat('al-exact', data.exactAlarmsOff);
+    setStat('al-stale', data.stalePlans);
+    $('al-fullscreen').textContent = formatInt(data.fullScreenOff);
+    $('al-noalarms').textContent = formatInt(data.noAlarms);
+    $('al-users').textContent = formatInt(data.users);
+    fillKv('al-platforms', [...Object.entries(data.byPlatform), ...Object.entries(data.byVersion).map(([version, count]) => [`app ${version}`, count])]);
+    fillRows('al-attention', data.attention.map((a) => [a.uid, a.platform, a.appVersion, a.reasons.join(', '), formatDateTime(a.reportedAt)]));
+    setStatus('alerts-status', null);
+  } catch (error) {
+    setStatus('alerts-status', `Could not load: ${callableErrorMessage(error)}`, true);
+  }
+}
+
+async function openUserPage(uid) {
+  if (!uid) return;
+  $('user-page-uid').value = uid;
+  $('user-page').hidden = true;
+  setStatus('user-page-status', 'Loading...');
+  try {
+    const { data } = await callables.getUser({ uid });
+    fillKv('user-page-kv', [
+      ['User id', data.uid],
+      ['Email', data.email ?? '-'],
+      ['Name', data.displayName ?? '-'],
+      ['Sign-in', data.providers.join(', ') || '-'],
+      ['Created', formatDateTime(data.createdAt)],
+      ['Last sign-in', formatDateTime(data.lastSignInAt)],
+      ['Disabled', data.disabled ? 'yes' : 'no'],
+      ['Plan', `${data.plan} (${data.entitlementStatus}, ${data.entitlementSource})`],
+      ['Expires', formatDateTime(data.expiresAt)],
+      ['Free actions used', `${data.usage.introUsed} (since ${formatDateTime(data.usage.introStartedAt)})`],
+      ['Paid cycle actions', data.usage.cycleUsed],
+      ['Meetings, tasks, summaries', `${data.counts.meetings}, ${data.counts.tasks}, ${data.counts.summaries}`],
+    ]);
+    fillKv('user-page-wa', [
+      ['Linked', data.whatsapp.linked ? `yes, ends in ${data.whatsapp.last4}` : 'no'],
+      ['Switches on', Object.entries(data.whatsapp.switches).filter(([, on]) => on).map(([key]) => key).join(', ') || 'none'],
+      ['Opted in', formatDateTime(data.whatsapp.optedInAt)],
+      ['Last STOP', formatDateTime(data.whatsapp.stoppedAt)],
+    ]);
+    fillKv('user-page-alerts', data.alerts.map(({ installation, entry }) => [
+      `${entry.platform} ${entry.appVersion}`,
+      `notifications ${entry.notifications}, exact ${entry.exactAlarms ?? '-'}, full screen ${entry.fullScreen ?? '-'}, ${entry.scheduledCount} alarms, planned ${formatDateTime(entry.lastReconcileAt)} (${installation.slice(0, 6)})`,
+    ]));
+    fillKv('user-page-sends', data.sends.map((s) => [formatDateTime(s.createdAt), `${s.kind} ${s.status}${s.errorCode !== null ? ` ${s.errorCode}` : s.reason ? ` (${s.reason})` : ''}`]));
+    $('user-page').hidden = false;
+    setStatus('user-page-status', null);
+  } catch (error) {
+    setStatus('user-page-status', `Could not load: ${callableErrorMessage(error)}`, true);
+  }
+}
+
 async function handleSignedIn(user) {
   showView('view-loading');
   try {
@@ -884,6 +1012,12 @@ function wireEvents() {
   $('health-refresh').addEventListener('click', () => { void loadHealth(false); });
   $('ping-run').addEventListener('click', () => { void loadHealth(true); });
   $('rotate-run').addEventListener('click', () => { void rotateKey(); });
+  $('whatsapp-refresh').addEventListener('click', () => { void loadWhatsapp(); });
+  $('alerts-refresh').addEventListener('click', () => { void loadAlertsHealth(); });
+  $('user-page-open').addEventListener('click', () => { void openUserPage($('user-page-uid').value.trim()); });
+  $('user-page-uid').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') void openUserPage($('user-page-uid').value.trim());
+  });
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     if (resizeTimer) clearTimeout(resizeTimer);
@@ -917,6 +1051,10 @@ async function main() {
     getHealth: httpsCallable(functions, 'adminGetHealth'),
     rotateOpenAiKey: httpsCallable(functions, 'adminRotateOpenAiKey'),
     reconcileEntitlement: httpsCallable(functions, 'adminReconcileEntitlement'),
+    // M13/M14 (functions/src/admin/operations.ts): read-only views.
+    getWhatsapp: httpsCallable(functions, 'adminGetWhatsapp'),
+    getAlertsHealth: httpsCallable(functions, 'adminGetAlertsHealth'),
+    getUser: httpsCallable(functions, 'adminGetUser'),
   };
   wireEvents();
   onAuthStateChanged(auth, (user) => {

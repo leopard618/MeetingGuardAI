@@ -10,6 +10,8 @@ export { computeTaskReminderPlan } from './taskReminders';
 export { BRIEFING_DAYS_AHEAD, computeBriefingPlan, renderBriefingSpec } from './briefing';
 export { computeStatusView, renderStatusSpec } from './statusNotification';
 export { fullScreenAlarm } from './fsi';
+// M14: the alerts health report for the admin alerts health view.
+export { startAlertHealthReporter } from './healthReporter';
 export { usePendingAlerts } from './usePendingAlerts';
 
 // Extras for the alert UI (src/components/alerts) and the home screen alert card.

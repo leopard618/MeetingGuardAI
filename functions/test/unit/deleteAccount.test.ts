@@ -80,6 +80,7 @@ describe('deleteAccount', () => {
       'recursive:users/u1',
       'doc:entitlements/u1',
       'recursive:usage/u1',
+      'doc:alertHealth/u1',
       'whatsapp:u1',
       'zoom:u1',
       'microsoft:u1',

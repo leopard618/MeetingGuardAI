@@ -69,6 +69,8 @@ export const GLOBAL_STORAGE_KEYS = {
    * headless task, the foreground listener and cold starts. Owner: alerts.
    */
   alertResponses: 'mg:device:alerts.responses',
+  /** M14: random installation id and the last alerts health report (hash, time). Owner: alerts. */
+  alertHealth: 'mg:device:alerts.health',
 } as const;
 
 /** Per-user key names; full key = `mg:{uid}:{name}`. Wiped on sign-out (prefix delete). */
