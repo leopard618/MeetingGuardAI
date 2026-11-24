@@ -1729,7 +1729,7 @@ contract; `functions/src/assistant/quota.ts` enforces them; the app only display
   `pricing.test.tsx`, `legal.test.tsx`, `AssistantScreen.test.tsx`. Device test guide:
   `docs/v1/TESTING.md` T29.
 
-## 36. Executive assistant: matters and the mandate (A1, switched off)
+## 36. Executive assistant: matters and the mandate (A1 to A3, switched off)
 
 The assistant of the November 10, 2026 plan (docs/v2/Complete-Plan-2026-11-10.md, part 1). The
 user hands it a MATTER by voice or text ("contact Carlos, ask for the updated proposal, set up a
@@ -1932,6 +1932,71 @@ A3 (scheduling, voice, history) build on it.
   `bouncedRecipients` (never emailed again), one `bounce` card and the event `email_bounced`;
   Postmark's 406 at send time with one recipient takes the same path. A soft bounce is only
   logged. A spam complaint stops the matter (`stopReason: 'complaint'`).
+- **A3: free times (availability.ts).** Decided by code only; the model never sees the
+  calendar. Busy: `users/{uid}/meetings` read through the assistant's bounded reader
+  (assistant/context.ts: a start range plus the recurring masters), so the events the app imports
+  from Google Calendar, Outlook and the phone count as of its last sync; recurring meetings are
+  expanded with their cancelled and moved occurrences (shared/recurrence.ts); tombstones,
+  cancelled meetings and all-day events are free. Allowed: the mandate's windows (whole named days
+  within working hours, timed windows as given), else working hours Monday to Friday 9:00 to
+  18:00 in the mandate's zone; never sooner than 4 hours from now, never after the end date, at
+  most 30 days ahead. A time is free with a 15 minute buffer around busy meetings. An offer is up
+  to 3 times, one per day.
+- **A3: scheduling (read.ts, scheduling.ts, replies.ts).** Two more intents: `asks_for_times`
+  and `picks_time` (with `time_words`, the contact's words for the time, and `offered_choice`,
+  the number of an offered time). The times already offered are listed in the mandate block.
+  Code decides: an offer is a reply_draft card whose body is a fixed EN/ES template with the
+  numbered times and the zone (`offers` on the card; `offeredSlots` on the matter once it goes
+  out); a pick is read by `resolvePick` (an offered number unless the words contradict it, else
+  exactly one date from `resolveDue` and one clock time from `readClockTimes`; anything else is
+  a `time_proposal` card `unclear_time`), then `fitSlot` (`slot_busy`, `outside_windows`,
+  `after_end`). A fitting time is booked at once only when the matter's `scheduling` is `auto`
+  (fixed with the draft: `MATTERS_AUTO_SCHEDULE` and a meeting in the mandate; the read-back says
+  so and `draftHash` includes it, while `ask` adds nothing, so matters confirmed before A3 keep
+  their hash), `MATTERS_AUTO_SCHEDULE` is still on, and the sender is trusted; otherwise it is a
+  `time_proposal` card with the time (`ask_before_booking`, `unverified_sender`). Approving such a
+  card books it (matterDecide; `slot_busy` and `no_meeting` cards are information only).
+  When the contact says when (`time_words` and the quote, read together by `readRangeOf`), `readRange` reads
+  next week or this week (EN and ES), the dates `resolveDue` reads and mornings or afternoons;
+  `offerSlots` keeps the offer inside it (one named day: up to 3 times that day, 2 hours apart),
+  or offers the nearest free times and the email says so. A pick with a day but no clock time and
+  no offered number is such an offer. `outside_mandate` with reason `time_proposal` on a matter
+  with a meeting is read as a pick, so the model's label never skips the code's check.
+  Commitments that only restate the time are dropped (`withoutSchedulingWords`).
+- **A3: booking (replies.ts bookSlot).** Re-reads the matter and the calendar right before
+  booking (auto: the mandate's bounds and windows; owner: free and in the future). One
+  transaction (store.bookMeeting) creates `users/{uid}/meetings/mtm_<hash of the matter>` with
+  create() (one meeting per matter, whatever is retried), sets `matter.booking`, links the
+  matter's accepted tasks (`meetingId`), and adds the confirmation (a reply_draft card claimed
+  `sending`, so it is sent once, through the send check and the daily cap; over the cap it waits
+  as a pending card) and a `goal_reached` card. The meeting: source `ai_chat` (accepted by the
+  rules and the app, so the owner edits it like any other; an own source needs a rules deploy),
+  the contact as participant, the owner's default alerts, `pushPending: true` so the app pushes it
+  to Google Calendar and Outlook (section 32). No follow-ups after a booking (schedule.ts).
+- **A3: pause, resume, change (manage.ts).** `matterSetStatus` pause (any signed-in owner, like
+  cancel): `paused`, schedule removed, replies stored `skipped`, every send refused. Resume (the
+  switch and the tester list): `active`, `resumedAt` (the follow-up interval counts from it), or
+  `done`/`ended` past the end date. `matterChange` with text drafts the whole mandate again from
+  the request plus the change (draft.ts), as `pendingChange` with `changeHash` (never equal to a
+  draft hash); the confirmed mandate stays in force. The contacts must stay the same (a question
+  otherwise). `matterChange` with the hash applies it: mandate, read-back, `confirmedHash`
+  (draftHash of the new mandate and the first email as sent), `offeredSlots` cleared, schedule
+  recomputed.
+- **A3: questions (ask.ts).** `matterAsk`: one model call with the strict tool
+  `answer_question` (intent status / pause / resume / cancel / change / new_matter / unclear, the
+  matter's ref, the answer). The matter: the page it was asked on, else code's match on a
+  contact's name or a title word, else the model's ref among the open matters (at most 10 listed;
+  the focused one with its records: status, mandate summary, meeting, pending cards, proposed
+  tasks, the last 12 timeline events and the contact's last email, fenced as data). A status
+  answer is the model's (plain punctuation, cut to 600 characters) or a code status line when the
+  model fails; every action answer is a confirmation question written by code, and the server
+  does nothing: the app confirms, then calls matterSetStatus, matterCancel, matterChange or
+  matterDraft. `matterSpeak` (MATTERS_NATURAL_VOICE): OpenAI text-to-speech (`gpt-4o-mini-tts`)
+  as MP3, for measuring the natural voice's cost; the device voice (expo-speech) stays the default.
+- **A3: usage and cost.** `matter.usage`: model calls and tokens (draft, revise, reads, change,
+  ask), emails (every outbound message, counted by the store) and characters spoken. matterView
+  shows it with `costUsd` from OPENAI_PRICE_IN_PER_M / OPENAI_PRICE_OUT_PER_M, Postmark's price per
+  email and the natural voice's price per minute (estimates, display only).
 - **Data.** All written ONLY by the matter functions through the Admin SDK; the owner reads:
 
   | Path | Content |
@@ -1993,6 +2058,34 @@ A3 (scheduling, voice, history) build on it.
   what the guard found; approve sends its hash) and the proposed tasks (accept with the device
   zone, or skip), and cancel. The timeline, settings and voice come with A3 and A5; notifications
   with A8 (in A2 the owner sees the cards when opening the app).
+  A3: the matter page shows the booked meeting, a time card's time with "Book this time", the
+  timeline (newest first; only names, emails and times are shown as details, never internal
+  categories), the estimated cost, pause and resume, and `AskPanel.tsx` (also under the open
+  matters): questions and changes by voice or text, actions confirmed with a tap or a spoken
+  yes or no (assistant/voiceModel.ts voiceCommand). The matter itself can be dictated (source
+  `voice`): its questions or read-back are said aloud and "yes" confirms like the button. Spoken
+  answers (useMatterVoice.ts) stop with a tap on Stop, or on Speak, which then listens. A3 feedback: the
+  microphone is off while an answer plays (it used to listen for an interruption, and the phone's
+  speaker wrote the assistant's own words into the box). Information-only cards have one button,
+  "Mark as read" (approve: seen), and those about a contact's email that got no reply say nothing
+  was sent.
+  A3 feedback (from the client): a running matter's page has "Move the meeting" (when one is booked)
+  and "Write to them" (`ContactActions.tsx`). matterMove with text reads the new time: one model
+  call (read_new_time) only points at a date and an HH:MM time, code builds the instant (a missing
+  day keeps the meeting's day, a missing time keeps its time; without the model, one date and the
+  last clock time of the words), refuses a past or unchanged time and says whether it is free
+  (loadBusy leaving the meeting itself out). Nothing changes until matterMove with that start: one
+  transaction (store.moveMeeting) sets the meeting's startAt, date and time (same length,
+  pushPending), matter.booking, a `meeting_moved` event and a `meeting_moved` reply_draft card
+  with the fixed movedText email; an older such card still pending expires. matterMessage turns
+  the owner's words into an email (one strict write_email call with the mandate and the thread,
+  plain punctuation, the content guard's flags on the card), threaded under the contact's last
+  email or our own, as an `owner_message` reply_draft card; it needs an active matter whose first
+  email went out. An applied change answers `letThemKnow` when the goal, what is asked, the end
+  date, the meeting or the language changed (`changeConcernsContact`) and the first email went
+  out; the app then asks "Let them know?" and, on yes, calls matterMessage with the change's words.
+  matterAsk names `move_meeting` and `message` like the other actions. None of this sends: those
+  cards ("Email ready to send") go out only through matterDecide, like every reply.
 - **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel` (A2:
   `matterDecide` and `matterView`, with the lenient view schemas `matterApprovalViewSchema`,
   `matterProposalViewSchema`, `matterListItemSchema`), their
@@ -2019,3 +2112,13 @@ A3 (scheduling, voice, history) build on it.
   DST, text helpers, read claim, the sender check with real DKIM signatures on a stub DNS), the
   emulator store test (read claim, cards and queue in one transaction, the task created once).
   App: `matterService.test.ts`, `MattersScreen.test.tsx` (the open list and the matter page).
+  A3: `mattersA3.test.ts` (free times across DST and recurring meetings, windows, buffers, reading
+  times in EN and ES, offers in both modes, booking once with the calendar re-check, busy and
+  out-of-window times, linked tasks, a forged owner, pause, resume, change, matterAsk, the view's
+  timeline and cost, matterSpeak); app `MattersA3.test.tsx` (page, booking card, pause, the ask
+  panel's status, actions, change and new matter, the voice and format helpers).
+  A3 feedback: `mattersA3Feedback.test.ts` (matterMessage: the card, threading, the guard, a question back, a
+  paused matter; matterMove: the time shown first, a missing day or time, free or busy with the
+  meeting itself left out, the code fallback, the move in one transaction, an older card expired,
+  Spanish; letThemKnow; the new ask intents); app `MattersA3Feedback.test.tsx` (the email cards, Move the
+  meeting, Write to them, the ask intents, Let them know, the microphone off while speaking).

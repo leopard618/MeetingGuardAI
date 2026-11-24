@@ -80,16 +80,24 @@ export { fathomConnect, fathomOAuth, fathomWebhook } from './summaries';
 // mattersParams), so a deploy without the MATTERS_* secrets never asks for them. With the
 // MATTERS_SERVICE_ACCOUNT line set at deploy time they run as that account (src/matters/index.ts).
 // A2 adds matterDecide, matterView, matterInboundRead (a Firestore trigger), matterTick
-// (scheduled) and matterDeliveryEvents (Postmark's bounce webhook), under the same gate.
+// (scheduled) and matterDeliveryEvents (Postmark's bounce webhook), under the same gate. A3 adds
+// matterSetStatus, matterChange, matterAsk and matterSpeak (callables), under the same gate. A3 feedback
+// adds matterMessage and matterMove (callables: each only makes a card the owner sends).
 export {
   assistantInboundEmail,
+  matterAsk,
   matterCancel,
+  matterChange,
   matterConfirm,
   matterDecide,
   matterDeliveryEvents,
   matterDraft,
   matterInboundRead,
+  matterMessage,
+  matterMove,
   matterRevise,
+  matterSetStatus,
+  matterSpeak,
   matterTick,
   matterView,
 } from './matters';

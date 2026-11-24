@@ -434,6 +434,21 @@ export function mattersParams() {
       default: 30,
       description: 'Maximum assistant emails (replies and follow-ups) one user may send per UTC day.',
     }),
+    /**
+     * A3: new drafts with a meeting book automatically: the free times are offered and the time a
+     * trusted contact picks is booked and confirmed, within the confirmed mandate (the read-back
+     * says so and it is part of the confirmed hash). Also the kill switch: off, every time is a card.
+     * Default false; on only together with the tester list (MATTERS_ALLOWED_UIDS).
+     */
+    MATTERS_AUTO_SCHEDULE: defineBoolean('MATTERS_AUTO_SCHEDULE', {
+      default: false,
+      description: 'Lets the assistant offer free times and book the time a contact picks, within the confirmed mandate. Testers only.',
+    }),
+    /** A3: matterSpeak, a natural voice for spoken answers (OpenAI text-to-speech). Demo only: default false. */
+    MATTERS_NATURAL_VOICE: defineBoolean('MATTERS_NATURAL_VOICE', {
+      default: false,
+      description: 'Enables the natural voice of the assistant (OpenAI text-to-speech) to measure its cost. Demo only.',
+    }),
   };
   return mattersParamsCache;
 }
@@ -448,6 +463,8 @@ export const MATTERS_PARAM_NAMES = [
   'MATTERS_INBOUND_PASSWORD',
   'MATTERS_AUTO_REPLY',
   'MATTERS_USER_DAILY_SENDS',
+  'MATTERS_AUTO_SCHEDULE',
+  'MATTERS_NATURAL_VOICE',
 ] as const;
 
 type MattersParams = {
@@ -459,6 +476,8 @@ type MattersParams = {
   MATTERS_INBOUND_PASSWORD: ReturnType<typeof defineSecret>;
   MATTERS_AUTO_REPLY: ReturnType<typeof defineBoolean>;
   MATTERS_USER_DAILY_SENDS: ReturnType<typeof defineInt>;
+  MATTERS_AUTO_SCHEDULE: ReturnType<typeof defineBoolean>;
+  MATTERS_NATURAL_VOICE: ReturnType<typeof defineBoolean>;
 };
 let mattersParamsCache: MattersParams | undefined;
 
@@ -495,6 +514,10 @@ export const MATTERS_TUNING = {
   cpu: 1,
   concurrency: 10,
   maxInstances: 5,
+  /** A3: the natural voice (matterSpeak; demo only). */
+  speechModel: 'gpt-4o-mini-tts',
+  speechVoice: 'alloy',
+  speechTimeoutMs: 30_000,
 } as const;
 
 /** Parses MATTERS_ALLOWED_UIDS; '*' allows everyone. */

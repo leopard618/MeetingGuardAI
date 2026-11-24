@@ -376,6 +376,12 @@ function activeMatter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     bouncedRecipients: [],
     pendingApprovals: 0,
     dailyCounts: null,
+    scheduling: 'ask',
+    offeredSlots: [],
+    booking: null,
+    resumedAt: null,
+    pendingChange: null,
+    usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0, emails: 0, speechChars: 0 },
     ...overrides,
   };
   return base;

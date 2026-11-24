@@ -73,7 +73,12 @@
     "notSent": "The reply could not be sent yet. Try again in a moment.",
     "unknown": "We could not confirm that the reply went out. It may have been sent, so it will not be sent again.",
     "notFound": "This matter is no longer available.",
-    "loadFailed": "This matter could not be loaded right now. Check your connection and try again."
+    "loadFailed": "This matter could not be loaded right now. Check your connection and try again.",
+    "meetingBooked": "Meeting booked: {{value}}",
+    "pause": "Pause this matter",
+    "resume": "Resume this matter",
+    "cost": "Cost so far: about {{value}} ({{calls}} AI calls, {{emails}} emails)",
+    "usage": "So far: {{calls}} AI calls, {{emails}} emails"
   },
   "card": {
     "from": "From: {{value}}",
@@ -87,7 +92,8 @@
       "goal_reached": "The goal looks reached",
       "unclear": "I could not tell what this reply wants",
       "bounce": "An email could not be delivered",
-      "many_replies": "Many replies today"
+      "many_replies": "Many replies today",
+      "owner_email": "Email ready to send"
     },
     "reason": {
       "money": "It is about money or prices, which I never handle.",
@@ -101,7 +107,16 @@
       "cap_reached": "Today's limit for this matter was reached. More replies are kept unread.",
       "read_failed": "I could not read this reply. Please read it in your copy.",
       "loop": "This thread went back and forth many times today, so I stopped reading it until tomorrow.",
-      "other": "I ask you first."
+      "other": "I ask you first.",
+      "no_free_time": "Your calendar has no free time that fits this matter, so I did not offer any.",
+      "slot_busy": "That time is not free in your calendar.",
+      "outside_windows": "That time is outside the times you allowed or your working hours.",
+      "after_end": "That time is after the end date of this matter.",
+      "unclear_time": "I could not read one exact time from the reply.",
+      "ask_before_booking": "The time is free. Book it with one tap.",
+      "no_meeting": "A meeting is not part of this matter.",
+      "owner_message": "You asked me to write this. Nothing is sent until you tap Send.",
+      "meeting_moved": "You moved the meeting. Send this so they know the new time."
     },
     "guard": {
       "title": "Check before sending, it mentions:",
@@ -114,12 +129,114 @@
     "approve": {
       "reply_draft": "Send this reply",
       "goal_reached": "Mark the matter as done",
-      "default": "OK"
+      "book": "Book this time",
+      "owner_email": "Send this email"
     },
     "decline": {
       "reply_draft": "Do not send",
       "goal_reached": "Not yet",
-      "default": "Dismiss"
+      "book": "Do not book",
+      "owner_email": "Do not send"
+    },
+    "markRead": "Mark as read",
+    "noReply": "Nothing was sent. Reply to them yourself if needed.",
+    "slot": "Time: {{value}}"
+  },
+  "voice": {
+    "speak": "Speak",
+    "stopListening": "Stop listening",
+    "stop": "Stop talking",
+    "natural": "Natural voice (test, measures its cost)",
+    "naturalFailed": "The natural voice is not available, so the phone voice is used.",
+    "sayYes": "Say yes to confirm, or no.",
+    "sayYesChange": "Say yes to apply this change, or no.",
+    "sayYesSend": "Say yes to confirm and send, or tell me what to change.",
+    "sayYesMove": "Say yes to move it, or no."
+  },
+  "ask": {
+    "title": "Ask the assistant",
+    "titleMatter": "Ask about this matter",
+    "label": "Ask about your matters",
+    "labelMatter": "Ask or change something",
+    "placeholder": "What is happening with Carlos? Move the deadline to Monday.",
+    "send": "Ask",
+    "notNow": "Not now",
+    "changeTitle": "The matter after the change",
+    "confirmChange": "Apply this change",
+    "answerChange": "Answer in the box above and tap Ask.",
+    "yes": {
+      "pause": "Pause it",
+      "resume": "Resume it",
+      "cancel": "Cancel it",
+      "change": "Prepare the change",
+      "new_matter": "Prepare the new matter",
+      "move_meeting": "Show me the new time",
+      "message": "Write the email"
+    },
+    "done": {
+      "pause": "Paused. Nothing is sent until you resume it.",
+      "resume": "Resumed.",
+      "cancel": "Matter cancelled. Nothing more will be sent.",
+      "change": "Change applied."
     }
+  },
+  "timeline": {
+    "title": "What happened",
+    "type": {
+      "created": "Matter created",
+      "mandate_drafted": "Plan drafted",
+      "mandate_confirmed": "You confirmed the plan",
+      "email_sent": "Email sent",
+      "email_failed": "An email could not be sent",
+      "email_unconfirmed": "Email sent, delivery not confirmed",
+      "email_test": "Test email (delivered to nobody)",
+      "email_received": "Reply received",
+      "status_changed": "Status changed",
+      "reply_read": "Reply read",
+      "reply_not_acted_on": "Reply kept, not acted on",
+      "approval_requested": "Something waits for you",
+      "approval_decided": "You decided",
+      "commitment_proposed": "Tasks proposed",
+      "commitment_decided": "You decided on a task",
+      "reply_sent": "Reply sent",
+      "follow_up_sent": "Follow-up sent",
+      "email_bounced": "Email not delivered",
+      "spam_complaint": "Marked as spam",
+      "times_offered": "Free times offered",
+      "meeting_booked": "Meeting booked",
+      "booking_refused": "A time could not be booked",
+      "paused": "Paused",
+      "resumed": "Resumed",
+      "change_drafted": "Change drafted",
+      "mandate_changed": "Change applied",
+      "question_answered": "You asked about it",
+      "other": "Update",
+      "meeting_moved": "Meeting moved",
+      "message_drafted": "Email ready for you to send"
+    }
+  },
+  "contact": {
+    "title": "Write to them",
+    "label": "What should I tell {{name}}?",
+    "someone": "them",
+    "placeholder": "I am running 10 minutes late.",
+    "write": "Write the email",
+    "written": "The email is ready under \"Waiting for you\". Check it and tap Send."
+  },
+  "move": {
+    "title": "Move the meeting",
+    "label": "New day and time",
+    "placeholder": "Friday at 4 pm",
+    "check": "Check this time",
+    "newTime": "New time: {{value}}",
+    "free": "This time is free in your calendar.",
+    "busy": "You already have something else at this time.",
+    "apply": "Move it",
+    "moved": "Meeting moved. The email that tells them is under \"Waiting for you\": check it and tap Send."
+  },
+  "letThemKnow": {
+    "question": "This change affects what {{name}} was told. Let them know? I will write the email and show it to you before anything is sent.",
+    "yes": "Write to them",
+    "instruction": "Tell them about this change:"
   }
 }

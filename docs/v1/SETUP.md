@@ -1234,6 +1234,8 @@ MATTERS_USER_DAILY_LIMIT=30
 MATTERS_SERVICE_ACCOUNT=matters-functions@
 MATTERS_AUTO_REPLY=false
 MATTERS_USER_DAILY_SENDS=30
+MATTERS_AUTO_SCHEDULE=false
+MATTERS_NATURAL_VOICE=false
 ```
 
 `MATTERS_SERVICE_ACCOUNT` is the runtime account of the matter functions (`name@` is expanded with
@@ -1249,6 +1251,12 @@ can fail once while the service agents are created: deploy it once on its own an
 approval card. Turn it on only after the hostile suite and the device test pass.
 `MATTERS_USER_DAILY_SENDS` caps the replies and follow-ups per user per UTC day.
 
+A3: `MATTERS_AUTO_SCHEDULE=true` lets new drafts with a meeting book automatically (free times
+offered, the time a trusted contact picks booked and confirmed, within the confirmed mandate); it
+is also the kill switch (false: every time is a card the owner books). Set it only together with
+the tester list. `MATTERS_NATURAL_VOICE=true` enables matterSpeak (OpenAI text-to-speech) to
+measure the cost of a natural voice for the demo; keep it false otherwise.
+
 A full or by-name deploy also needs every declared param of the codebase in the deployer's
 `.env.<projectId>`, the summaries ones included (`SUMMARIES_ENABLED=false` and empty
 `SUMMARIES_PILOT_UIDS`, `SUMMARIES_ADDRESS_TEMPLATE` and `SUMMARIES_SENDERS` when you do not
@@ -1257,11 +1265,13 @@ run summaries); a non-interactive deploy stops on a missing one before deploying
 Deploy only the matter functions by name (CONTRIBUTING, "Deploying"):
 
 ```bash
-npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents
+npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents,functions:matterSetStatus,functions:matterChange,functions:matterAsk,functions:matterSpeak,functions:matterMessage,functions:matterMove
 ```
 
 No Firestore index is needed: the A2 queues (`matterSchedule`, `matterReadQueue`) are top-level
-collections queried on one field.
+collections queried on one field. A3 reads the owner's meetings with the assistant's own queries
+(a start range and the recurring masters, automatic single-field indexes) and needs no rule
+change: the booked meeting uses a source the rules already accept.
 
 Before a Postmark account exists, the secret MATTERS_POSTMARK_TOKEN can hold Postmark's public
 test token `POSTMARK_API_TEST`: sends are accepted and nothing is delivered (the matter records

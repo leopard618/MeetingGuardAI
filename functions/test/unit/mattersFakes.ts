@@ -1,4 +1,6 @@
+import type { MeetingReader, MeetingRecord } from '../../src/assistant/context';
 import type { LlmClient, LlmRequest, LlmResult } from '../../src/assistant/llm';
+import { aiMeetingContextDocSchema } from '../../src/shared/aiContract';
 import type { EmailSender, OutboundEmail } from '../../src/matters/email';
 import type { MatterDeps } from '../../src/matters/handlers';
 import {
@@ -11,11 +13,14 @@ import {
   type MatterProposal,
   type MatterReadQueue,
   type MatterSchedule,
+  type MatterUsage,
   type StoredMessage,
 } from '../../src/matters/model';
 import {
   readClaimDecision,
   type AddMessageOptions,
+  type BookingUpdate,
+  type MoveUpdate,
   type CardUpdate,
   type InboundMarker,
   type MatterLookup,
@@ -45,6 +50,8 @@ export class FakeMatterStore implements MatterStore {
   readonly messageIds = new Map<string, MatterLookup>();
   readonly inbound = new Set<string>();
   readonly daily = new Map<string, number>();
+  /** A3: users/{uid}/meetings/{id} written by bookMeeting. */
+  readonly meetings = new Map<string, Record<string, unknown>>();
   /** accountDeletions/{uid}: createMatter refuses these uids. */
   readonly deletions = new Set<string>();
   /** Makes the next addInboundMessage batch fail (nothing written), like a Firestore error. */
@@ -132,7 +139,8 @@ export class FakeMatterStore implements MatterStore {
     this.messages.set(k, [...(this.messages.get(k) ?? []), this.stored(message, id)]);
     this.events.set(k, [...(this.events.get(k) ?? []), { ...event, messageId: id }]);
     if (options.indexMessageId) this.messageIds.set(indexKey, { uid, matterId });
-    this.matters.set(k, { ...current, ...options.patch, updatedAt: message.at });
+    const counted = message.direction === 'outbound' ? { usage: { ...current.usage, emails: (current.usage?.emails ?? 0) + 1 } } : {};
+    this.matters.set(k, { ...current, ...options.patch, ...counted, updatedAt: message.at });
     if (options.card) {
       const card = this.cardMap(k).get(options.card.id);
       if (card) this.cardMap(k).set(options.card.id, { ...card, ...options.card.patch, updatedAt: message.at });
@@ -301,6 +309,61 @@ export class FakeMatterStore implements MatterStore {
     return [...this.proposalMap(this.key(uid, matterId)).entries()].filter(([, p]) => p.status === status).map(([id, doc]) => ({ id, doc: structuredClone(doc) }));
   }
 
+  // ---- A3 ----
+
+  async listEvents(uid: string, matterId: string, limit: number) {
+    return structuredClone([...(this.events.get(this.key(uid, matterId)) ?? [])].sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit));
+  }
+
+  async bookMeeting<T>(
+    uid: string,
+    matterId: string,
+    input: { meetingId: string; meeting: Record<string, unknown>; taskIds: readonly string[] },
+    decide: (matter: MatterDoc | null, meetingExists: boolean, existingTasks: readonly string[]) => BookingUpdate<T>,
+  ) {
+    const k = this.key(uid, matterId);
+    const current = this.matters.get(k);
+    const meetingKey = `${uid}/${input.meetingId}`;
+    const existing = input.taskIds.filter((id) => this.tasks.has(`${uid}/${id}`));
+    const outcome = decide(current ? structuredClone(current) : null, this.meetings.has(meetingKey), existing);
+    if (outcome.createMeeting && this.meetings.has(meetingKey)) throw new Error('already exists');
+    for (const card of outcome.cards ?? []) if (this.cardMap(k).has(card.id)) throw new Error('already exists');
+    if (outcome.createMeeting) this.meetings.set(meetingKey, structuredClone(input.meeting));
+    for (const id of outcome.linkTasks ?? []) {
+      const task = this.tasks.get(`${uid}/${id}`);
+      if (task) this.tasks.set(`${uid}/${id}`, { ...task, meetingId: input.meetingId, updatedAt: input.meeting.createdAt });
+    }
+    if (outcome.patch && current) this.matters.set(k, { ...current, ...outcome.patch });
+    if (outcome.events?.length) this.events.set(k, [...(this.events.get(k) ?? []), ...outcome.events]);
+    for (const card of outcome.cards ?? []) this.cardMap(k).set(card.id, structuredClone(card.doc));
+    if (outcome.schedule) this.writeSchedule(uid, matterId, outcome.schedule.nextActionAt);
+    return outcome.result;
+  }
+
+  async moveMeeting<T>(uid: string, matterId: string, meetingId: string, decide: (matter: MatterDoc | null, meeting: Record<string, unknown> | null) => MoveUpdate<T>) {
+    const k = this.key(uid, matterId);
+    const current = this.matters.get(k);
+    const meetingKey = `${uid}/${meetingId}`;
+    const meeting = this.meetings.get(meetingKey);
+    const outcome = decide(current ? structuredClone(current) : null, meeting ? structuredClone(meeting) : null);
+    for (const card of outcome.cards ?? []) if (this.cardMap(k).has(card.id)) throw new Error('already exists');
+    if (outcome.meetingPatch && meeting) this.meetings.set(meetingKey, { ...meeting, ...structuredClone(outcome.meetingPatch) });
+    if (outcome.patch && current) this.matters.set(k, { ...current, ...outcome.patch });
+    if (outcome.events?.length) this.events.set(k, [...(this.events.get(k) ?? []), ...outcome.events]);
+    for (const card of outcome.cards ?? []) this.cardMap(k).set(card.id, structuredClone(card.doc));
+    if (outcome.schedule) this.writeSchedule(uid, matterId, outcome.schedule.nextActionAt);
+    return outcome.result;
+  }
+
+  async addUsage(uid: string, matterId: string, delta: Partial<MatterUsage>) {
+    const k = this.key(uid, matterId);
+    const current = this.matters.get(k);
+    if (!current) throw new Error('no matter');
+    const usage = { ...current.usage };
+    for (const [key, value] of Object.entries(delta)) if (typeof value === 'number') usage[key as keyof MatterUsage] += value;
+    this.matters.set(k, { ...current, usage });
+  }
+
   cardList(uid: string, matterId: string) {
     return [...this.cardMap(this.key(uid, matterId)).entries()].map(([id, card]) => ({ id, ...card }));
   }
@@ -311,6 +374,51 @@ export class FakeMatterStore implements MatterStore {
 
   messageList(uid: string, matterId: string) {
     return this.messages.get(this.key(uid, matterId)) ?? [];
+  }
+}
+
+/**
+ * A3: the owner's calendar as the assistant's MeetingReader sees it. add() takes a one-off meeting
+ * (start ISO, minutes) or a whole document; every list call is counted (bookSlot re-reads it).
+ */
+export class FakeCalendar implements MeetingReader {
+  readonly records: MeetingRecord[] = [];
+  reads = 0;
+
+  add(startAt: string, durationMinutes: number, extra: Record<string, unknown> = {}): this {
+    const doc = aiMeetingContextDocSchema.parse({
+      title: 'Busy',
+      description: '',
+      startAt,
+      durationMinutes,
+      timezone: 'Europe/Madrid',
+      allDay: false,
+      status: 'scheduled',
+      deletedAt: null,
+      source: 'google',
+      participants: [],
+      location: null,
+      conference: null,
+      recurrenceOverrides: null,
+      recurrence: null,
+      ...extra,
+    });
+    this.records.push({ id: `cal${this.records.length + 1}`, doc });
+    return this;
+  }
+
+  async listByStartRange(_uid: string, fromIso: string, toIso: string) {
+    this.reads += 1;
+    return this.records.filter((r) => !r.doc.recurrence && r.doc.startAt >= fromIso && r.doc.startAt <= toIso);
+  }
+
+  async listRecurring() {
+    this.reads += 1;
+    return this.records.filter((r) => r.doc.recurrence);
+  }
+
+  async get(_uid: string, id: string) {
+    return this.records.find((r) => r.id === id) ?? null;
   }
 }
 

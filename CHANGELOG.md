@@ -106,6 +106,58 @@ to users: the assistant stays switched off in every release until its beta (A10)
     Firestore rule needed by the app);
   - tests: replies, decisions, timing across DST, the sender check with real DKIM signatures, and
     a hostile suite of 16 emails in EN and ES that assumes the model is fooled.
+- **A3, scheduling, voice and history** (November 17), switched off like A1 and A2, with
+  automatic scheduling only for testers (MATTERS_AUTO_SCHEDULE):
+  - scheduling: when a contact asks for times, code finds two or three free times in the owner's
+    calendar in Meeting Guard AI (imported Google, Outlook and phone events included, recurring
+    meetings expanded, a 15 minute buffer, working hours or the mandate's windows, never after the
+    end date) and offers them in a fixed EN/ES email with the time zone; when the contact picks or
+    proposes a time, code reads it from their own words (one date and one clock time, or the
+    number of an offered time), checks the mandate and the calendar, and books it: automatically
+    for a trusted sender when the matter was confirmed with automatic booking (the read-back says
+    so and it is part of the confirmed hash), otherwise as a card the owner books with one tap;
+  - booking: the calendar is checked again right before booking; one meeting per matter (its id
+    comes from the matter and it is created once, in the same transaction as the matter), pushed
+    to Google Calendar and Outlook by the app (pushPending), with the matter's accepted tasks
+    linked to it; one confirmation email, claimed once; no follow-ups after the booking;
+  - pause, resume and change (carried over from A1): matterSetStatus pauses (nothing is read or
+    sent) and resumes (the follow-up interval counts from the resume); matterChange drafts a
+    change from the owner's words, reads it back and applies it only with its hash (the contacts
+    stay the same);
+  - questions by voice or text: matterAsk answers "what is happening with Carlos?" from that
+    matter's own records, and for pause, resume, cancel, change or a new matter only names the
+    action, which the app asks the owner to confirm (a tap or a spoken "yes");
+  - voice in the app (EN and ES): dictate a matter, hear its questions or read-back and confirm
+    with "yes"; spoken answers stop with a tap or when the owner talks over them; matterSpeak, a
+    natural voice behind MATTERS_NATURAL_VOICE, measures its cost per minute for the demo;
+  - history and cost: the matter page shows the timeline, the booked meeting and the estimated
+    cost so far (AI calls, emails, voice);
+  - tests: free times across DST and recurring meetings, reading times in EN and ES, booking once,
+    the calendar re-check, busy or out-of-window times, pause, resume, change, matterAsk and the
+    app screens;
+  - after the first device test: an offer keeps to when the contact would like to meet ("next
+    week", "Tuesday afternoon", in EN and ES), or says the times are the nearest ones; a named
+    day without a clock time gets a choice of times that day; a time proposed for the meeting is
+    read by code even when the model labels it outside the mandate (a weekend time is a card with
+    "Book this time"); saying when they are free is never a proposed task; information-only cards
+    have one "Mark as read" button and say when nothing was sent.
+- **A3 feedback, from the client's test of A3** (November 19), switched off like A1 to A3:
+  - move the meeting: on a matter with a booked meeting, "Move the meeting" takes the new day and
+    time in the owner's words ("Friday at 4 pm", "a las 10 de la noche"); the server reads it
+    (one model call that only points at a date and a time, with a code reading as fallback) and
+    shows it, free or not, before anything changes; "Move it" moves the meeting in the calendar
+    (the same length, pushed to Google Calendar and Outlook) and prepares the email that tells the
+    contact the new time (new callable matterMove);
+  - write to them: the owner says what to tell the contact ("tell him I am running late") and the
+    assistant writes the email under the matter's thread (new callable matterMessage);
+  - let them know: after a change that touches what the contact was told (the goal, what is asked,
+    the end date or the meeting), the app asks "Let them know?" and, on yes, writes that email;
+  - every one of these emails is a card, "Email ready to send", that goes out only when the owner
+    taps "Send this email" (the same hash, send check and daily cap as every reply); nothing is
+    sent on its own. "Ask or change something" recognises moving the meeting and writing to the
+    contact too;
+  - voice: the microphone is off while the assistant speaks, so the phone's speaker can no longer
+    write the assistant's own words into the box; tapping Speak stops the voice and listens.
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 

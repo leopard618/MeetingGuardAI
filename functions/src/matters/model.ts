@@ -118,6 +118,13 @@ export const MATTER_LIMITS = {
   replyChars: 3000,
   quoteChars: 300,
   maxProposalsPerReply: 5,
+  // ---- A3 ----
+  /** Free times offered in one email. */
+  maxOfferedSlots: 3,
+  /** The words of a reply that say a time ("Tuesday at 10 am"). */
+  timeWordsChars: 120,
+  /** A matterAsk answer as shown and spoken. */
+  answerChars: 600,
 } as const;
 
 // ---------------------------------------------------------------------------------------------
@@ -220,8 +227,25 @@ export type FirstEmail = z.infer<typeof firstEmailSchema>;
  * back the hash of the version it showed; any later change gives another hash, so a stale screen
  * can never confirm something the user did not read.
  */
-export function draftHash(mandate: Mandate, firstEmail: FirstEmail): string {
-  return createHash('sha256').update(canonicalJson({ firstEmail, mandate })).digest('hex');
+export function draftHash(mandate: Mandate, firstEmail: FirstEmail, scheduling: SchedulingMode = 'ask'): string {
+  // A3: automatic booking is part of what the user confirms (the read-back says it), so it is in
+  // the hash; 'ask' adds nothing, so every matter confirmed before A3 keeps its hash
+  const scheduled = scheduling === 'auto' ? { scheduling } : {};
+  return createHash('sha256').update(canonicalJson({ firstEmail, mandate, ...scheduled })).digest('hex');
+}
+
+/**
+ * A3: how the assistant books the meeting of a matter, fixed when the draft is written:
+ * ask:  every time a contact proposes or picks is a card; the owner books it with one tap
+ * auto: a time the contact picks or proposes is booked at once when it fits the mandate, is free
+ *       and the sender is trusted (MATTERS_AUTO_SCHEDULE, testers only); else it is a card
+ */
+export const SCHEDULING_MODES = ['ask', 'auto'] as const;
+export type SchedulingMode = (typeof SCHEDULING_MODES)[number];
+
+/** A3: the fingerprint of a change to a running matter (matterChange); never equal to a draft hash. */
+export function changeHash(mandate: Mandate, scheduling: SchedulingMode): string {
+  return createHash('sha256').update(canonicalJson({ change: mandate, scheduling })).digest('hex');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -284,6 +308,66 @@ export const dailyCountsSchema = z
   .strict();
 export type DailyCounts = z.infer<typeof dailyCountsSchema>;
 
+/** A3: a meeting time (UTC instants). */
+export const slotSchema = z
+  .object({ start: isoDateTimeSchema, end: isoDateTimeSchema })
+  .strict()
+  .refine((s) => Date.parse(s.start) < Date.parse(s.end), { message: 'A slot must end after it starts.' });
+export type Slot = z.infer<typeof slotSchema>;
+
+/** A3: the meeting the assistant booked (users/{uid}/meetings/{meetingId}); one per matter. */
+export const bookingSchema = z
+  .object({
+    meetingId: z.string().regex(MEETING_ID_PATTERN),
+    start: isoDateTimeSchema,
+    end: isoDateTimeSchema,
+    bookedAt: isoDateTimeSchema,
+    /** auto: booked on the contact's pick (MATTERS_AUTO_SCHEDULE); owner: the owner approved the card. */
+    by: z.enum(['auto', 'owner']),
+  })
+  .strict();
+export type Booking = z.infer<typeof bookingSchema>;
+
+/** A3: a change of a running matter, drafted and waiting for the owner's confirmation (matterChange). */
+export const pendingChangeSchema = z
+  .object({
+    /** The words the change was drafted from (the matter's request plus the change). */
+    request: z.string().trim().min(1).max(MATTER_LIMITS.requestChars),
+    mandate: mandateSchema.nullable(),
+    questions: z.array(z.string().trim().min(1).max(MATTER_LIMITS.itemChars)).max(MATTER_LIMITS.maxQuestions),
+    readBack: z.string().max(MATTER_LIMITS.readBackChars),
+    /** changeHash of the mandate; null while questions remain. */
+    hash: z.string().regex(DRAFT_HASH_PATTERN).nullable(),
+    createdAt: isoDateTimeSchema,
+  })
+  .strict();
+export type PendingChange = z.infer<typeof pendingChangeSchema>;
+
+/** A3: what a matter used (model calls and tokens, emails, characters spoken in the natural voice). */
+// every field defaults to 0: the store counts emails and speech with field increments, which can
+// leave a partial map on a matter written before A3
+export const matterUsageSchema = z
+  .object({
+    modelCalls: z.number().int().min(0).default(0),
+    inputTokens: z.number().int().min(0).default(0),
+    outputTokens: z.number().int().min(0).default(0),
+    emails: z.number().int().min(0).default(0),
+    speechChars: z.number().int().min(0).default(0),
+  })
+  .strict();
+export type MatterUsage = z.infer<typeof matterUsageSchema>;
+export const EMPTY_USAGE: MatterUsage = { modelCalls: 0, inputTokens: 0, outputTokens: 0, emails: 0, speechChars: 0 };
+
+/** The usage after one model call. */
+export function withModelCall(usage: MatterUsage, tokens: { promptTokens: number; completionTokens: number } | null): MatterUsage {
+  return {
+    ...usage,
+    modelCalls: usage.modelCalls + 1,
+    inputTokens: usage.inputTokens + Math.max(0, Math.round(tokens?.promptTokens ?? 0)),
+    outputTokens: usage.outputTokens + Math.max(0, Math.round(tokens?.completionTokens ?? 0)),
+  };
+}
+
 /** The secret part of a matter's reply address: 96 random bits, lowercase hex (case-safe in email). */
 export const REPLY_TOKEN_PATTERN = /^[a-f0-9]{24}$/;
 
@@ -342,6 +426,18 @@ const matterDocShape = {
     /** Approval cards waiting for the owner (shown in the list). */
     pendingApprovals: z.number().int().min(0).default(0),
     dailyCounts: dailyCountsSchema.nullable().default(null),
+    // ---- A3 (every field has a default, so matters written by A1 and A2 still read) ----
+    /** SCHEDULING_MODES; fixed with the draft and part of its hash when 'auto'. */
+    scheduling: z.enum(SCHEDULING_MODES).default('ask'),
+    /** The free times of the last offer email (the contact's "the second one" points here). */
+    offeredSlots: z.array(slotSchema).max(MATTER_LIMITS.maxOfferedSlots).default([]),
+    /** The meeting the assistant booked; null until then. */
+    booking: bookingSchema.nullable().default(null),
+    /** When the owner last resumed it (the follow-up clock restarts from here). */
+    resumedAt: isoDateTimeSchema.nullable().default(null),
+    /** A change waiting for the owner's confirmation. */
+    pendingChange: pendingChangeSchema.nullable().default(null),
+    usage: matterUsageSchema.default(EMPTY_USAGE),
 };
 
 /** What the functions WRITE: strict, nothing outside the model. */
@@ -386,6 +482,23 @@ export const MATTER_EVENT_TYPES = [
   'follow_up_sent',
   'email_bounced',
   'spam_complaint',
+  // A3
+  /** An email with free times went out, or waits for approval (detail: how many). */
+  'times_offered',
+  'meeting_booked',
+  /** A time could not be booked (detail: why, as a category). */
+  'booking_refused',
+  'paused',
+  'resumed',
+  'change_drafted',
+  'mandate_changed',
+  /** The owner asked about the matter (by voice or text). */
+  'question_answered',
+  // A3 feedback
+  /** The owner moved the booked meeting (detail: the new time). */
+  'meeting_moved',
+  /** The owner asked the assistant to write to the contact: a draft waits for them. */
+  'message_drafted',
 ] as const;
 export type MatterEventType = (typeof MATTER_EVENT_TYPES)[number];
 
@@ -536,6 +649,10 @@ export const matterApprovalSchema = z
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,
     decidedAt: isoDateTimeSchema.nullable(),
+    /** A3, time_proposal: the time read from the reply (approving books it); null otherwise. */
+    slot: slotSchema.nullable().default(null),
+    /** A3, reply_draft: the free times this email offers (stored on the matter when it is sent). */
+    offers: z.array(slotSchema).max(MATTER_LIMITS.maxOfferedSlots).default([]),
   })
   .strict();
 export type MatterApproval = z.infer<typeof matterApprovalSchema>;

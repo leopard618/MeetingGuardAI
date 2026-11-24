@@ -11,6 +11,12 @@
  * - A2: matterDecide (approve or decline a card, accept or drop a commitment) and matterView (the
  *   open matters, or one matter with its pending cards and open commitments). The server reads
  *   them for the signed-in owner, so the app needs no Firestore rule for the cards.
+ * - A3: matterSetStatus (pause, resume), matterChange (draft a change, then confirm it with its
+ *   hash), matterAsk (a question or instruction by voice or text: the server only answers or
+ *   names the action, the screen confirms it) and matterSpeak (the natural voice, demo only).
+ * - A3 feedback: matterMessage (the owner's words become an email card to send) and matterMove (read the new
+ *   time of the booked meeting, then move it on the time the owner confirmed). Neither sends: the
+ *   owner sends the card with decide.
  */
 import { httpsCallable } from 'firebase/functions';
 
@@ -23,6 +29,17 @@ import {
   matterDecideResponseSchema,
   matterViewRequestSchema,
   matterViewResponseSchema,
+  matterAskRequestSchema,
+  matterAskResponseSchema,
+  matterChangeRequestSchema,
+  matterSetStatusRequestSchema,
+  matterSetStatusResponseSchema,
+  matterSpeakRequestSchema,
+  matterSpeakResponseSchema,
+  matterMessageRequestSchema,
+  matterMessageResponseSchema,
+  matterMoveRequestSchema,
+  matterMoveResponseSchema,
   matterConfirmRequestSchema,
   matterConfirmResponseSchema,
   matterDraftRequestSchema,
@@ -37,6 +54,12 @@ import {
   type MatterDraftResponse,
   type MatterErrorCode,
   type MatterViewResponse,
+  type MatterAskResponse,
+  type MatterMessageResponse,
+  type MatterMoveResponse,
+  type MatterSetStatusResponse,
+  type MatterSpeakResponse,
+  type MatterStatusAction,
 } from '../../core/aiContract';
 import { AppError, isAppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -51,7 +74,13 @@ export type MatterCallableName =
   | typeof CALLABLES.matterConfirm
   | typeof CALLABLES.matterCancel
   | typeof CALLABLES.matterDecide
-  | typeof CALLABLES.matterView;
+  | typeof CALLABLES.matterView
+  | typeof CALLABLES.matterSetStatus
+  | typeof CALLABLES.matterChange
+  | typeof CALLABLES.matterAsk
+  | typeof CALLABLES.matterSpeak
+  | typeof CALLABLES.matterMessage
+  | typeof CALLABLES.matterMove;
 
 export interface MatterTransport {
   call(name: MatterCallableName, request: unknown, options: { timeoutMs: number }): Promise<unknown>;
@@ -70,6 +99,22 @@ export interface MatterService {
   listOpen(): Promise<MatterOpenItem[]>;
   /** A2: one matter with its pending cards and open commitments; null when it does not exist (matterView). */
   getPage(matterId: string): Promise<MatterPage | null>;
+  /** A3: pause or resume a running matter. */
+  setStatus(matterId: string, action: MatterStatusAction): Promise<MatterSetStatusResponse>;
+  /** A3: draft a change of a running matter (or answer its questions); answers with its read-back and hash. */
+  change(matterId: string, text: string): Promise<MatterDraftResponse>;
+  /** A3: apply the drafted change the user read (its hash). */
+  confirmChange(matterId: string, draftHash: string): Promise<MatterDraftResponse>;
+  /** A3: a question or instruction about the matters, typed or spoken. */
+  ask(input: { text: string; language: Language; matterId?: string }): Promise<MatterAskResponse>;
+  /** A3: the natural voice (demo only): an MP3 of the text, base64. */
+  speak(input: { text: string; language: Language; matterId?: string }): Promise<MatterSpeakResponse>;
+  /** A3 feedback: the owner's words for an email to the contact: a card to send (or a question back). */
+  message(matterId: string, text: string): Promise<MatterMessageResponse>;
+  /** A3 feedback: reads the new time of the booked meeting from the owner's words; nothing changes. */
+  readNewTime(matterId: string, text: string): Promise<MatterMoveResponse>;
+  /** A3 feedback: moves the booked meeting to the time the owner confirmed; the email to the contact is a card. */
+  moveMeeting(matterId: string, start: string): Promise<MatterMoveResponse>;
 }
 
 export type MatterOpenItem = NonNullable<MatterViewResponse['matters']>[number];
@@ -153,6 +198,22 @@ export function createMatterService(deps: MatterServiceDeps): MatterService {
     listOpen: async () => (await call(CALLABLES.matterView, {}, (raw) => matterViewResponseSchema.safeParse(raw))).matters ?? [],
     getPage: async (matterId) =>
       (await call(CALLABLES.matterView, validated(matterViewRequestSchema, { matterId }), (raw) => matterViewResponseSchema.safeParse(raw))).page,
+    setStatus: async (matterId, action) =>
+      call(CALLABLES.matterSetStatus, validated(matterSetStatusRequestSchema, { matterId, action }), (raw) => matterSetStatusResponseSchema.safeParse(raw)),
+    change: async (matterId, text) =>
+      call(CALLABLES.matterChange, validated(matterChangeRequestSchema, { matterId, text: text.trim() }), (raw) => matterDraftResponseSchema.safeParse(raw)),
+    confirmChange: async (matterId, draftHash) =>
+      call(CALLABLES.matterChange, validated(matterChangeRequestSchema, { matterId, draftHash }), (raw) => matterDraftResponseSchema.safeParse(raw)),
+    ask: async (input) =>
+      call(CALLABLES.matterAsk, validated(matterAskRequestSchema, { ...input, text: input.text.trim() }), (raw) => matterAskResponseSchema.safeParse(raw)),
+    speak: async (input) =>
+      call(CALLABLES.matterSpeak, validated(matterSpeakRequestSchema, { ...input, text: input.text.trim() }), (raw) => matterSpeakResponseSchema.safeParse(raw)),
+    message: async (matterId, text) =>
+      call(CALLABLES.matterMessage, validated(matterMessageRequestSchema, { matterId, text: text.trim() }), (raw) => matterMessageResponseSchema.safeParse(raw)),
+    readNewTime: async (matterId, text) =>
+      call(CALLABLES.matterMove, validated(matterMoveRequestSchema, { matterId, text: text.trim() }), (raw) => matterMoveResponseSchema.safeParse(raw)),
+    moveMeeting: async (matterId, start) =>
+      call(CALLABLES.matterMove, validated(matterMoveRequestSchema, { matterId, start }), (raw) => matterMoveResponseSchema.safeParse(raw)),
   };
 }
 

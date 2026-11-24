@@ -54,6 +54,12 @@ function matter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     bouncedRecipients: [],
     pendingApprovals: 0,
     dailyCounts: null,
+    scheduling: 'ask',
+    offeredSlots: [],
+    booking: null,
+    resumedAt: null,
+    pendingChange: null,
+    usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0, emails: 0, speechChars: 0 },
     ...overrides,
   };
 }
@@ -163,7 +169,7 @@ describe('matters store (emulator)', () => {
     const card = {
       kind: 'unclear' as const, status: 'pending' as const, reason: null, quote: null, from: null, draft: null, draftHash: null, threading: null,
       guardFlags: [], sendOutcome: null, sendState: 'none' as const, sendClaimedAt: null, auto: false, sourceMessageId: messageId,
-      createdAt: ISO, updatedAt: ISO, decidedAt: null,
+      createdAt: ISO, updatedAt: ISO, decidedAt: null, slot: null, offers: [],
     };
     await store.updateMatter('alice', 'm1', () => ({
       result: null,

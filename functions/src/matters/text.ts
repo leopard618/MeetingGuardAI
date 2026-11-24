@@ -6,7 +6,7 @@
  * punctuation only (CONTRIBUTING: no em or en dashes, ellipsis characters or curly quotes).
  */
 import type { Language } from '../shared/aiContract';
-import type { Mandate } from './model';
+import type { Mandate, MatterDoc, SchedulingMode, Slot } from './model';
 
 const LOCALES: Readonly<Record<Language, string>> = { en: 'en-US', es: 'es-ES' };
 
@@ -72,7 +72,7 @@ function list(items: readonly string[], language: Language): string {
 }
 
 /** The mandate in plain words, in the user's language. */
-export function readBack(mandate: Mandate, ownerEmail: string | null, language: Language): string {
+export function readBack(mandate: Mandate, ownerEmail: string | null, language: Language, scheduling: SchedulingMode = 'ask'): string {
   const z = mandate.timeZone;
   const who = list(mandate.contacts.map((c) => `${c.name} (${c.email})`), language);
   const lines: string[] = [];
@@ -84,7 +84,11 @@ export function readBack(mandate: Mandate, ownerEmail: string | null, language: 
       const when = mandate.meeting.windows.length
         ? `en un hueco libre de tu agenda: ${mandate.meeting.windows.map((w) => formatWindow(w, z, language)).join('; ')}`
         : 'en un hueco libre de tu agenda antes de la fecha límite';
-      lines.push(`Reunión: ${mandate.meeting.durationMinutes} minutos, ${when}. Antes de reservarla te pido confirmación.`);
+      lines.push(
+        scheduling === 'auto'
+          ? `Reunión: ${mandate.meeting.durationMinutes} minutos, ${when}. Cuando elija una hora libre, la reservo en tu agenda y le envío la confirmación.`
+          : `Reunión: ${mandate.meeting.durationMinutes} minutos, ${when}. Antes de reservarla te pido confirmación.`,
+      );
     }
     lines.push(
       mandate.followUp.maxCount > 0
@@ -108,7 +112,11 @@ export function readBack(mandate: Mandate, ownerEmail: string | null, language: 
       const when = mandate.meeting.windows.length
         ? `at a free time in your calendar: ${mandate.meeting.windows.map((w) => formatWindow(w, z, language)).join('; ')}`
         : 'at a free time in your calendar before the end date';
-      lines.push(`Meeting: ${mandate.meeting.durationMinutes} minutes, ${when}. I ask you before booking it.`);
+      lines.push(
+        scheduling === 'auto'
+          ? `Meeting: ${mandate.meeting.durationMinutes} minutes, ${when}. When they pick a free time, I book it in your calendar and send the confirmation.`
+          : `Meeting: ${mandate.meeting.durationMinutes} minutes, ${when}. I ask you before booking it.`,
+      );
     }
     lines.push(
       mandate.followUp.maxCount > 0
@@ -147,6 +155,11 @@ export const QUESTIONS = {
       : 'The meeting times you gave are already past or after the end date. Which days and times work for you?',
   contact: (language: Language) =>
     language === 'es' ? '¿A quién debo escribir? Dime su nombre y su correo.' : 'Who should I email? Tell me their name and email address.',
+  // A3: a change of a running matter keeps its contacts
+  sameContacts: (language: Language) =>
+    language === 'es'
+      ? 'Un cambio mantiene a las mismas personas. Para escribir a alguien nuevo, empieza un asunto nuevo.'
+      : 'A change keeps the same people. To write to someone new, start a new matter.',
   unclear: (language: Language) =>
     language === 'es'
       ? 'No he entendido bien el encargo. ¿Puedes decirme a quién escribo, qué pido y hasta cuándo?'
@@ -251,3 +264,192 @@ export function matterTaskOrigin(input: { contactName: string; title: string; la
     ? `Del correo de ${name} en el asunto "${title}" (asistente de IA de Meeting Guard AI).`
     : `From the email of ${name} in the matter "${title}" (Meeting Guard AI assistant).`;
 }
+
+// ---------------------------------------------------------------------------------------------
+// A3: scheduling and the timeline
+// ---------------------------------------------------------------------------------------------
+
+/** The first name of a contact, for the greeting ("Carlos Ruiz" -> "Carlos"). */
+export function greetingName(name: string): string {
+  return safeDisplayName(name).split(' ')[0] ?? '';
+}
+
+/** "Tue, Nov 17, 10:00 AM" in the zone (the zone is said once, separately). */
+export function formatSlotStart(slot: Slot, timeZone: string, language: Language): string {
+  return formatInstant(slot.start, timeZone, language);
+}
+
+/** "Tue, Nov 17, 10:00 AM to 10:30 AM" in the zone. */
+export function formatSlot(slot: Slot, timeZone: string, language: Language): string {
+  return formatWindow(slot, timeZone, language);
+}
+
+/**
+ * The email with free times: a FIXED template filled by code (the times come from the calendar,
+ * never from the model). Numbered, so "the second one" can be read back. No name after the closing:
+ * the code signs it (email.ts).
+ */
+export function offerTimesText(input: {
+  contactName: string;
+  ownerName: string;
+  slots: readonly Slot[];
+  durationMinutes: number;
+  timeZone: string;
+  language: Language;
+  /** The contact asked for a time with no free time: these are the nearest ones. */
+  nearest?: boolean;
+}): string {
+  const name = greetingName(input.contactName);
+  const owner = safeDisplayName(input.ownerName);
+  const lines = input.slots.map((slot, i) => `${i + 1}. ${formatSlotStart(slot, input.timeZone, input.language)}`).join(String.fromCharCode(10));
+  if (input.language === 'es') {
+    const meeting = `una reunión de ${input.durationMinutes} minutos (hora de ${input.timeZone})`;
+    const intro = input.nearest
+      ? `Gracias. ${owner ? `${owner} no tiene` : 'No hay'} horas libres en ese momento, así que estas son las más cercanas para ${meeting}:`
+      : `Gracias. Estas horas le vienen bien${owner ? ` a ${owner}` : ''} para ${meeting}:`;
+    return `Hola${name ? ` ${name}` : ''},
+
+${intro}
+
+${lines}
+
+¿Cuál le va mejor? Si ninguna le encaja, dígame una hora que sí.
+
+Saludos,`;
+  }
+  const meeting = `a ${input.durationMinutes} minute meeting (${input.timeZone} time)`;
+  const intro = input.nearest
+    ? `Thank you. ${owner ? `${owner} has` : 'There is'} no free time then, so these are the nearest free times for ${meeting}:`
+    : `Thank you. These times work${owner ? ` for ${owner}` : ''} for ${meeting}:`;
+  return `Hello${name ? ` ${name}` : ''},
+
+${intro}
+
+${lines}
+
+Which one suits you best? If none of them works, tell me a time that does.
+
+Best,`;
+}
+
+/** The confirmation of a booked meeting: a fixed template filled by code. */
+export function confirmationText(input: { contactName: string; ownerName: string; slot: Slot; timeZone: string; language: Language }): string {
+  const name = greetingName(input.contactName);
+  const owner = safeDisplayName(input.ownerName);
+  const when = formatSlot(input.slot, input.timeZone, input.language);
+  if (input.language === 'es') {
+    const has = owner ? ` ${owner} ya la tiene en su agenda.` : ' Ya está en la agenda.';
+    return `Hola${name ? ` ${name}` : ''},
+
+Gracias. La reunión queda confirmada: ${when} (hora de ${input.timeZone}).${has}
+
+Saludos,`;
+  }
+  const has = owner ? ` ${owner} has it in the calendar.` : ' It is in the calendar.';
+  return `Hello${name ? ` ${name}` : ''},
+
+Thank you. The meeting is confirmed: ${when} (${input.timeZone} time).${has}
+
+Best,`;
+}
+
+/**
+ * A3 feedback: the email that tells the contact the owner moved the meeting: a fixed template filled by
+ * code (both times come from the calendar, never from the model). It only goes out when the owner
+ * sends the meeting_moved card.
+ */
+export function movedText(input: { contactName: string; ownerName: string; from: Slot; to: Slot; timeZone: string; language: Language }): string {
+  const name = greetingName(input.contactName);
+  const owner = safeDisplayName(input.ownerName);
+  const when = formatSlot(input.to, input.timeZone, input.language);
+  const before = formatSlot(input.from, input.timeZone, input.language);
+  if (input.language === 'es') {
+    return `Hola${name ? ` ${name}` : ''},
+
+Un cambio${owner ? ` de parte de ${owner}` : ''}: la reunión pasa a ser ${when} (hora de ${input.timeZone}), en lugar de ${before}. ¿Le viene bien la nueva hora?
+
+Saludos,`;
+  }
+  return `Hello${name ? ` ${name}` : ''},
+
+A change${owner ? ` from ${owner}` : ''}: the meeting is now ${when} (${input.timeZone} time), instead of ${before}. Does the new time work for you?
+
+Best,`;
+}
+
+/** A3 feedback: what matterMove answers when it cannot read one new time (code, EN and ES). */
+export const MOVE_TEXT = {
+  noBooking: (language: Language) =>
+    language === 'es' ? 'Este asunto no tiene ninguna reunión reservada que mover.' : 'This matter has no booked meeting to move.',
+  noTime: (language: Language) =>
+    language === 'es' ? '¿A qué día y hora la muevo? Por ejemplo: el viernes a las 16:00.' : 'Which day and time should I move it to? For example: Friday at 4 pm.',
+  past: (language: Language) =>
+    language === 'es' ? 'Esa hora ya ha pasado. ¿A qué día y hora la muevo?' : 'That time has already passed. Which day and time should I move it to?',
+  same: (language: Language) => (language === 'es' ? 'La reunión ya está a esa hora.' : 'The meeting is already at that time.'),
+} as const;
+
+/** The booked meeting's title in the owner's calendar. */
+export function meetingTitle(title: string, contactName: string): string {
+  const contact = safeDisplayName(contactName);
+  return (contact ? `${title.trim()} (${contact})` : title.trim()).slice(0, 200);
+}
+
+/** The booked meeting's description: where it came from (never email text). */
+export function meetingOrigin(input: { title: string; contactName: string; language: Language }): string {
+  const name = input.contactName.trim();
+  const title = input.title.trim();
+  return input.language === 'es'
+    ? `Reservada por tu asistente de IA (Meeting Guard AI) en el asunto "${title}" con ${name}.`
+    : `Booked by your AI assistant (Meeting Guard AI) in the matter "${title}" with ${name}.`;
+}
+
+/** A3: what matterAsk says when the answer is not a status the model gave (code, EN and ES). */
+export const ASK_TEXT = {
+  newMatter: (language: Language) =>
+    language === 'es' ? 'Lo preparo como un asunto nuevo y te enseño el plan antes de enviar nada.' : 'I will set this up as a new matter and show you the plan before anything is sent.',
+  noMatters: (language: Language) =>
+    language === 'es' ? 'Ahora mismo no tienes ningún asunto abierto.' : 'You have no open matters right now.',
+  whichMatter: (titles: readonly string[], language: Language) =>
+    language === 'es' ? `¿De qué asunto hablas? ${list(titles.map((t) => `"${t}"`), language)}.` : `Which matter do you mean? ${list(titles.map((t) => `"${t}"`), language)}.`,
+  alreadyPaused: (title: string, language: Language) =>
+    language === 'es' ? `"${title}" ya no está en marcha.` : `"${title}" is not running right now.`,
+  notPaused: (title: string, language: Language) =>
+    language === 'es' ? `"${title}" no está en pausa.` : `"${title}" is not paused.`,
+  confirm: (intent: 'pause' | 'resume' | 'cancel' | 'change' | 'move_meeting' | 'message', title: string, language: Language): string => {
+    if (language === 'es') {
+      if (intent === 'pause') return `¿Pongo en pausa "${title}"? Mientras esté en pausa no se envía nada.`;
+      if (intent === 'resume') return `¿Reanudo "${title}"?`;
+      if (intent === 'cancel') return `¿Cancelo "${title}"? El asistente deja de escribir para siempre.`;
+      if (intent === 'move_meeting') return `Leo la nueva hora y te la enseño antes de mover la reunión de "${title}".`;
+      if (intent === 'message') return `Escribo el correo de "${title}" y te lo enseño antes de enviar nada.`;
+      return `Preparo el cambio de "${title}" y te enseño el plan nuevo antes de aplicarlo.`;
+    }
+    if (intent === 'pause') return `Pause "${title}"? Nothing is sent while it is paused.`;
+    if (intent === 'resume') return `Resume "${title}"?`;
+    if (intent === 'cancel') return `Cancel "${title}"? The assistant stops writing for good.`;
+    if (intent === 'move_meeting') return `I will read the new time and show it to you before I move the meeting of "${title}".`;
+    if (intent === 'message') return `I will write the email for "${title}" and show it to you before anything is sent.`;
+    return `I will draft the change to "${title}" and show you the new plan before it applies.`;
+  },
+  /** A status line from the matter alone (when the model fails or says nothing). */
+  status: (doc: MatterDoc, language: Language): string => {
+    const zone = doc.mandate?.timeZone ?? doc.timeZone;
+    const es = language === 'es';
+    const state = es
+      ? { draft: 'es un borrador', active: 'está en marcha', paused: 'está en pausa', done: 'está terminado', cancelled: 'está cancelado' }[doc.status]
+      : { draft: 'is a draft', active: 'is running', paused: 'is paused', done: 'is done', cancelled: 'is cancelled' }[doc.status];
+    const parts = [`"${doc.title}" ${state}.`];
+    if (doc.booking) parts.push(es ? `La reunión está reservada para el ${formatInstant(doc.booking.start, zone, language)}.` : `The meeting is booked for ${formatInstant(doc.booking.start, zone, language)}.`);
+    if (doc.lastInboundAt) parts.push(es ? `La última respuesta llegó el ${formatDay(doc.lastInboundAt, zone, language)}.` : `The last reply came on ${formatDay(doc.lastInboundAt, zone, language)}.`);
+    parts.push(
+      doc.pendingApprovals > 0
+        ? es
+          ? `Tienes ${doc.pendingApprovals} ${doc.pendingApprovals === 1 ? 'cosa pendiente' : 'cosas pendientes'} de decidir.`
+          : `${doc.pendingApprovals} ${doc.pendingApprovals === 1 ? 'thing waits' : 'things wait'} for you.`
+        : es
+          ? 'No hay nada pendiente para ti.'
+          : 'Nothing waits for you.',
+    );
+    return parts.join(' ');
+  },
+} as const;

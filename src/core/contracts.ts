@@ -1977,6 +1977,14 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   matterCancel: { request: 'matterCancelRequestSchema', response: 'matterCancelResponseSchema' },
   matterDecide: { request: 'matterDecideRequestSchema', response: 'matterDecideResponseSchema' },
   matterView: { request: 'matterViewRequestSchema', response: 'matterViewResponseSchema' },
+  // A3: pause and resume, change, questions by voice or text, the natural voice (demo only).
+  matterSetStatus: { request: 'matterSetStatusRequestSchema', response: 'matterSetStatusResponseSchema' },
+  matterChange: { request: 'matterChangeRequestSchema', response: 'matterDraftResponseSchema' },
+  matterAsk: { request: 'matterAskRequestSchema', response: 'matterAskResponseSchema' },
+  matterSpeak: { request: 'matterSpeakRequestSchema', response: 'matterSpeakResponseSchema' },
+  // A3 feedback: write to the contact now, move the booked meeting (each makes a card the owner sends).
+  matterMessage: { request: 'matterMessageRequestSchema', response: 'matterMessageResponseSchema' },
+  matterMove: { request: 'matterMoveRequestSchema', response: 'matterMoveResponseSchema' },
 };
 
 // =============================================================================================

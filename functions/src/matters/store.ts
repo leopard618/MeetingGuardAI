@@ -39,7 +39,9 @@ import {
   type MatterProposal,
   type MatterReadQueue,
   type MatterSchedule,
+  type MatterUsage,
   type StoredMessage,
+  matterEventSchema,
 } from './model';
 
 export interface MatterLookup {
@@ -90,6 +92,20 @@ export type ProposalUpdate<T> = {
   task?: { id: string; doc: Record<string, unknown> };
   events?: MatterEvent[];
 };
+
+/**
+ * A3: what bookMeeting decides. createMeeting: create users/{uid}/meetings/{meetingId} (create(),
+ * so a second booking of the same matter fails instead of overwriting) and point the tasks in
+ * linkTasks at it, in the same transaction as the matter's patch, events, cards and schedule.
+ */
+export type BookingUpdate<T> = MatterUpdate<T> & { createMeeting?: boolean; linkTasks?: string[] };
+
+/**
+ * A3 feedback: what moveMeeting decides. meetingPatch: the booked meeting's new fields (its time, with
+ * pushPending so the app pushes it to Google Calendar and Outlook), written in the same
+ * transaction as the matter's patch, events, cards and schedule.
+ */
+export type MoveUpdate<T> = MatterUpdate<T> & { meetingPatch?: Record<string, unknown> };
 
 /** The outcome of claiming a read (claimRead). */
 export type ReadClaim =
@@ -193,6 +209,27 @@ export interface MatterStore {
   listCards(uid: string, matterId: string, status: MatterApproval['status']): Promise<{ id: string; doc: MatterApproval }[]>;
   /** matterView: a matter's proposed commitments with this status. */
   listProposals(uid: string, matterId: string, status: MatterProposal['status']): Promise<{ id: string; doc: MatterProposal }[]>;
+
+  // ---- A3 ----
+  /** The matter's timeline, newest first (an event that does not parse is left out). */
+  listEvents(uid: string, matterId: string, limit: number): Promise<MatterEvent[]>;
+  /**
+   * Books the matter's meeting: reads the matter, whether the meeting document exists and which of
+   * `taskIds` exist, then writes what `decide` says, all in one transaction.
+   */
+  bookMeeting<T>(
+    uid: string,
+    matterId: string,
+    input: { meetingId: string; meeting: Record<string, unknown>; taskIds: readonly string[] },
+    decide: (matter: MatterDoc | null, meetingExists: boolean, existingTasks: readonly string[]) => BookingUpdate<T>,
+  ): Promise<T>;
+  /**
+   * A3 feedback: moves the booked meeting: reads the matter and users/{uid}/meetings/{meetingId} (null when
+   * missing), then writes what `decide` says, all in one transaction.
+   */
+  moveMeeting<T>(uid: string, matterId: string, meetingId: string, decide: (matter: MatterDoc | null, meeting: Record<string, unknown> | null) => MoveUpdate<T>): Promise<T>;
+  /** Adds to the matter's usage counters (field increments; no transaction). */
+  addUsage(uid: string, matterId: string, delta: Partial<MatterUsage>): Promise<void>;
 }
 
 /** Reads tolerate fields this version does not know (matterDocReadSchema); a real mismatch throws. */
@@ -276,7 +313,9 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
         // create(): an id that is already indexed fails the batch instead of being re-pointed
         batch.create(db.collection(MATTER_MESSAGE_IDS_COLLECTION).doc(messageIdKey(message.rfcMessageId)), { uid, matterId, createdAt: message.at });
       }
-      batch.update(ref, { ...options.patch, updatedAt: message.at });
+      // A3: every email we send counts on the matter's usage (its cost)
+      const counted = message.direction === 'outbound' ? { 'usage.emails': FieldValue.increment(1) } : {};
+      batch.update(ref, { ...options.patch, ...counted, updatedAt: message.at });
       if (options.card) batch.update(ref.collection(MATTER_APPROVALS_SUBCOLLECTION).doc(options.card.id), { ...options.card.patch, updatedAt: message.at });
       if (options.schedule) writeSchedule(batch, uid, matterId, options.schedule.nextActionAt);
       await batch.commit();
@@ -427,6 +466,54 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
         const proposal = parseProposal(doc.data());
         return proposal ? [{ id: doc.id, doc: proposal }] : [];
       });
+    },
+    async listEvents(uid, matterId, limit) {
+      const snapshot = await matterRef(uid, matterId).collection(MATTER_EVENTS_SUBCOLLECTION).orderBy('at', 'desc').limit(limit).get();
+      return snapshot.docs.flatMap((doc) => {
+        const parsed = matterEventSchema.safeParse(doc.data());
+        return parsed.success ? [parsed.data] : [];
+      });
+    },
+    async bookMeeting(uid, matterId, input, decide) {
+      const ref = matterRef(uid, matterId);
+      const meetingRef = db.doc(`users/${uid}/meetings/${input.meetingId}`);
+      const taskRefs = input.taskIds.map((id) => db.doc(`users/${uid}/tasks/${id}`));
+      return db.runTransaction(async (tx) => {
+        const [matterSnap, meetingSnap, ...taskSnaps] = await Promise.all([tx.get(ref), tx.get(meetingRef), ...taskRefs.map((r) => tx.get(r))]);
+        const matter = matterSnap.exists ? parseMatter(uid, matterId, matterSnap.data()) : null;
+        const existing = taskSnaps.filter((snap) => snap.exists).map((snap) => snap.id);
+        const outcome = decide(matter, meetingSnap.exists, existing);
+        if (outcome.createMeeting) tx.create(meetingRef, input.meeting);
+        for (const id of outcome.linkTasks ?? []) {
+          if (existing.includes(id)) tx.update(db.doc(`users/${uid}/tasks/${id}`), { meetingId: input.meetingId, updatedAt: String(input.meeting.createdAt) });
+        }
+        if (outcome.patch && matter) tx.update(ref, outcome.patch);
+        for (const event of outcome.events ?? []) tx.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
+        for (const card of outcome.cards ?? []) tx.create(ref.collection(MATTER_APPROVALS_SUBCOLLECTION).doc(card.id), card.doc);
+        if (outcome.schedule) writeSchedule(tx, uid, matterId, outcome.schedule.nextActionAt);
+        return outcome.result;
+      });
+    },
+    async moveMeeting(uid, matterId, meetingId, decide) {
+      const ref = matterRef(uid, matterId);
+      const meetingRef = db.doc(`users/${uid}/meetings/${meetingId}`);
+      return db.runTransaction(async (tx) => {
+        const [matterSnap, meetingSnap] = await Promise.all([tx.get(ref), tx.get(meetingRef)]);
+        const matter = matterSnap.exists ? parseMatter(uid, matterId, matterSnap.data()) : null;
+        const outcome = decide(matter, meetingSnap.exists ? (meetingSnap.data() as Record<string, unknown>) : null);
+        if (outcome.meetingPatch && meetingSnap.exists) tx.update(meetingRef, outcome.meetingPatch);
+        if (outcome.patch && matter) tx.update(ref, outcome.patch);
+        for (const event of outcome.events ?? []) tx.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
+        for (const card of outcome.cards ?? []) tx.create(ref.collection(MATTER_APPROVALS_SUBCOLLECTION).doc(card.id), card.doc);
+        if (outcome.schedule) writeSchedule(tx, uid, matterId, outcome.schedule.nextActionAt);
+        return outcome.result;
+      });
+    },
+    async addUsage(uid, matterId, delta) {
+      const fields: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(delta)) if (typeof value === 'number' && value > 0) fields[`usage.${key}`] = FieldValue.increment(Math.round(value));
+      if (Object.keys(fields).length === 0) return;
+      await matterRef(uid, matterId).update(fields);
     },
   };
 

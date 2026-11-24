@@ -107,4 +107,27 @@ describe('matterService', () => {
     ]);
     await expect(service.getPage('bad/id')).rejects.toMatchObject({ code: 'invalid_input' });
   });
+
+  it('A3: pauses, drafts and confirms a change, asks and speaks, with validated requests and answers', async () => {
+    const CHANGE = { ...DRAFT, status: 'active', firstEmail: null };
+    const { calls, service } = setup((name) => {
+      if (name === CALLABLES.matterSetStatus) return { matterId: 'm1', status: 'paused' };
+      if (name === CALLABLES.matterChange) return CHANGE;
+      if (name === CALLABLES.matterAsk) return { intent: 'status', matterId: 'm1', title: 'Proposal from Carlos', answer: 'No reply yet.' };
+      return { audioBase64: 'aGVsbG8=', chars: 13, estCostUsd: 0.0002 };
+    });
+    await expect(service.setStatus('m1', 'pause')).resolves.toEqual({ matterId: 'm1', status: 'paused' });
+    await expect(service.change('m1', ' Move it to Monday ')).resolves.toEqual(CHANGE);
+    await service.confirmChange('m1', HASH);
+    await expect(service.ask({ text: ' News? ', language: 'es', matterId: 'm1' })).resolves.toMatchObject({ intent: 'status' });
+    await expect(service.speak({ text: 'No reply yet.', language: 'en' })).resolves.toMatchObject({ chars: 13 });
+    expect(calls.map((c) => [c.name, c.request])).toEqual([
+      [CALLABLES.matterSetStatus, { matterId: 'm1', action: 'pause' }],
+      [CALLABLES.matterChange, { matterId: 'm1', text: 'Move it to Monday' }],
+      [CALLABLES.matterChange, { matterId: 'm1', draftHash: HASH }],
+      [CALLABLES.matterAsk, { text: 'News?', language: 'es', matterId: 'm1' }],
+      [CALLABLES.matterSpeak, { text: 'No reply yet.', language: 'en' }],
+    ]);
+    await expect(service.confirmChange('m1', 'short')).rejects.toMatchObject({ code: 'invalid_input' });
+  });
 });
