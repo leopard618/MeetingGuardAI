@@ -3,7 +3,7 @@
 All notable changes to Meeting Guard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
-## [Unreleased] - Executive assistant prototype (A1 to A3, switched off)
+## [Unreleased] - Executive assistant (A1 to A4, switched off)
 
 The AI executive assistant of the November 10, 2026 plan, built in steps. Nothing here is visible
 to users: the assistant stays switched off in every release until its beta (A10).
@@ -158,6 +158,28 @@ to users: the assistant stays switched off in every release until its beta (A10)
     contact too;
   - voice: the microphone is off while the assistant speaks, so the phone's speaker can no longer
     write the assistant's own words into the box; tapping Speak stops the voice and listens.
+- **A4, security, limits and metering** (first part; the Microsoft mailbox follows), switched off
+  like A1 to A3:
+  - a written threat model, for Dusko's review and signature (docs/v2/A4-THREAT-MODEL.md), with
+    every limit in one table and each control tied to its code and test;
+  - a spending cap per user per day (MATTERS_USER_DAILY_SPEND_CENTS, USD 1.00 by default): every
+    model call and the natural voice are priced (OPENAI_PRICE_* or high fallback prices) and
+    counted on matterSpend; at the cap no model call is made, and a reply that arrives meanwhile
+    becomes one card and stays unread;
+  - the monthly allowance of the plan (10 matters, 100 emails, 30 natural-voice minutes;
+    MATTERS_MONTHLY_*), counted on usage/{uid}/months; at most 20 running matters per user;
+    every "limit reached" message says which limit;
+  - retention: the emails of a closed matter are deleted MATTERS_RETENTION_DAYS later (90 by
+    default), the timeline stays; the owner can delete a matter at any time ("Delete this matter",
+    new callable matterDelete); account deletion removes the new collections too;
+  - an on/off switch without a deploy (matterSettings/global), set from the admin dashboard
+    (matterAdminSwitch); off, nothing is sent, read or booked, and replies wait unread;
+  - each user's cost per day for the admin dashboard (matterAdminUsage), and the usage meter for
+    the app (matterUsage), shown on the matters screen;
+  - the content guard knows more EN and ES money and contract terms (bank details, payment apps,
+    crypto, quotations, taxes; e-signatures, liability, licences, purchase orders) and flags
+    promises made for the owner;
+  - the Gmail application prepared for the later phase (docs/v2/A4-GMAIL-APPLICATION.md).
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 

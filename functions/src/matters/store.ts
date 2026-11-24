@@ -7,6 +7,11 @@
  * (matterReadQueue), all in the same transaction as the matter. Cards and commitments have their
  * own transactions for matterDecide (updateCard, decideProposal; the accepted task is created in
  * the same transaction as the commitment's status).
+ *
+ * A4: every patch that closes a matter (it carries endedAt) also writes matterRetention/{matterId}
+ * in the same transaction or batch, so the emails are deleted MATTERS_RETENTION_DAYS later
+ * (purgeMatter). The day's spend (matterSpend) and the monthly allowance (usage/{uid}/months)
+ * are counted here too; deleteMatter removes a matter with everything that points at it.
  */
 import * as logger from 'firebase-functions/logger';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
@@ -22,7 +27,19 @@ import {
   MATTER_MESSAGE_IDS_COLLECTION,
   MATTER_PROPOSALS_SUBCOLLECTION,
   MATTER_READ_QUEUE_COLLECTION,
+  MATTER_RETENTION_COLLECTION,
   MATTER_SCHEDULE_COLLECTION,
+  MATTER_SPEND_COLLECTION,
+  EMPTY_MONTHLY,
+  MONTHLY_FIELDS,
+  endedAtOf,
+  matterRetentionSchema,
+  matterSpendId,
+  usageMonthPath,
+  type MatterRetention,
+  type MatterSpendDelta,
+  type MonthlyCounts,
+  type MonthlyField,
   matterApprovalReadSchema,
   matterDocReadSchema,
   matterMessageReadSchema,
@@ -230,6 +247,38 @@ export interface MatterStore {
   moveMeeting<T>(uid: string, matterId: string, meetingId: string, decide: (matter: MatterDoc | null, meeting: Record<string, unknown> | null) => MoveUpdate<T>): Promise<T>;
   /** Adds to the matter's usage counters (field increments; no transaction). */
   addUsage(uid: string, matterId: string, delta: Partial<MatterUsage>): Promise<void>;
+
+  // ---- A4 ----
+  /** The user's assistant cost that UTC day in micro-dollars (matterSpend/{day}_{uid}.micros; 0 when none). */
+  getSpend(uid: string, dayKey: string): Promise<number>;
+  /** Adds to matterSpend/{day}_{uid} (field increments; no transaction). */
+  addSpend(uid: string, dayKey: string, delta: MatterSpendDelta, nowIso: string): Promise<void>;
+  /** usage/{uid}/days/{day}: drafts (matterDrafts) and emails (matterSends) counted that day. */
+  getDaily(uid: string, dayKey: string): Promise<{ drafts: number; sends: number }>;
+  /** usage/{uid}/months/{month}: the allowance counters (zeros when none). */
+  getMonthly(uid: string, monthKey: string): Promise<MonthlyCounts>;
+  /**
+   * Adds `amounts` to the month's counters in a transaction, only when every one of them stays
+   * within its limit (a limit left out is not checked). Resolves the first field that would go
+   * over (nothing counted), or null when counted.
+   */
+  consumeMonthly(uid: string, monthKey: string, amounts: Partial<MonthlyCounts>, limits: Partial<MonthlyCounts>, nowIso: string): Promise<MonthlyField | null>;
+  /**
+   * One assistant email: the day's send cap (usage/{uid}/days/{day}.matterSends) and the month's
+   * emails (usage/{uid}/months/{month}.emails; monthlyLimit null = not checked) in ONE transaction.
+   */
+  consumeSend(uid: string, dayKey: string, dailyLimit: number, monthKey: string, monthlyLimit: number | null, nowIso: string): Promise<'ok' | 'daily' | 'monthly'>;
+  /** matterRetention entries of matters that closed at or before `beforeIso` (oldest first). */
+  dueRetention(beforeIso: string, limit: number): Promise<MatterRetention[]>;
+  /**
+   * Deletes the email texts of a closed matter: its messages and proposals, the text on its cards
+   * (draft, quote, sender), its first email, and the lookups that point at it; the matter, its
+   * cards and its timeline stay. Removes the retention entry. 'gone': no matter; 'not_ended': it
+   * runs again (nothing deleted).
+   */
+  purgeMatter(uid: string, matterId: string, nowIso: string): Promise<'purged' | 'gone' | 'not_ended'>;
+  /** Deletes the matter with every subcollection and every document that points at it; false when missing. */
+  deleteMatter(uid: string, matterId: string): Promise<boolean>;
 }
 
 /** Reads tolerate fields this version does not know (matterDocReadSchema); a real mismatch throws. */
@@ -290,6 +339,7 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
         const snapshot = await tx.get(ref);
         const outcome = decide(snapshot.exists ? parseMatter(uid, matterId, snapshot.data()) : null);
         if (outcome.patch) tx.update(ref, outcome.patch);
+        if (outcome.patch && snapshot.exists) markEnded(tx, uid, matterId, outcome.patch);
         for (const event of outcome.events ?? []) tx.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
         for (const card of outcome.cards ?? []) tx.create(ref.collection(MATTER_APPROVALS_SUBCOLLECTION).doc(card.id), card.doc);
         for (const proposal of outcome.proposals ?? []) tx.create(ref.collection(MATTER_PROPOSALS_SUBCOLLECTION).doc(proposal.id), proposal.doc);
@@ -316,6 +366,7 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
       // A3: every email we send counts on the matter's usage (its cost)
       const counted = message.direction === 'outbound' ? { 'usage.emails': FieldValue.increment(1) } : {};
       batch.update(ref, { ...options.patch, ...counted, updatedAt: message.at });
+      markEnded(batch, uid, matterId, options.patch);
       if (options.card) batch.update(ref.collection(MATTER_APPROVALS_SUBCOLLECTION).doc(options.card.id), { ...options.card.patch, updatedAt: message.at });
       if (options.schedule) writeSchedule(batch, uid, matterId, options.schedule.nextActionAt);
       await batch.commit();
@@ -338,6 +389,7 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
       batch.create(messageRef, message);
       batch.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), { ...event, messageId: messageRef.id });
       batch.update(ref, { ...patch, updatedAt: message.at });
+      markEnded(batch, uid, matterId, patch);
       try {
         await batch.commit();
         return 'stored';
@@ -416,6 +468,7 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
         const outcome = decide(matter, cardSnap.exists ? parseCard(cardSnap.data()) : null);
         if (outcome.card) tx.update(cardRef, outcome.card);
         if (outcome.patch && matter) tx.update(ref, outcome.patch);
+        if (outcome.patch && matter) markEnded(tx, uid, matterId, outcome.patch);
         for (const event of outcome.events ?? []) tx.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
         if (outcome.schedule) writeSchedule(tx, uid, matterId, outcome.schedule.nextActionAt);
         return outcome.result;
@@ -488,6 +541,7 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
           if (existing.includes(id)) tx.update(db.doc(`users/${uid}/tasks/${id}`), { meetingId: input.meetingId, updatedAt: String(input.meeting.createdAt) });
         }
         if (outcome.patch && matter) tx.update(ref, outcome.patch);
+        if (outcome.patch && matter) markEnded(tx, uid, matterId, outcome.patch);
         for (const event of outcome.events ?? []) tx.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
         for (const card of outcome.cards ?? []) tx.create(ref.collection(MATTER_APPROVALS_SUBCOLLECTION).doc(card.id), card.doc);
         if (outcome.schedule) writeSchedule(tx, uid, matterId, outcome.schedule.nextActionAt);
@@ -503,6 +557,7 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
         const outcome = decide(matter, meetingSnap.exists ? (meetingSnap.data() as Record<string, unknown>) : null);
         if (outcome.meetingPatch && meetingSnap.exists) tx.update(meetingRef, outcome.meetingPatch);
         if (outcome.patch && matter) tx.update(ref, outcome.patch);
+        if (outcome.patch && matter) markEnded(tx, uid, matterId, outcome.patch);
         for (const event of outcome.events ?? []) tx.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
         for (const card of outcome.cards ?? []) tx.create(ref.collection(MATTER_APPROVALS_SUBCOLLECTION).doc(card.id), card.doc);
         if (outcome.schedule) writeSchedule(tx, uid, matterId, outcome.schedule.nextActionAt);
@@ -515,7 +570,110 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
       if (Object.keys(fields).length === 0) return;
       await matterRef(uid, matterId).update(fields);
     },
+    // ---- A4 ----
+    async getSpend(uid, dayKey) {
+      const snapshot = await db.collection(MATTER_SPEND_COLLECTION).doc(matterSpendId(dayKey, uid)).get();
+      return Number(snapshot.get('micros') ?? 0) || 0;
+    },
+    async addSpend(uid, dayKey, delta, nowIso) {
+      const fields: Record<string, unknown> = { uid, day: dayKey, updatedAt: nowIso };
+      for (const [key, value] of Object.entries(delta)) if (typeof value === 'number' && value > 0) fields[key] = FieldValue.increment(Math.round(value));
+      await db.collection(MATTER_SPEND_COLLECTION).doc(matterSpendId(dayKey, uid)).set(fields, { merge: true });
+    },
+    async getDaily(uid, dayKey) {
+      const snapshot = await db.doc(`usage/${uid}/days/${dayKey}`).get();
+      return { drafts: Number(snapshot.get('matterDrafts') ?? 0) || 0, sends: Number(snapshot.get('matterSends') ?? 0) || 0 };
+    },
+    async getMonthly(uid, monthKey) {
+      const snapshot = await db.doc(usageMonthPath(uid, monthKey)).get();
+      return monthlyOf(snapshot.data());
+    },
+    async consumeMonthly(uid, monthKey, amounts, limits, nowIso) {
+      const ref = db.doc(usageMonthPath(uid, monthKey));
+      return db.runTransaction(async (tx) => {
+        const used = monthlyOf((await tx.get(ref)).data());
+        const over = overLimit(used, amounts, limits);
+        if (over) return over;
+        tx.set(ref, { ...increments(amounts), month: monthKey, updatedAt: nowIso }, { merge: true });
+        return null;
+      });
+    },
+    async consumeSend(uid, dayKey, dailyLimit, monthKey, monthlyLimit, nowIso) {
+      const dayRef = db.doc(`usage/${uid}/days/${dayKey}`);
+      const monthRef = db.doc(usageMonthPath(uid, monthKey));
+      return db.runTransaction(async (tx) => {
+        const [daySnap, monthSnap] = await Promise.all([tx.get(dayRef), tx.get(monthRef)]);
+        if ((Number(daySnap.get('matterSends') ?? 0) || 0) >= dailyLimit) return 'daily' as const;
+        if (monthlyLimit !== null && monthlyOf(monthSnap.data()).emails >= monthlyLimit) return 'monthly' as const;
+        tx.set(dayRef, { matterSends: FieldValue.increment(1), updatedAt: nowIso }, { merge: true });
+        tx.set(monthRef, { emails: FieldValue.increment(1), month: monthKey, updatedAt: nowIso }, { merge: true });
+        return 'ok' as const;
+      });
+    },
+    async dueRetention(beforeIso, limit) {
+      const snapshot = await db.collection(MATTER_RETENTION_COLLECTION).where('endedAt', '<=', beforeIso).orderBy('endedAt').limit(limit).get();
+      return snapshot.docs.map((doc) => matterRetentionSchema.safeParse(doc.data())).flatMap((p) => (p.success ? [p.data] : []));
+    },
+    async purgeMatter(uid, matterId, nowIso) {
+      const ref = matterRef(uid, matterId);
+      const retentionRef = db.collection(MATTER_RETENTION_COLLECTION).doc(matterId);
+      const snapshot = await ref.get();
+      if (!snapshot.exists) {
+        await retentionRef.delete();
+        return 'gone';
+      }
+      const status = snapshot.get('status');
+      if (status !== 'done' && status !== 'cancelled') {
+        await retentionRef.delete();
+        return 'not_ended';
+      }
+      await db.recursiveDelete(ref.collection(MATTER_MESSAGES_SUBCOLLECTION));
+      await db.recursiveDelete(ref.collection(MATTER_PROPOSALS_SUBCOLLECTION));
+      const cards = await ref.collection(MATTER_APPROVALS_SUBCOLLECTION).get();
+      await inBatches(cards.docs.map((doc) => (batch: FirebaseFirestore.WriteBatch) => batch.update(doc.ref, { draft: null, quote: null, from: null, threading: null, updatedAt: nowIso })));
+      await deleteLookups(uid, matterId, snapshot.get('replyToken'));
+      const batch = db.batch();
+      batch.update(ref, { firstEmail: null, purgedAt: nowIso, updatedAt: nowIso });
+      batch.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), { type: 'emails_deleted', at: nowIso, messageId: null, detail: '' });
+      batch.delete(retentionRef);
+      await batch.commit();
+      return 'purged';
+    },
+    async deleteMatter(uid, matterId) {
+      const ref = matterRef(uid, matterId);
+      const snapshot = await ref.get();
+      if (!snapshot.exists) return false;
+      await deleteLookups(uid, matterId, snapshot.get('replyToken'));
+      await db.recursiveDelete(ref);
+      await db.collection(MATTER_RETENTION_COLLECTION).doc(matterId).delete();
+      return true;
+    },
   };
+
+  /** A4: a patch that closes the matter writes its retention entry (create or overwrite). */
+  function markEnded(writer: { set: (ref: FirebaseFirestore.DocumentReference, data: object) => unknown }, uid: string, matterId: string, patch: object | undefined): void {
+    const endedAt = endedAtOf(patch);
+    if (endedAt) writer.set(db.collection(MATTER_RETENTION_COLLECTION).doc(matterId), { uid, matterId, endedAt });
+  }
+
+  /** A4: everything outside users/{uid} that points at one matter (its schedule, read queue, addresses and Message-IDs). */
+  async function deleteLookups(uid: string, matterId: string, replyToken: unknown): Promise<void> {
+    const refs: FirebaseFirestore.DocumentReference[] = [db.collection(MATTER_SCHEDULE_COLLECTION).doc(matterId)];
+    if (typeof replyToken === 'string' && replyToken.length > 0) refs.push(db.collection(MATTER_ADDRESSES_COLLECTION).doc(replyToken));
+    for (const name of [MATTER_MESSAGE_IDS_COLLECTION, MATTER_READ_QUEUE_COLLECTION]) {
+      const found = await db.collection(name).where('matterId', '==', matterId).get();
+      for (const doc of found.docs) if (doc.get('uid') === uid) refs.push(doc.ref);
+    }
+    await inBatches(refs.map((docRef) => (batch: FirebaseFirestore.WriteBatch) => batch.delete(docRef)));
+  }
+
+  async function inBatches(writes: ((batch: FirebaseFirestore.WriteBatch) => unknown)[]): Promise<void> {
+    for (let start = 0; start < writes.length; start += 400) {
+      const batch = db.batch();
+      for (const write of writes.slice(start, start + 400)) write(batch);
+      await batch.commit();
+    }
+  }
 
   function writeSchedule(writer: { set: (ref: FirebaseFirestore.DocumentReference, data: object) => unknown; delete: (ref: FirebaseFirestore.DocumentReference) => unknown }, uid: string, matterId: string, nextActionAt: string | null): void {
     const scheduleRef = db.collection(MATTER_SCHEDULE_COLLECTION).doc(matterId);
@@ -555,4 +713,31 @@ export function readClaimDecision(
   if (state === 'failed' && !input.retry) return { state: 'busy', attempts };
   if (attempts >= input.maxAttempts) return { state: 'exhausted', attempts };
   return { state: 'claimed', attempts: attempts + 1 };
+}
+
+/** usage/{uid}/months/{month} as counters (missing or damaged fields read as 0). */
+export function monthlyOf(data: unknown): MonthlyCounts {
+  const d = (data ?? {}) as Record<string, unknown>;
+  const out = { ...EMPTY_MONTHLY };
+  for (const field of MONTHLY_FIELDS) {
+    const value = Number(d[field] ?? 0);
+    out[field] = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  }
+  return out;
+}
+
+/** The first field that `amounts` would take over its limit (shared by the Firestore store and the fake). */
+export function overLimit(used: MonthlyCounts, amounts: Partial<MonthlyCounts>, limits: Partial<MonthlyCounts>): MonthlyField | null {
+  for (const field of MONTHLY_FIELDS) {
+    const amount = amounts[field] ?? 0;
+    const limit = limits[field];
+    if (amount > 0 && limit !== undefined && used[field] + amount > limit) return field;
+  }
+  return null;
+}
+
+function increments(amounts: Partial<MonthlyCounts>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const field of MONTHLY_FIELDS) if ((amounts[field] ?? 0) > 0) out[field] = FieldValue.increment(Math.round(amounts[field]!));
+  return out;
 }

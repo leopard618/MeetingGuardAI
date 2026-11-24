@@ -54,6 +54,7 @@ import {
   GlobalBudgetExhaustedError,
   acquireGlobalBudget,
   event,
+  limitError,
   matterError,
   readable,
   recordUndeliverable,
@@ -64,7 +65,10 @@ import {
   type MatterDeps,
 } from './handlers';
 import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, EmailSendError, composeMatterEmail, fromAddress, newMessageId, type OutboundEmail } from './email';
+import { claimSend } from './allowance';
+import { COST_RATES, spendAllows } from './cost';
 import { guardReply } from './guard';
+import { purgeDue } from './retention';
 import { threadSafeId } from './inbound';
 import {
   MATTER_LIMITS,
@@ -162,6 +166,14 @@ export async function handleInboundRead(ref: MessageRef, deps: MatterDeps, optio
   const { uid, matterId, messageId } = ref;
   const now = deps.now();
   const nowIso = now.toISOString();
+  if (!deps.enabled) {
+    // A4: the assistant is switched off: no model call. The reply stays unread ('none') with a read
+    // queue entry, so matterTick reads it once the switch is on again.
+    await deps.store.updateMatter(uid, matterId, (doc) =>
+      doc ? { result: null, readQueue: { messageId, doc: { uid, matterId, messageId, claimedAt: nowIso, attempts: 0 } } } : { result: null },
+    );
+    return 'deferred';
+  }
   const claim = await deps.store.claimRead(uid, matterId, messageId, {
     nowIso,
     retry: options.retry === true,
@@ -241,14 +253,16 @@ async function readClaimed(ref: MessageRef, message: StoredMessage, deps: Matter
   // a newer email of the contact: older reply drafts are out of context
   await deps.store.expireReplyDrafts(uid, matterId, nowIso);
 
-  // the day's caps, counted in a transaction: model reads per matter, and a loop guard
+  // the day's caps, counted in a transaction: model reads per matter, and a loop guard; A4: the
+  // user's spending cap of the day counts like the read cap (one card, the replies kept unread)
   const dayKey = usageDayKey(now);
   const capCardId = deps.store.newDocId();
+  const canSpend = await spendAllows(deps, uid);
   const gate = await deps.store.updateMatter<'ok' | 'capped' | 'loop' | 'gone'>(uid, matterId, (doc) => {
     if (!doc || doc.status !== 'active') return { result: 'gone' };
     const counts = countsFor(doc.dailyCounts, dayKey);
     counts.exchanges += 1;
-    const blocked = counts.exchanges > MATTER_CAPS.exchangesPerDay ? 'loop' : counts.reads >= MATTER_CAPS.readsPerDay ? 'capped' : null;
+    const blocked = counts.exchanges > MATTER_CAPS.exchangesPerDay ? 'loop' : counts.reads >= MATTER_CAPS.readsPerDay || !canSpend ? 'capped' : null;
     if (!blocked) {
       counts.reads += 1;
       return { result: 'ok', patch: { dailyCounts: counts } };
@@ -272,7 +286,7 @@ async function readClaimed(ref: MessageRef, message: StoredMessage, deps: Matter
 
   const thread = (await deps.store.listMessages(uid, matterId, THREAD_MESSAGES)).filter((m) => m.id !== messageId);
   const request = readRequest({ matter, thread, newEmail: message, contactName: contact.name, now }, safetyIdentifierFor(uid));
-  await acquireGlobalBudget(deps, readDataChars(request.messages), BUDGET_CHARS_PER_UNIT);
+  await acquireGlobalBudget(deps, readDataChars(request.messages), BUDGET_CHARS_PER_UNIT, uid);
   const completion = await deps.llm().complete(request);
   await recordUsage(deps, completion.usage, uid);
   const call = completion.toolCalls.find((c) => c.name === 'assess_reply');
@@ -544,7 +558,7 @@ export async function bookSlot(input: { uid: string; matterId: string; slot: Slo
   });
   const draft = { to, cc, subject: composed.subject.slice(0, MATTER_LIMITS.subjectChars), text: composed.text.slice(0, MATTER_LIMITS.bodyChars) };
   const check = checkSend({ matter, to, cc, now, enabled: deps.enabled, domain: deps.domain, requireFirstSent: true });
-  const claim = check.ok && (await deps.store.consumeDailySend(uid, usageDayKey(now), deps.dailySendLimit ?? DEFAULT_DAILY_SENDS, nowIso));
+  const claim = check.ok && (await claimSend(deps, uid, now)) === 'ok';
   const confirmId = deps.store.newDocId();
   const confirmation = cardDoc(
     {
@@ -665,7 +679,7 @@ async function prepareReply(input: {
   });
   if (decision.auto && !check.ok) decision = { auto: false, reason: 'other' };
   // the per-user send cap is spent only for a send that will happen
-  if (decision.auto && !(await deps.store.consumeDailySend(input.uid, input.dayKey, deps.dailySendLimit ?? DEFAULT_DAILY_SENDS, nowIso))) {
+  if (decision.auto && (await claimSend(deps, input.uid, deps.now())) !== 'ok') {
     decision = { auto: false, reason: 'cap_reached' };
   }
   const auto = decision.auto;
@@ -893,10 +907,12 @@ async function decideCard(
     throw matterError('not_allowed');
   }
   if (outcome.kind === 'done') return { matterId, id, status: outcome.status, outcome: outcome.outcome, taskId: null, matterStatus: outcome.matterStatus };
-  // the per-user cap: a send over it is released (the owner may approve again tomorrow)
-  if (!(await deps.store.consumeDailySend(caller.uid, usageDayKey(now), deps.dailySendLimit ?? DEFAULT_DAILY_SENDS, nowIso))) {
+  // the per-user caps (the day's, and A4 the month's emails): a send over one is released (the
+  // owner may approve again once it renews)
+  const claimed = await claimSend(deps, caller.uid, now);
+  if (claimed !== 'ok') {
     await deps.store.updateCard(caller.uid, matterId, id, () => ({ result: null, card: { sendState: 'failed', sendOutcome: 'failed', sendClaimedAt: null, updatedAt: nowIso } }));
-    throw matterError('rate_limited', 'Too many emails today. Try again tomorrow.');
+    throw limitError(claimed === 'daily' ? 'sends' : 'emails');
   }
   const sent = await sendCard(caller.uid, matterId, id, outcome.card, outcome.matter, deps);
   return { matterId, id, status: 'approved', outcome: sent, taskId: null, matterStatus: outcome.matter.status };
@@ -974,7 +990,7 @@ function viewItem(matterId: string, doc: MatterDoc): ViewItem {
 }
 
 /** A3: estimated prices (display only): Postmark per email, and the natural voice per character. */
-export const COST_RATES = { emailUsd: 0.0015, speechUsdPerMinute: 0.015, speechCharsPerMinute: 900 } as const;
+export { COST_RATES };
 
 /** A matter's estimated cost in USD; null when the model price is not configured. */
 export function costUsd(usage: MatterUsage, prices: { inPerM: number; outPerM: number } | undefined): number | null {
@@ -1053,6 +1069,8 @@ type TickPlan =
   | { kind: 'follow_up'; number: number; doc: MatterDoc; to: string[]; cc: string[] };
 
 export interface TickResult {
+  /** A4: closed matters whose email texts were deleted (MATTERS_RETENTION_DAYS). */
+  purged?: number;
   schedules: number;
   ended: number;
   followUps: number;
@@ -1060,9 +1078,12 @@ export interface TickResult {
 }
 
 /** One run of matterTick (see the module comment). */
-export async function runMatterTick(deps: MatterDeps, batch = { schedules: 50, reads: 20 }): Promise<TickResult> {
+export async function runMatterTick(deps: MatterDeps, batch: { schedules: number; reads: number; purges?: number } = { schedules: 50, reads: 20 }): Promise<TickResult> {
   const now = deps.now();
   const result: TickResult = { schedules: 0, ended: 0, followUps: 0, reads: 0 };
+  // A4: the retention purge runs even while the assistant is switched off; nothing else does
+  result.purged = await purgeDue(deps, batch.purges ?? 20);
+  if (!deps.enabled) return result;
   for (const entry of await deps.store.dueSchedules(now.toISOString(), batch.schedules)) {
     result.schedules += 1;
     try {
@@ -1147,8 +1168,9 @@ async function sendFollowUp(uid: string, matterId: string, plan: Extract<TickPla
       events,
       schedule: { nextActionAt: iso(Math.min(nextMs, Date.parse(mandate.endsAt))) },
     }));
-  if (!(await deps.store.consumeDailySend(uid, usageDayKey(now), deps.dailySendLimit ?? DEFAULT_DAILY_SENDS, nowIso))) {
-    logger.warn('matters.follow_up_capped', { uid, matterId });
+  const claimed = await claimSend(deps, uid, now);
+  if (claimed !== 'ok') {
+    logger.warn('matters.follow_up_capped', { uid, matterId, cap: claimed });
     await release(nextWorkingSlot(new Date(now.getTime() + 12 * 3_600_000), mandate.timeZone).getTime());
     return;
   }

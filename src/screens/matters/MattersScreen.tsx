@@ -26,7 +26,7 @@ import { Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
-import type { MatterConfirmResponse, MatterDraftResponse, MatterSendOutcome } from '../../core/aiContract';
+import type { MatterConfirmResponse, MatterDraftResponse, MatterSendOutcome, MatterUsageResponse } from '../../core/aiContract';
 import { toAppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
 import { toBaseLanguage } from '../../core/types';
@@ -67,6 +67,8 @@ export function MattersScreen(): ReactElement {
   const [busy, setBusy] = useState<Busy>(null);
   const [openMatters, setOpenMatters] = useState<MatterOpenItem[] | null>(null);
   const [openMatterId, setOpenMatterId] = useState<string | null>(null);
+  /** A4: the usage meter; null while unknown (it is a convenience: a failed read shows nothing). */
+  const [usage, setUsage] = useState<MatterUsageResponse | null>(null);
   /** A3: the matter was dictated, so the assistant answers aloud. */
   const [spoken, setSpoken] = useState(false);
   const base = toBaseLanguage(language); // M12: the executive assistant stays en/es
@@ -74,8 +76,9 @@ export function MattersScreen(): ReactElement {
   // every state update comes after the await (react-hooks/set-state-in-effect); the list is a
   // convenience, so a failed read (or the assistant off) simply shows none
   const loadOpen = useCallback(async (): Promise<void> => {
-    const list = await matterService.listOpen().catch((): MatterOpenItem[] => []);
+    const [list, meter] = await Promise.all([matterService.listOpen().catch((): MatterOpenItem[] => []), Promise.resolve().then(() => matterService.usage()).catch(() => null)]);
     setOpenMatters(list);
+    setUsage(meter);
   }, []);
 
   useEffect(() => {
@@ -304,6 +307,19 @@ export function MattersScreen(): ReactElement {
               ))}
             </ListGroup>
           </Section>
+        ) : null}
+        {usage ? (
+          <View testID="matters-usage">
+            {usage.today.capReached ? <Banner tone="warning" text={t('matters:usage.capReached')} testID="matters-usage-cap" /> : null}
+            <Text variant="bodySmall" style={[styles.explainer, { color: colors.onSurfaceVariant }]}>
+              {t('matters:usage.month', {
+                matters: usage.matters.used,
+                mattersLimit: usage.matters.limit,
+                emails: usage.emails.used,
+                emailsLimit: usage.emails.limit,
+              })}
+            </Text>
+          </View>
         ) : null}
         {openMatters && openMatters.length > 0 ? (
           <Section title={t('matters:ask.title')} testID="matters-ask-section">

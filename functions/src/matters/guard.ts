@@ -8,9 +8,14 @@
  * - contract: contracts, agreements, signatures, terms and clauses;
  * - link:     any URL, "www." or bare host name (the assistant never sends links);
  * - address:  an email address that is not a contact of the mandate or the owner;
- * - length:   longer than MATTER_LIMITS.replyChars.
- * A4 extends it. False positives are cheap (a card instead of an automatic reply); a missed term
- * is what the list guards against, so it errs on the wide side.
+ * - length:   longer than MATTER_LIMITS.replyChars;
+ * - promise:  (A4) a promise or commitment made for the owner ("I promise", "we will deliver",
+ *             "te lo garantizo"): the assistant never promises beyond the mandate.
+ * A4 widened money and contract (bank details, cards, payment apps, crypto, quotations, salaries,
+ * penalties; e-signatures, liability, warranties, licences, leases, purchase orders) and added
+ * promise (docs/v2/A4-THREAT-MODEL.md). False positives are cheap (a card instead of an automatic
+ * reply); a missed term is what the list guards against, so it errs on the wide side. A flagged
+ * draft is never sent on its own: only the owner can send it, after reading it on its card.
  */
 import type { MatterGuardFlag } from '../shared/aiContract';
 import { hasBareHost } from '../commitments/grounding';
@@ -32,6 +37,13 @@ const MONEY = words(
     'precio', 'precios', 'coste', 'costes', 'costo', 'costos', 'tarifa', 'tarifas', 'pago', 'pagos', 'pagar', 'pagado', 'pagamos',
     'factura', 'facturas', 'descuento', 'descuentos', 'reembolso', 'deposito', 'presupuesto', 'dolar', 'dolares', 'dinero',
     'transferencia', 'importe', 'cobrar', 'cobro',
+    // A4
+    'iban', 'swift', 'bic', 'bank account', 'bank details', 'account number', 'routing number', 'sort code', 'credit card', 'debit card',
+    'card number', 'cvv', 'paypal', 'venmo', 'zelle', 'stripe', 'bizum', 'crypto', 'bitcoin', 'btc', 'usdt', 'ethereum', 'quotation',
+    'quotations', 'salary', 'salaries', 'commission', 'commissions', 'penalty', 'penalties', 'tax', 'taxes', 'vat',
+    'cuenta bancaria', 'numero de cuenta', 'datos bancarios', 'tarjeta de credito', 'tarjeta de debito', 'cripto', 'criptomoneda',
+    'cotizacion', 'cotizaciones', 'salario', 'salarios', 'sueldo', 'comision', 'comisiones', 'penalizacion', 'multa', 'multas',
+    'impuesto', 'impuestos', 'iva', 'abonar', 'abono',
   ].join('|'),
 );
 const CURRENCY = /[$€£¥]|\b\d+(?:[.,]\d+)?\s?(?:k|eur|usd|euros?|dollars?|dolares?)\b/i;
@@ -42,6 +54,21 @@ const CONTRACT = words(
     'terms', 'clause', 'clauses', 'nda', 'legal', 'binding', 'commit to', 'guarantee', 'guaranteed',
     'contrato', 'contratos', 'acuerdo', 'acuerdos', 'firma', 'firmas', 'firmar', 'firmado', 'firmada', 'clausula', 'clausulas',
     'condiciones', 'terminos', 'garantia', 'garantizamos', 'vinculante',
+    // A4
+    'e-sign', 'esign', 'docusign', 'hereby', 'liability', 'liable', 'indemnify', 'indemnity', 'indemnification', 'warranty',
+    'warranties', 'license', 'licence', 'licensing', 'lease', 'leases', 'purchase order', 'statement of work', 'non-disclosure',
+    'exclusivity', 'penalty clause', 'responsabilidad legal', 'indemnizacion', 'indemnizar', 'licencia', 'licencias', 'arrendamiento',
+    'orden de compra', 'confidencialidad', 'exclusividad',
+  ].join('|'),
+);
+
+/** A4: promises and commitments made for the owner (EN and ES, accents folded). */
+const PROMISE = words(
+  [
+    'i promise', 'we promise', 'promise you', 'i guarantee', 'we guarantee', 'i assure you', 'we assure you', 'we will deliver',
+    'i will deliver', 'we commit', 'i commit', 'we are committed to', 'you have my word', 'rest assured', 'without fail',
+    'te prometo', 'le prometo', 'les prometo', 'prometemos', 'prometo', 'te lo garantizo', 'se lo garantizo', 'garantizo',
+    'te aseguro', 'le aseguro', 'nos comprometemos', 'me comprometo', 'tienes mi palabra', 'tiene mi palabra', 'sin falta',
   ].join('|'),
 );
 
@@ -61,6 +88,7 @@ export function guardReply(input: GuardInput): MatterGuardFlag[] {
   const text = fold(input.text);
   if (MONEY.test(text) || CURRENCY.test(text)) flags.add('money');
   if (CONTRACT.test(text)) flags.add('contract');
+  if (PROMISE.test(text)) flags.add('promise');
   const allowed = new Set(input.allowedAddresses.map((a) => a.trim().toLowerCase()));
   const addresses = input.text.match(EMAIL) ?? [];
   if (addresses.some((a) => !allowed.has(a.replace(/[.!?]+$/, '').toLowerCase()))) flags.add('address');

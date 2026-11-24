@@ -449,6 +449,33 @@ export function mattersParams() {
       default: false,
       description: 'Enables the natural voice of the assistant (OpenAI text-to-speech) to measure its cost. Demo only.',
     }),
+    /**
+     * A4: the day's spending cap per user, in US cents (model calls and the natural voice, priced
+     * with OPENAI_PRICE_* or MATTERS_TUNING.fallbackPrices). Reached: no more model calls for that
+     * user until the next UTC day; replies that arrive meanwhile become cards to read.
+     */
+    MATTERS_USER_DAILY_SPEND_CENTS: defineInt('MATTERS_USER_DAILY_SPEND_CENTS', {
+      default: 100,
+      description: 'Daily spending cap of the assistant per user, in US cents (model calls and natural voice).',
+    }),
+    /** A4: days the email texts of a closed matter are kept before they are deleted (the client may set it in A9). */
+    MATTERS_RETENTION_DAYS: defineInt('MATTERS_RETENTION_DAYS', {
+      default: 90,
+      description: 'Days the emails of a closed matter are kept before they are deleted.',
+    }),
+    /** A4: the monthly allowance (MATTER_ALLOWANCES in the contract are the defaults; higher for testers). */
+    MATTERS_MONTHLY_MATTERS: defineInt('MATTERS_MONTHLY_MATTERS', {
+      default: 10,
+      description: 'Matters one user may start per month (the Assistant plan allowance).',
+    }),
+    MATTERS_MONTHLY_EMAILS: defineInt('MATTERS_MONTHLY_EMAILS', {
+      default: 100,
+      description: 'Emails the assistant may send for one user per month (the Assistant plan allowance).',
+    }),
+    MATTERS_MONTHLY_VOICE_MINUTES: defineInt('MATTERS_MONTHLY_VOICE_MINUTES', {
+      default: 30,
+      description: 'Natural voice minutes one user may use per month (the Assistant plan allowance).',
+    }),
   };
   return mattersParamsCache;
 }
@@ -465,6 +492,11 @@ export const MATTERS_PARAM_NAMES = [
   'MATTERS_USER_DAILY_SENDS',
   'MATTERS_AUTO_SCHEDULE',
   'MATTERS_NATURAL_VOICE',
+  'MATTERS_USER_DAILY_SPEND_CENTS',
+  'MATTERS_RETENTION_DAYS',
+  'MATTERS_MONTHLY_MATTERS',
+  'MATTERS_MONTHLY_EMAILS',
+  'MATTERS_MONTHLY_VOICE_MINUTES',
 ] as const;
 
 type MattersParams = {
@@ -478,6 +510,11 @@ type MattersParams = {
   MATTERS_USER_DAILY_SENDS: ReturnType<typeof defineInt>;
   MATTERS_AUTO_SCHEDULE: ReturnType<typeof defineBoolean>;
   MATTERS_NATURAL_VOICE: ReturnType<typeof defineBoolean>;
+  MATTERS_USER_DAILY_SPEND_CENTS: ReturnType<typeof defineInt>;
+  MATTERS_RETENTION_DAYS: ReturnType<typeof defineInt>;
+  MATTERS_MONTHLY_MATTERS: ReturnType<typeof defineInt>;
+  MATTERS_MONTHLY_EMAILS: ReturnType<typeof defineInt>;
+  MATTERS_MONTHLY_VOICE_MINUTES: ReturnType<typeof defineInt>;
 };
 let mattersParamsCache: MattersParams | undefined;
 
@@ -518,6 +555,10 @@ export const MATTERS_TUNING = {
   speechModel: 'gpt-4o-mini-tts',
   speechVoice: 'alloy',
   speechTimeoutMs: 30_000,
+  /** A4: the runtime switch (matterSettings/global.enabled) is read at most this often per instance. */
+  switchCacheMs: 30_000,
+  /** A4: closed matters whose emails one tick deletes (MATTERS_RETENTION_DAYS). */
+  tickPurgeBatch: 20,
 } as const;
 
 /** Parses MATTERS_ALLOWED_UIDS; '*' allows everyone. */

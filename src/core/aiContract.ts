@@ -131,6 +131,9 @@ export const CALLABLES = {
   // A3 feedback: write to the contact now, move the booked meeting
   matterMessage: 'matterMessage',
   matterMove: 'matterMove',
+  // A4: delete a matter, the usage meter
+  matterDelete: 'matterDelete',
+  matterUsage: 'matterUsage',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -2185,7 +2188,8 @@ export const matterSlotSchema = z.object({ start: z.string(), end: z.string() })
 export type MatterSlot = z.infer<typeof matterSlotSchema>;
 
 /** What the content guard found in a reply draft (it then never goes out automatically). */
-export const MATTER_GUARD_FLAGS = ['money', 'contract', 'link', 'address', 'length'] as const;
+/** A4 adds promise: a promise or commitment made for the owner ("I promise", "we will deliver"). */
+export const MATTER_GUARD_FLAGS = ['money', 'contract', 'link', 'address', 'length', 'promise'] as const;
 export type MatterGuardFlag = (typeof MATTER_GUARD_FLAGS)[number];
 
 /** Lenient: an unknown value a later server writes is dropped, never a failed parse. */
@@ -2438,6 +2442,68 @@ export const matterMoveResponseSchema = z.object({
 });
 export type MatterMoveResponse = z.infer<typeof matterMoveResponseSchema>;
 
+// A4: limits, metering, deletion. docs/v2/A4-THREAT-MODEL.md lists every limit and control.
+
+/**
+ * The Assistant plan's monthly allowance (A4; the numbers the plan suggests, the client sets the
+ * real ones before A8). Counted per UTC calendar month on usage/{uid}/months/{yyyy-mm}: a matter
+ * when its first email goes out, every email the assistant sends, and the natural voice in
+ * seconds. The server may scale them for testers (MATTERS_MONTHLY_*); matterUsage answers the
+ * numbers in force.
+ */
+export const MATTER_ALLOWANCES = { mattersPerMonth: 10, emailsPerMonth: 100, voiceMinutesPerMonth: 30 } as const;
+
+/** Which limit a rate_limited error of a matter callable is about (details.limit). */
+export const MATTER_LIMIT_KINDS = [
+  /** Drafts, changes and questions per day (MATTERS_USER_DAILY_LIMIT). */
+  'drafts',
+  /** Emails per day (MATTERS_USER_DAILY_SENDS). */
+  'sends',
+  /** Matters started this month (MATTER_ALLOWANCES.mattersPerMonth). */
+  'matters',
+  /** Emails this month (MATTER_ALLOWANCES.emailsPerMonth). */
+  'emails',
+  /** Natural voice minutes this month. */
+  'voice',
+  /** The day's spending cap of the assistant for this user (MATTERS_USER_DAILY_SPEND_CENTS). */
+  'spend',
+  /** Open matters at the same time (MATTER_LIMITS.maxOpenMatters). */
+  'open_matters',
+] as const;
+export type MatterLimitKind = (typeof MATTER_LIMIT_KINDS)[number];
+
+/**
+ * matterDelete: removes a matter at any time, with its emails, cards, proposals, timeline and
+ * lookups (a running one stops first). The meeting it booked and the tasks the owner accepted are
+ * the owner's own and stay.
+ */
+export const matterDeleteRequestSchema = z.object({ matterId: matterIdSchema }).strict();
+export type MatterDeleteRequest = z.infer<typeof matterDeleteRequestSchema>;
+export const matterDeleteResponseSchema = z.object({ matterId: matterIdSchema, deleted: z.literal(true) });
+export type MatterDeleteResponse = z.infer<typeof matterDeleteResponseSchema>;
+
+const matterUsedSchema = z.object({ used: z.number().int().min(0), limit: z.number().int().min(0) });
+
+/** matterUsage: the usage meter (this month's allowance and today's limits). */
+export const matterUsageRequestSchema = z.object({}).strict();
+export type MatterUsageRequest = z.infer<typeof matterUsageRequestSchema>;
+export const matterUsageResponseSchema = z.object({
+  /** "YYYY-MM" (UTC). */
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  /** The first instant of the next month (UTC). */
+  resetsAt: isoDateTimeSchema,
+  matters: matterUsedSchema,
+  emails: matterUsedSchema,
+  voiceMinutes: matterUsedSchema,
+  today: z.object({
+    drafts: matterUsedSchema,
+    sends: matterUsedSchema,
+    /** Today's spending cap is reached: no more model calls until tomorrow (UTC). */
+    capReached: z.boolean(),
+  }),
+});
+export type MatterUsageResponse = z.infer<typeof matterUsageResponseSchema>;
+
 /** matterSpeak (demo only, MATTERS_NATURAL_VOICE): a spoken answer in a natural voice, and its measured size. */
 export const MATTER_SPEAK_MAX_CHARS = 1200;
 export const matterSpeakRequestSchema = z
@@ -2479,7 +2545,8 @@ export const MATTER_ERROR_HTTPS_CODES = {
   upstream_error: 'unavailable',
 } as const satisfies Record<MatterErrorCode, string>;
 
-export const matterErrorDetailsSchema = z.object({ reason: z.enum(MATTER_ERROR_CODES) });
+/** A4: a rate_limited error says which limit (limit). */
+export const matterErrorDetailsSchema = z.object({ reason: z.enum(MATTER_ERROR_CODES), limit: z.enum(MATTER_LIMIT_KINDS).optional() });
 export type MatterErrorDetails = z.infer<typeof matterErrorDetailsSchema>;
 
 // ---------------------------------------------------------------------------------------------

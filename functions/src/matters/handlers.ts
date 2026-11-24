@@ -15,8 +15,14 @@
  *               later, in matterInboundRead (replies.ts), never in the webhook
  * A matter document that does not parse is logged as matters.unreadable and answered
  * upstream_error, never not_found.
- * Errors: HttpsError(MATTER_ERROR_HTTPS_CODES[reason], generic English, { reason }). Logs carry
+ * Errors: HttpsError(MATTER_ERROR_HTTPS_CODES[reason], generic English, { reason }); A4: a
+ * rate_limited error also says which limit ({ reason, limit }, MATTER_LIMIT_KINDS). Logs carry
  * uid, matterId and categories only, never the user's words, addresses or email text.
+ *
+ * A4 (docs/v2/A4-THREAT-MODEL.md): every model call checks the user's spending cap of the day
+ * first (acquireGlobalBudget, cost.ts) and adds its cost afterwards (recordUsage); a draft and a
+ * confirm refuse past MATTER_LIMITS.maxOpenMatters running matters; the first confirm of a matter
+ * counts one matter and one email on the monthly allowance (checked before, counted once sent).
  */
 import * as logger from 'firebase-functions/logger';
 import { HttpsError } from 'firebase-functions/https';
@@ -34,6 +40,7 @@ import {
   type MatterConfirmResponse,
   type MatterDraftResponse,
   type MatterErrorCode,
+  type MatterLimitKind,
   type MatterSendOutcome,
   type MatterUnknownCause,
 } from '../shared/aiContract';
@@ -42,6 +49,7 @@ import type { MeetingReader } from '../assistant/context';
 import type { GlobalBudget } from '../assistant/globalBudget';
 import { safetyIdentifierFor, type LlmClient } from '../assistant/llm';
 import { isValidTimeZone } from '../assistant/time';
+import { addModelSpend, checkSpend, SpendCapReachedError } from './cost';
 import { draftMatter, type DraftResult } from './draft';
 import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, bareAddress, composeFirstEmail, EmailSendError, type EmailSender, type OutboundEmail } from './email';
 import { matchInbound, parseInbound, toMatterMessage } from './inbound';
@@ -53,6 +61,7 @@ import {
   draftHash,
   isOwnDomain,
   matterDocSchema,
+  monthKeyOf,
   newReplyToken,
   withModelCall,
   type MatterDoc,
@@ -107,6 +116,13 @@ export interface MatterDeps {
   /** MATTERS_NATURAL_VOICE (demo only) and the speech call behind it (MP3 bytes). */
   naturalVoice?: boolean;
   speech?: (text: string, language: Language) => Promise<Buffer>;
+  // ---- A4 ----
+  /** MATTERS_USER_DAILY_SPEND_CENTS: the day's spending cap per user (absent = no cap). */
+  spendCapCents?: number;
+  /** MATTERS_MONTHLY_*: the monthly allowance (absent = not metered). */
+  monthly?: { matters: number; emails: number; voiceMinutes: number };
+  /** MATTERS_RETENTION_DAYS: closed matters keep their emails this long. */
+  retentionDays?: number;
 }
 
 /** The project-wide model budget is spent for today: the call never reaches OpenAI. */
@@ -117,8 +133,17 @@ export class GlobalBudgetExhaustedError extends Error {
   }
 }
 
-/** One unit per started block of prompt characters (the commitments pattern). */
-export async function acquireGlobalBudget(deps: Pick<MatterDeps, 'globalBudget' | 'now'>, chars: number, perUnit: number): Promise<void> {
+/**
+ * One unit per started block of prompt characters (the commitments pattern). A4: with a uid, the
+ * user's spending cap of the day is checked first (SpendCapReachedError).
+ */
+export async function acquireGlobalBudget(
+  deps: Pick<MatterDeps, 'globalBudget' | 'now' | 'store' | 'spendCapCents' | 'prices'>,
+  chars: number,
+  perUnit: number,
+  uid?: string,
+): Promise<void> {
+  if (uid !== undefined) await checkSpend(deps, uid);
   if (!deps.globalBudget) return;
   const units = Math.max(1, Math.ceil(chars / Math.max(1, perUnit)));
   const dayKey = usageDayKey(deps.now());
@@ -127,8 +152,20 @@ export async function acquireGlobalBudget(deps: Pick<MatterDeps, 'globalBudget' 
   }
 }
 
-/** Records one model call's tokens for the admin stats; never throws. */
-export async function recordUsage(deps: Pick<MatterDeps, 'recordAiUsage' | 'now'>, usage: { promptTokens: number; completionTokens: number } | null, uid: string): Promise<void> {
+/**
+ * Records one model call's tokens for the admin stats and (A4) its cost on the user's spend of
+ * the day (matterSpend); never throws.
+ */
+export async function recordUsage(
+  deps: Pick<MatterDeps, 'recordAiUsage' | 'now' | 'store' | 'prices'>,
+  usage: { promptTokens: number; completionTokens: number } | null,
+  uid: string,
+): Promise<void> {
+  try {
+    await addModelSpend(deps, uid, usage);
+  } catch (error) {
+    logger.warn('matters.spend_failed', { uid, errorName: error instanceof Error ? error.name : 'unknown' });
+  }
   if (!deps.recordAiUsage) return;
   try {
     await deps.recordAiUsage(usageDayKey(deps.now()), { inputTokens: usage?.promptTokens ?? 0, outputTokens: usage?.completionTokens ?? 0 });
@@ -152,7 +189,29 @@ const MESSAGES: Readonly<Record<MatterErrorCode, string>> = {
 };
 
 export function matterError(reason: MatterErrorCode, message: string = MESSAGES[reason]): HttpsError {
-  return new HttpsError(MATTER_ERROR_HTTPS_CODES[reason], message, { reason });
+  // A4: a rate_limited error without a named limit is the daily drafts cap
+  return new HttpsError(MATTER_ERROR_HTTPS_CODES[reason], message, reason === 'rate_limited' ? { reason, limit: 'drafts' } : { reason });
+}
+
+const LIMIT_MESSAGES: Readonly<Record<MatterLimitKind, string>> = {
+  drafts: MESSAGES.rate_limited,
+  sends: 'The assistant sent as many emails as it may today. Try again tomorrow.',
+  matters: "You started this month's matters. More next month.",
+  emails: "The assistant sent this month's emails. More next month.",
+  voice: "This month's voice minutes are used.",
+  spend: "Today's assistant limit is reached. Try again tomorrow.",
+  open_matters: 'You have too many matters running. Finish or cancel one first.',
+};
+
+/** A4: a rate_limited error that names the limit (details.limit), so the app can say which one. */
+export function limitError(limit: MatterLimitKind): HttpsError {
+  return new HttpsError(MATTER_ERROR_HTTPS_CODES.rate_limited, LIMIT_MESSAGES[limit], { reason: 'rate_limited', limit });
+}
+
+/** A4: the user's running matters (active or paused) are at MATTER_LIMITS.maxOpenMatters. */
+async function requireRoomForMatter(uid: string, deps: MatterDeps): Promise<void> {
+  const open = await deps.store.listMatters(uid, ['active', 'paused']);
+  if (open.length >= MATTER_LIMITS.maxOpenMatters) throw limitError('open_matters');
 }
 
 /** A signed-in caller with a verified account (or a trusted sign-in provider). */
@@ -196,13 +255,18 @@ export type Tokens = { promptTokens: number; completionTokens: number } | null;
 
 export async function runDraft(deps: MatterDeps, uid: string, ctx: Parameters<typeof draftMatter>[1], onTokens?: (tokens: Tokens) => void): Promise<DraftResult> {
   try {
-    // the matter model calls count against the project-wide budget and the admin stats (A2)
-    await acquireGlobalBudget(deps, ctx.request.length + 4000, BUDGET_CHARS_PER_UNIT);
+    // the matter model calls count against the project-wide budget and the admin stats (A2), and
+    // against the user's spending cap of the day (A4)
+    await acquireGlobalBudget(deps, ctx.request.length + 4000, BUDGET_CHARS_PER_UNIT, uid);
     return await draftMatter(deps.llm(), ctx, safetyIdentifierFor(uid), (usage) => {
       onTokens?.(usage);
       return recordUsage(deps, usage, uid);
     });
   } catch (error) {
+    if (error instanceof SpendCapReachedError) {
+      logger.warn('matters.spend_cap_reached', { uid });
+      throw limitError('spend');
+    }
     if (error instanceof GlobalBudgetExhaustedError) {
       logger.error('matters.global_budget_exhausted', { uid });
       throw matterError('upstream_error');
@@ -273,6 +337,7 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
   const parsed = matterDraftRequestSchema.safeParse(data);
   if (!parsed.success || !isValidTimeZone(parsed.data.timeZone)) throw matterError('invalid_request');
   const request = parsed.data;
+  await requireRoomForMatter(caller.uid, deps);
   await consumeDaily(caller.uid, deps);
   const ownerEmail = verifiedEmail(caller);
   const ownerName = ownerDisplayName(caller.name, deps.domain);
@@ -395,8 +460,8 @@ type ConfirmOutcome =
   | { kind: 'refused'; reason: string }
   /** Nothing for this call to send: the first email went out, is going out, or its fate is unknown. */
   | { kind: 'settled'; outcome: MatterSendOutcome; unknownCause: MatterUnknownCause | null }
-  /** This call claimed the send ('sending') and sends exactly this email. */
-  | { kind: 'send'; doc: MatterDoc; email: OutboundEmail };
+  /** This call claimed the send ('sending') and sends exactly this email; first: it activated the matter. */
+  | { kind: 'send'; doc: MatterDoc; email: OutboundEmail; first: boolean };
 
 /** What a confirm on an active matter answers when it does not send (see handleMatterConfirm). */
 function settledOutcome(doc: MatterDoc, now: Date): ConfirmOutcome | null {
@@ -437,6 +502,18 @@ async function confirmMatter(callerIn: MatterCaller | null, data: unknown, deps:
   const now = deps.now();
   const nowIso = now.toISOString();
 
+  // A4: activating a draft needs room for one more running matter and the month's allowance (a
+  // matter and its first email); checked here, counted once the matter is active
+  const before = await deps.store.getMatter(caller.uid, matterId);
+  if (before?.status === 'draft') {
+    await requireRoomForMatter(caller.uid, deps);
+    if (deps.monthly) {
+      const used = await deps.store.getMonthly(caller.uid, monthKeyOf(now));
+      if (used.matters >= deps.monthly.matters) throw limitError('matters');
+      if (used.emails >= deps.monthly.emails) throw limitError('emails');
+    }
+  }
+
   const outcome = await deps.store.updateMatter<ConfirmOutcome>(caller.uid, matterId, (doc) => {
     if (!doc) return { result: { kind: 'not_found' } };
     const retry = doc.status === 'active' && doc.confirmedHash === hash;
@@ -456,7 +533,7 @@ async function confirmMatter(callerIn: MatterCaller | null, data: unknown, deps:
     const decision = checkSend({ matter: next, to: email.to, cc: email.cc, now, enabled: deps.enabled, domain: deps.domain });
     if (!decision.ok) return { result: { kind: 'refused', reason: decision.reason } };
     return {
-      result: { kind: 'send', doc: next, email },
+      result: { kind: 'send', doc: next, email, first: !retry },
       patch: { ...activation, ...claim },
       events: retry ? [] : [event('mandate_confirmed', nowIso)],
     };
@@ -469,6 +546,12 @@ async function confirmMatter(callerIn: MatterCaller | null, data: unknown, deps:
     throw matterError('not_allowed');
   }
   if (outcome.kind === 'settled') return confirmResponse(matterId, outcome.outcome, outcome.unknownCause);
+  if (outcome.first && deps.monthly) {
+    // A4: counted without a limit (checked above); a counter that fails never stops the send
+    await deps.store.consumeMonthly(caller.uid, monthKeyOf(now), { matters: 1, emails: 1 }, {}, nowIso).catch((error: unknown) => {
+      logger.warn('matters.allowance_count_failed', { uid: caller.uid, errorName: error instanceof Error ? error.name : 'unknown' });
+    });
+  }
   const sent = await sendFirstEmail(caller.uid, matterId, outcome.doc, outcome.email, deps);
   return confirmResponse(matterId, sent.outcome, sent.unknownCause);
 }

@@ -38,6 +38,7 @@ import {
   GlobalBudgetExhaustedError,
   acquireGlobalBudget,
   event,
+  limitError,
   matterError,
   readable,
   recordUsage,
@@ -46,6 +47,7 @@ import {
   type MatterDeps,
   type Tokens,
 } from './handlers';
+import { SpendCapReachedError } from './cost';
 import { threadSafeId } from './inbound';
 import { MATTER_LIMITS, draftEmailHash, withModelCall, type MatterApproval, type MatterDoc, type Slot, type StoredMessage } from './model';
 import { mandateText, threadText } from './read';
@@ -123,7 +125,7 @@ export function threadingFor(thread: readonly StoredMessage[]): { inReplyTo: str
 }
 
 async function modelCall(deps: MatterDeps, uid: string, messages: PromptMessage[], tool: ToolDefinition): Promise<{ args: Record<string, unknown> | null; tokens: Tokens }> {
-  await acquireGlobalBudget(deps, messages.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : 0), 0), BUDGET_CHARS_PER_UNIT);
+  await acquireGlobalBudget(deps, messages.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : 0), 0), BUDGET_CHARS_PER_UNIT, uid);
   const completion = await deps.llm().complete({ messages, tools: [tool], toolChoice: 'required', safetyIdentifier: safetyIdentifierFor(uid) });
   await recordUsage(deps, completion.usage, uid);
   const call = completion.toolCalls.find((c) => c.name === tool.function.name);
@@ -139,7 +141,8 @@ async function modelCall(deps: MatterDeps, uid: string, messages: PromptMessage[
   return { args, tokens: completion.usage };
 }
 
-const failureKind = (error: unknown) => (error instanceof UpstreamError ? error.kind : error instanceof GlobalBudgetExhaustedError ? 'global_budget' : 'unknown');
+const failureKind = (error: unknown) =>
+  error instanceof UpstreamError ? error.kind : error instanceof GlobalBudgetExhaustedError ? 'global_budget' : error instanceof SpendCapReachedError ? 'spend_cap' : 'unknown';
 
 async function countModelCall(uid: string, matterId: string, tokens: Tokens, deps: MatterDeps): Promise<void> {
   await deps.store.updateMatter(uid, matterId, (doc) => (doc ? { result: null, patch: { usage: withModelCall(doc.usage, tokens) } } : { result: null }));
@@ -206,7 +209,7 @@ export function handleMatterMessage(callerIn: MatterCaller | null, data: unknown
       ({ args, tokens } = await modelCall(deps, caller.uid, writeMessages(matter, thread, text), WRITE_EMAIL_TOOL));
     } catch (error) {
       logger.warn('matters.message_model_failed', { uid: caller.uid, matterId, kind: failureKind(error) });
-      throw matterError('upstream_error');
+      throw error instanceof SpendCapReachedError ? limitError('spend') : matterError('upstream_error');
     }
     const body = typeof args?.body === 'string' ? plainEmail(args.body).slice(0, MATTER_LIMITS.replyChars) : '';
     if (!body) {

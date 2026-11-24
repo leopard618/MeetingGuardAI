@@ -36,6 +36,11 @@
  *   Scheduling reads the owner's meetings through the assistant's bounded reader
  *   (assistant/context.ts firestoreMeetingReader) and MATTERS_AUTO_SCHEDULE; matterDecide also books
  *   an approved time, so it reads the calendar too.
+ * - A4: matterDelete (the owner removes a matter) and matterUsage (the usage meter), callables
+ *   without secrets; matterAdminSwitch and matterAdminUsage for the admin dashboard (the admin and
+ *   viewer claims). Every handler gets liveDeps(): the runtime switch matterSettings/global
+ *   (switch.ts) turns `enabled` off within MATTERS_TUNING.switchCacheMs, without a deploy. The
+ *   spending cap, the monthly allowance and the retention period come from MATTERS_* lines.
  */
 import { timingSafeEqual } from 'node:crypto';
 
@@ -71,13 +76,16 @@ import type {
   MatterCancelResponse,
   MatterConfirmResponse,
   MatterDecideResponse,
+  MatterDeleteResponse,
   MatterDraftResponse,
   MatterMessageResponse,
   MatterMoveResponse,
   MatterSetStatusResponse,
   MatterSpeakResponse,
+  MatterUsageResponse,
   MatterViewResponse,
 } from '../shared/aiContract';
+import { handleMatterUsage } from './allowance';
 import { handleMatterAsk, handleMatterSpeak } from './ask';
 import { createPostmarkSender, EmailSendError } from './email';
 import {
@@ -93,7 +101,18 @@ import { handleMatterChange, handleMatterSetStatus } from './manage';
 import type * as MailCheckNs from './mailCheck';
 import type { SenderCheck } from './mailCheck';
 import { handleDeliveryEvent, handleInboundRead, handleMatterDecide, handleMatterView, runMatterTick } from './replies';
+import { MATTER_SETTINGS_COLLECTION, MATTER_SETTINGS_DOC, MATTER_SPEND_COLLECTION } from './model';
+import { handleMatterDelete } from './retention';
 import { firestoreMatterStore } from './store';
+import {
+  adminCallerOf,
+  createRuntimeSwitch,
+  handleMatterAdminSwitch,
+  handleMatterAdminUsage,
+  type AdminDeps,
+  type MatterAdminUsageResponse,
+  type SwitchState,
+} from './switch';
 import { handleMatterMessage, handleMatterMove } from './write';
 
 type MailCheckModule = typeof MailCheckNs;
@@ -119,6 +138,19 @@ function instanceGlobalBudget(): GlobalBudget {
     globalBudget = createGlobalBudget(firestoreGlobalBudgetStore(adminDb()), { limit: () => ASSISTANT_GLOBAL_DAILY_LIMIT.value() });
   }
   return globalBudget;
+}
+
+/** A4: the runtime switch (matterSettings/global), one short cache per instance. */
+let runtimeSwitch: ReturnType<typeof createRuntimeSwitch> | null = null;
+function instanceSwitch(): ReturnType<typeof createRuntimeSwitch> {
+  if (runtimeSwitch === null) {
+    const ref = () => adminDb().collection(MATTER_SETTINGS_COLLECTION).doc(MATTER_SETTINGS_DOC);
+    runtimeSwitch = createRuntimeSwitch(async () => {
+      const snapshot = await ref().get();
+      return snapshot.exists ? snapshot.data() : null;
+    }, MATTERS_TUNING.switchCacheMs);
+  }
+  return runtimeSwitch;
 }
 
 /** Whether MATTERS_ENABLED is true while this module is LOADED (deploy-time gate). */
@@ -202,6 +234,14 @@ function deps(): MatterDeps {
     meetings: firestoreMeetingReader(adminDb()),
     prices: { inPerM: parsePricePerM(OPENAI_PRICE_IN_PER_M.value()), outPerM: parsePricePerM(OPENAI_PRICE_OUT_PER_M.value()) },
     naturalVoice: params.MATTERS_NATURAL_VOICE.value() === true,
+    // A4
+    spendCapCents: params.MATTERS_USER_DAILY_SPEND_CENTS.value(),
+    monthly: {
+      matters: params.MATTERS_MONTHLY_MATTERS.value(),
+      emails: params.MATTERS_MONTHLY_EMAILS.value(),
+      voiceMinutes: params.MATTERS_MONTHLY_VOICE_MINUTES.value(),
+    },
+    retentionDays: params.MATTERS_RETENTION_DAYS.value(),
     speech: async (text, language) => {
       const { key } = await instanceOpenAiKeyProvider().get();
       const client = new OpenAI({ apiKey: key, timeout: MATTERS_TUNING.speechTimeoutMs, maxRetries: 0 });
@@ -232,6 +272,33 @@ function deps(): MatterDeps {
   };
 }
 
+/** A4: deps() with the runtime switch applied: off, `enabled` is false for this call. */
+async function liveDeps(): Promise<MatterDeps> {
+  const base = deps();
+  if (base.enabled && !(await instanceSwitch().isOn())) return { ...base, enabled: false };
+  return base;
+}
+
+/** A4: the admin dashboard's view of the switch and of each user's cost. */
+function adminDeps(): AdminDeps {
+  const db = adminDb();
+  return {
+    readSwitch: async () => {
+      const snapshot = await db.collection(MATTER_SETTINGS_COLLECTION).doc(MATTER_SETTINGS_DOC).get();
+      return snapshot.exists ? snapshot.data() : null;
+    },
+    writeSwitch: async (state) => {
+      await db.collection(MATTER_SETTINGS_COLLECTION).doc(MATTER_SETTINGS_DOC).set(state, { merge: true });
+      instanceSwitch().clear();
+    },
+    listSpend: async (fromDay, toDay) => {
+      const snapshot = await db.collection(MATTER_SPEND_COLLECTION).where('day', '>=', fromDay).where('day', '<=', toDay).get();
+      return snapshot.docs.map((doc) => doc.data());
+    },
+    now: () => new Date(),
+  };
+}
+
 function callableBase(): CallableOptions {
   return {
     region: FUNCTIONS_REGION,
@@ -249,35 +316,41 @@ function makeCallables() {
   const { MATTERS_POSTMARK_TOKEN } = mattersParams();
   const CALLABLE_BASE = callableBase();
   return {
-    matterDraft: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterDraftResponse> =>
-      handleMatterDraft(callerOf(request.auth), request.data, deps()),
+    matterDraft: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterDraftResponse> =>
+      handleMatterDraft(callerOf(request.auth), request.data, await liveDeps()),
     ),
-    matterRevise: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterDraftResponse> =>
-      handleMatterRevise(callerOf(request.auth), request.data, deps()),
+    matterRevise: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterDraftResponse> =>
+      handleMatterRevise(callerOf(request.auth), request.data, await liveDeps()),
     ),
-    matterConfirm: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN] }, (request): Promise<MatterConfirmResponse> =>
-      handleMatterConfirm(callerOf(request.auth), request.data, deps()),
+    matterConfirm: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN] }, async (request): Promise<MatterConfirmResponse> =>
+      handleMatterConfirm(callerOf(request.auth), request.data, await liveDeps()),
     ),
-    matterCancel: onCall(CALLABLE_BASE, (request): Promise<MatterCancelResponse> => handleMatterCancel(callerOf(request.auth), request.data, deps())),
-    matterDecide: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN] }, (request): Promise<MatterDecideResponse> =>
-      handleMatterDecide(callerOf(request.auth), request.data, deps()),
+    matterCancel: onCall(CALLABLE_BASE, async (request): Promise<MatterCancelResponse> => handleMatterCancel(callerOf(request.auth), request.data, await liveDeps())),
+    matterDecide: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN] }, async (request): Promise<MatterDecideResponse> =>
+      handleMatterDecide(callerOf(request.auth), request.data, await liveDeps()),
     ),
     // the app's open matters and matter page, read for the owner (no client rule needed)
-    matterView: onCall(CALLABLE_BASE, (request): Promise<MatterViewResponse> => handleMatterView(callerOf(request.auth), request.data, deps())),
+    matterView: onCall(CALLABLE_BASE, async (request): Promise<MatterViewResponse> => handleMatterView(callerOf(request.auth), request.data, await liveDeps())),
     // A3
-    matterSetStatus: onCall(CALLABLE_BASE, (request): Promise<MatterSetStatusResponse> => handleMatterSetStatus(callerOf(request.auth), request.data, deps())),
-    matterChange: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterDraftResponse> =>
-      handleMatterChange(callerOf(request.auth), request.data, deps()),
+    matterSetStatus: onCall(CALLABLE_BASE, async (request): Promise<MatterSetStatusResponse> => handleMatterSetStatus(callerOf(request.auth), request.data, await liveDeps())),
+    matterChange: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterDraftResponse> =>
+      handleMatterChange(callerOf(request.auth), request.data, await liveDeps()),
     ),
-    matterAsk: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterAskResponse> => handleMatterAsk(callerOf(request.auth), request.data, deps())),
-    matterSpeak: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterSpeakResponse> =>
-      handleMatterSpeak(callerOf(request.auth), request.data, deps()),
+    matterAsk: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterAskResponse> => handleMatterAsk(callerOf(request.auth), request.data, await liveDeps())),
+    matterSpeak: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterSpeakResponse> =>
+      handleMatterSpeak(callerOf(request.auth), request.data, await liveDeps()),
     ),
     // A3 feedback: write to the contact now, move the booked meeting (each only makes a card the owner sends)
-    matterMessage: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterMessageResponse> =>
-      handleMatterMessage(callerOf(request.auth), request.data, deps()),
+    matterMessage: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterMessageResponse> =>
+      handleMatterMessage(callerOf(request.auth), request.data, await liveDeps()),
     ),
-    matterMove: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterMoveResponse> => handleMatterMove(callerOf(request.auth), request.data, deps())),
+    matterMove: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterMoveResponse> => handleMatterMove(callerOf(request.auth), request.data, await liveDeps())),
+    // A4: the owner removes a matter; the usage meter
+    matterDelete: onCall(CALLABLE_BASE, async (request): Promise<MatterDeleteResponse> => handleMatterDelete(callerOf(request.auth), request.data, await liveDeps())),
+    matterUsage: onCall(CALLABLE_BASE, async (request): Promise<MatterUsageResponse> => handleMatterUsage(callerOf(request.auth), request.data, await liveDeps())),
+    // A4: the admin dashboard (admin claim to switch, viewer claim to read)
+    matterAdminSwitch: onCall(CALLABLE_BASE, (request): Promise<SwitchState> => handleMatterAdminSwitch(adminCallerOf(request.auth), request.data, adminDeps())),
+    matterAdminUsage: onCall(CALLABLE_BASE, (request): Promise<MatterAdminUsageResponse> => handleMatterAdminUsage(adminCallerOf(request.auth), request.data, adminDeps())),
   };
 }
 
@@ -301,7 +374,7 @@ function makeInboundRead() {
       if (!uid || !matterId || !messageId) return;
       // outbound messages and mail kept only finish at once (claimRead), without a model call
       if (event.data?.get('direction') !== 'inbound') return;
-      await handleInboundRead({ uid, matterId, messageId }, deps());
+      await handleInboundRead({ uid, matterId, messageId }, await liveDeps());
     },
   );
 }
@@ -323,7 +396,7 @@ function makeTick() {
     },
     async () => {
       if (mattersParams().MATTERS_ENABLED.value() !== true) return;
-      const result = await runMatterTick(deps(), { schedules: MATTERS_TUNING.tickBatch, reads: MATTERS_TUNING.tickReadBatch });
+      const result = await runMatterTick(await liveDeps(), { schedules: MATTERS_TUNING.tickBatch, reads: MATTERS_TUNING.tickReadBatch, purges: MATTERS_TUNING.tickPurgeBatch });
       logger.info('matters.tick', { ...result });
     },
   );
@@ -446,6 +519,10 @@ export const matterAsk = callables?.matterAsk;
 export const matterSpeak = callables?.matterSpeak;
 export const matterMessage = callables?.matterMessage;
 export const matterMove = callables?.matterMove;
+export const matterDelete = callables?.matterDelete;
+export const matterUsage = callables?.matterUsage;
+export const matterAdminSwitch = callables?.matterAdminSwitch;
+export const matterAdminUsage = callables?.matterAdminUsage;
 export const assistantInboundEmail = enabledAtLoad ? makeInboundWebhook() : undefined;
 export const matterInboundRead = enabledAtLoad ? makeInboundRead() : undefined;
 export const matterTick = enabledAtLoad ? makeTick() : undefined;
