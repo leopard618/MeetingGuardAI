@@ -31,6 +31,7 @@ export const LEGAL_SECTIONS: Readonly<Record<LegalDocumentId, readonly string[]>
     'microsoft',
     'deviceCalendars',
     'zoom',
+    'guests',
     'whatsapp',
     'ai',
     'summaries',

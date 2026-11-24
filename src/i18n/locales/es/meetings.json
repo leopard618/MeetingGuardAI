@@ -302,5 +302,40 @@
     "messageSeries": "Solo esta repetición se acorta para que termine ahora. El resto de la serie mantiene su duración.",
     "confirm": "Terminar ahora",
     "ended": "Reunión terminada."
+  },
+  "guests": {
+    "linkLine": "Responde a esta invitación",
+    "formToggle": "Agregar un enlace de respuesta para invitados",
+    "formHint": "Los invitados aceptan, rechazan o proponen otra hora desde su teléfono, sin instalar nada.",
+    "section": "Respuestas de invitados",
+    "empty": "Aún no hay respuestas. Los invitados responden con el enlace de la invitación.",
+    "share": "Compartir el enlace de respuesta",
+    "shareMessage": "Responde a la invitación de \"{{title}}\": {{url}}",
+    "addToInvite": "Agregar el enlace de respuesta a la invitación",
+    "addToInviteDone": "Enlace agregado. El calendario envía una actualización a los invitados.",
+    "turnOff": "Desactivar el enlace de respuesta",
+    "turnOffTitle": "¿Desactivar el enlace de respuesta?",
+    "turnOffBody": "El enlace deja de funcionar para todos los invitados. Puedes crear uno nuevo después.",
+    "turnOffDone": "Enlace de respuesta desactivado.",
+    "accepted": "Aceptó",
+    "declined": "Rechazó",
+    "proposed": "Propone {{time}}",
+    "approve": "Aprobar la nueva hora",
+    "keep": "Mantener la hora",
+    "approved": "Aprobada",
+    "kept": "Hora mantenida",
+    "stale": "La reunión cambió desde esta propuesta.",
+    "approveTitle": "¿Mover la reunión?",
+    "approveBody": "La reunión pasa a {{time}}. Tus alarmas y calendarios se actualizan, y los invitados reciben la invitación actualizada.",
+    "approveAction": "Mover",
+    "someone": "Un invitado",
+    "note": "Nota: {{message}}",
+    "linkFailed": "No se pudo agregar el enlace de respuesta ahora. Agrégalo después desde los detalles de la reunión.",
+    "failed": "No se pudo guardar el cambio. Inténtalo de nuevo.",
+    "notify": {
+      "accepted": "{{name}} aceptó",
+      "declined": "{{name}} rechazó",
+      "proposed": "{{name}} propone otra hora"
+    }
   }
 }

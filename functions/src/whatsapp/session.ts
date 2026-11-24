@@ -325,15 +325,22 @@ export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
         // A previous uid of this phone: clear its reverse index (the new link wins).
         const previousUid = (linkSnap.data() as Record<string, unknown> | undefined)?.uid;
         if (typeof previousUid === 'string' && previousUid.length > 0 && previousUid !== uid) {
-          tx.set(userRef(previousUid), { phoneE164: null, linkedAt: null }, { merge: true });
+          // M13: the previous account's opt-in was given for this phone; it ends with the link.
+          tx.set(userRef(previousUid), { phoneE164: null, linkedAt: null, messages: null, messagesActive: false }, { merge: true });
         }
         tx.set(linkRef(phoneE164), { uid, linkedAt: nowIso, profileName: profileName ?? null });
-        tx.set(userRef(uid), { phoneE164, linkedAt: nowIso, codeHash: null, codeExpiresAt: null }, { merge: true });
+        // M13: a new phone for this uid starts with every message switch off (opt-in is per phone).
+        const phoneChanged = typeof previousPhone === 'string' && previousPhone.length > 0 && previousPhone !== phoneE164;
+        tx.set(
+          userRef(uid),
+          { phoneE164, linkedAt: nowIso, codeHash: null, codeExpiresAt: null, ...(phoneChanged ? { messages: null, messagesActive: false } : {}) },
+          { merge: true },
+        );
         // Stamp the session's uid in the SAME transaction and disarm any proposal that was
         // pending under a previous uid (it must never execute against the new account).
         tx.set(
           sessionRef(phoneE164),
-          { uid, pendingActions: null, pendingNonce: null, promptMsgId: null, actionsExpireAt: null, summaryOffer: null, updatedAt: nowIso },
+          { uid, pendingActions: null, pendingNonce: null, promptMsgId: null, actionsExpireAt: null, summaryOffer: null, debriefArm: null, updatedAt: nowIso },
           { merge: true },
         );
         tx.delete(codeRef(codeHash));

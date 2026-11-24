@@ -60,9 +60,17 @@ import { firestoreWhatsappStore } from './session';
 import { SIGNATURE_HEADER, verifyHandshake, verifyWebhookSignature } from './signature';
 // M11 (docs/v2/M11-DESIGN.md section 4.3): the port to the summaryWhatsApp worker (no data key here).
 import { summaryRouteDepsAtLoad } from './summaryPort';
+// M13: voice notes (download from Graph, transcription by OpenAI, read-only allowance check).
+import { firestoreQuotaStore, peekQuota } from '../assistant/quota';
+import { instanceOpenAiKeyProvider } from '../openaiKey';
+import { createGraphMediaFetcher, createOpenAiTranscriber, createVoicePort } from './voice';
+import { firestoreOutboundReader } from './outboundFirestore';
+import { firestoreOutboundStore } from './outboundStore';
 import { processWebhookPayload, type WebhookDeps } from './webhook';
 
 export { whatsappError } from './link';
+// M13: the opt-in callable, the scheduler and the reminder trigger (./messagesIndex.ts).
+export { whatsappMessages, whatsappTaskReminderSync, whatsappTick } from './messagesIndex';
 
 /**
  * Whether the WHATSAPP_ENABLED param is true while this module is LOADED (CLI discovery and
@@ -198,6 +206,14 @@ function webhookDeps(): WebhookDeps {
     displayNumber: WHATSAPP_DISPLAY_NUMBER.value().replace(/[^0-9]/g, ''),
     now: () => new Date(),
     ...(summaries === undefined ? {} : { summaries }),
+    voice: createVoicePort({
+      media: createGraphMediaFetcher({ accessToken: WHATSAPP_ACCESS_TOKEN.value() }),
+      transcriber: createOpenAiTranscriber(async () => (await instanceOpenAiKeyProvider().get()).key),
+      hasAllowance: (uid, now) => peekQuota(firestoreQuotaStore(db), uid, now),
+      log: (event, fields) => logger.info(event, fields),
+    }),
+    // M13: STOP, the template buttons and the delivery statuses.
+    outbound: { store: firestoreOutboundStore(db), reader: firestoreOutboundReader(db) },
   };
 }
 

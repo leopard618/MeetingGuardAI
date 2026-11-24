@@ -33,13 +33,14 @@ import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import { effectiveAlertIntensity, type Meeting, type MeetingPatch } from '../../core/types';
-import { useT } from '../../i18n';
+import { i18n, useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { attachmentService } from '../../services/attachments';
 import { useAuth } from '../../services/auth';
 import { useCalendarStatus, useInvitationsChoice, type InvitationCalendar } from '../../services/calendar';
 import { meetingRepository, useMeeting, useMeetings, usePreferences } from '../../services/data';
 import { useZoomStatus, zoomService } from '../../services/zoom';
+import { guestLinkUrl, guestService, hasGuestLink, newMeetingId, withGuestLink } from '../../services/guests';
 import { addErrorMessage, showAddResult } from '../attachments/attachmentMessages';
 import { alertTimeChoices, alertTimeLabel, toggleAlertTime } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
@@ -139,6 +140,8 @@ function MeetingForm({
   const [draft, setDraft] = useState<MeetingFormDraft>(original);
   const [picker, setPicker] = useState<'date' | 'time' | 'until' | null>(null);
   const [saving, setSaving] = useState(false);
+  // M14: the reply link for guests, on by default for a new meeting (one line of the invitation).
+  const [guestLink, setGuestLink] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   // Attachments: the meeting's saved files, files picked in this form (not linked to any meeting
   // until Save) and saved files the user removed (deleted from the device only on Save).
@@ -302,7 +305,24 @@ function MeetingForm({
           saved = meeting;
         }
       } else {
-        saved = await meetingRepository.create(draftToCreateInput(draft), { origin: 'user' });
+        const input = draftToCreateInput(draft);
+        // M14: a new meeting with guests gets its reply link in the invitation text BEFORE the
+        // first calendar push, so the guests' first invitation already carries it. The id is
+        // made here because the link belongs to the meeting. Offline or failing: saved without,
+        // and meeting details offers it later.
+        if (hasGuests && guestLink && !hasGuestLink(input.description ?? '')) {
+          const id = newMeetingId();
+          try {
+            const token = await guestService.createLink(id);
+            input.description = withGuestLink(input.description ?? '', t('meetings:guests.linkLine'), guestLinkUrl(token, i18n.language));
+          } catch (caught) {
+            log.warn('could not create the guest link', toAppError(caught).code);
+            Toast.show({ type: 'info', text1: t('meetings:guests.linkFailed') });
+          }
+          saved = await meetingRepository.create(input, { origin: 'user', id });
+        } else {
+          saved = await meetingRepository.create(input, { origin: 'user' });
+        }
       }
       // §24: a Zoom meeting saved without a pasted link gets a real one from the server
       // (fire-and-forget; the details card shows the pending/failed state via linkFailure),
@@ -789,6 +809,19 @@ function MeetingForm({
           <HelperText type="info" visible>
             {t(`meetings:form.${invitesHintKey(googleConnected, calendar.outlook, meeting?.source)}`)}
           </HelperText>
+        ) : null}
+        {meeting === null && draft.participants.some((row) => row.email.trim() !== '') ? (
+          <View>
+            <View style={styles.switchRow}>
+              <Text variant="bodyMedium" style={styles.flex}>
+                {t('meetings:guests.formToggle')}
+              </Text>
+              <Switch value={guestLink} onValueChange={setGuestLink} accessibilityLabel={t('meetings:guests.formToggle')} testID="meeting-form-guest-link" />
+            </View>
+            <HelperText type="info" visible>
+              {t('meetings:guests.formHint')}
+            </HelperText>
+          </View>
         ) : null}
       </Section>
 

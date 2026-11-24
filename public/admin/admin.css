@@ -860,3 +860,9 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* M13/M14: the user page lookup and the uid link in the users table. */
+.user-lookup { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.user-lookup input { flex: 1 1 240px; min-width: 0; }
+.uid-link { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted; }
+#user-page h4 { margin: 16px 0 6px; }

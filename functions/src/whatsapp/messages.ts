@@ -43,6 +43,10 @@ interface BotStrings {
   cancelled: string;
   actionsExpired: string;
   unsupportedType: string;
+  /** M13: echoed before the answer to a voice note; {text} is what was heard. */
+  voiceHeard: string;
+  voiceTooLong: string;
+  voiceUnread: string;
   actionUnsupported: string;
   floodNotice: string;
   error: string;
@@ -64,7 +68,10 @@ const EN: BotStrings = {
   partialFailure: 'Some changes could not be applied. Please check in the app.',
   cancelled: 'Cancelled. I did not change anything.',
   actionsExpired: 'That proposal expired. Ask me again and I will prepare it once more.',
-  unsupportedType: 'I can only read text messages for now. Please type your request.',
+  unsupportedType: 'I can read text messages and voice notes. Please type your request or send a voice note.',
+  voiceHeard: 'I heard: "{text}"',
+  voiceTooLong: 'That voice note is too long for me. Please keep it under 3 minutes, or type your request.',
+  voiceUnread: 'I could not understand that voice note. Please try again or type your request.',
   actionUnsupported: 'I cannot make that change from WhatsApp yet. Please use the app for it.',
   floodNotice: 'You reached the daily WhatsApp message limit. Please try again tomorrow.',
   error: 'Something went wrong. Please try again.',
@@ -85,7 +92,10 @@ const ES: BotStrings = {
   partialFailure: 'Algunos cambios no se pudieron aplicar. Revísalo en la app.',
   cancelled: 'Cancelado. No cambié nada.',
   actionsExpired: 'Esa propuesta expiró. Pídemelo otra vez y la preparo de nuevo.',
-  unsupportedType: 'Por ahora solo puedo leer mensajes de texto. Escribe tu solicitud.',
+  unsupportedType: 'Puedo leer mensajes de texto y notas de voz. Escribe tu solicitud o envía una nota de voz.',
+  voiceHeard: 'Te escuché: «{text}»',
+  voiceTooLong: 'Esa nota de voz es demasiado larga para mí. Que dure menos de 3 minutos, o escribe tu solicitud.',
+  voiceUnread: 'No pude entender esa nota de voz. Inténtalo de nuevo o escribe tu solicitud.',
   actionUnsupported: 'Todavía no puedo hacer ese cambio desde WhatsApp. Usa la app para hacerlo.',
   floodNotice: 'Alcanzaste el límite diario de mensajes de WhatsApp. Inténtalo de nuevo mañana.',
   error: 'Algo salió mal. Inténtalo de nuevo.',
@@ -106,7 +116,10 @@ const PT: BotStrings = {
   partialFailure: 'Algumas alterações não puderam ser aplicadas. Confira no app.',
   cancelled: 'Cancelado. Não alterei nada.',
   actionsExpired: 'Essa proposta expirou. Peça de novo e eu preparo outra vez.',
-  unsupportedType: 'Por enquanto só consigo ler mensagens de texto. Digite seu pedido.',
+  unsupportedType: 'Consigo ler mensagens de texto e áudios. Digite seu pedido ou envie um áudio.',
+  voiceHeard: 'Entendi: "{text}"',
+  voiceTooLong: 'Esse áudio é longo demais para mim. Mande um com menos de 3 minutos, ou digite seu pedido.',
+  voiceUnread: 'Não consegui entender esse áudio. Tente de novo ou digite seu pedido.',
   actionUnsupported: 'Ainda não consigo fazer essa alteração pelo WhatsApp. Use o app para isso.',
   floodNotice: 'Você atingiu o limite diário de mensagens do WhatsApp. Tente de novo amanhã.',
   error: 'Algo deu errado. Tente de novo.',
@@ -127,7 +140,10 @@ const FR: BotStrings = {
   partialFailure: "Certaines modifications n'ont pas pu être appliquées. Vérifiez dans l'application.",
   cancelled: "Annulé. Je n'ai rien modifié.",
   actionsExpired: 'Cette proposition a expiré. Redemandez-moi et je la préparerai à nouveau.',
-  unsupportedType: 'Pour le moment, je ne peux lire que des messages texte. Écrivez votre demande.',
+  unsupportedType: 'Je peux lire les messages texte et les messages vocaux. Écrivez votre demande ou envoyez un message vocal.',
+  voiceHeard: "J'ai entendu: « {text} »",
+  voiceTooLong: 'Ce message vocal est trop long pour moi. Gardez-le sous 3 minutes, ou écrivez votre demande.',
+  voiceUnread: "Je n'ai pas compris ce message vocal. Réessayez ou écrivez votre demande.",
   actionUnsupported: "Je ne peux pas encore faire cette modification depuis WhatsApp. Utilisez l'application pour cela.",
   floodNotice: 'Vous avez atteint la limite quotidienne de messages WhatsApp. Réessayez demain.',
   error: "Une erreur s'est produite. Réessayez.",
@@ -148,7 +164,10 @@ const DE: BotStrings = {
   partialFailure: 'Einige Änderungen konnten nicht übernommen werden. Bitte prüfen Sie das in der App.',
   cancelled: 'Abgebrochen. Ich habe nichts geändert.',
   actionsExpired: 'Dieser Vorschlag ist abgelaufen. Fragen Sie mich noch einmal, dann bereite ich ihn erneut vor.',
-  unsupportedType: 'Ich kann vorerst nur Textnachrichten lesen. Bitte schreiben Sie Ihre Anfrage.',
+  unsupportedType: 'Ich kann Textnachrichten und Sprachnachrichten lesen. Bitte schreiben Sie Ihre Anfrage oder senden Sie eine Sprachnachricht.',
+  voiceHeard: 'Ich habe verstanden: "{text}"',
+  voiceTooLong: 'Diese Sprachnachricht ist mir zu lang. Bitte bleiben Sie unter 3 Minuten oder schreiben Sie Ihre Anfrage.',
+  voiceUnread: 'Ich konnte diese Sprachnachricht nicht verstehen. Bitte versuchen Sie es erneut oder schreiben Sie Ihre Anfrage.',
   actionUnsupported: 'Diese Änderung kann ich über WhatsApp noch nicht vornehmen. Bitte nutzen Sie dafür die App.',
   floodNotice: 'Sie haben das tägliche WhatsApp-Nachrichtenlimit erreicht. Bitte versuchen Sie es morgen erneut.',
   error: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.',
@@ -207,6 +226,12 @@ export function formatConfirmPrompt(language: AppLanguage, summaries: readonly s
     shown -= 1;
   }
   return `${block}\n\n${s.confirmPrompt}`;
+}
+
+/** M13: "I heard: ..." before the answer to a voice note (the transcript cut for the echo). */
+export function formatVoiceHeard(language: AppLanguage, text: string): string {
+  const shown = text.length > 300 ? `${text.slice(0, 297)}...` : text;
+  return botStrings(language).voiceHeard.replace('{text}', shown);
 }
 
 // ---------------------------------------------------------------------------------------------

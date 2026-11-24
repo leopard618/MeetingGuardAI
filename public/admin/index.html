@@ -92,6 +92,14 @@
           <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4.5 13.5H11L9.5 22 18 10.5h-6.5L13 2z"/></svg>
           <span class="sb-label">AI usage</span>
         </button>
+        <button id="tab-btn-whatsapp" class="sb-item" role="tab" aria-selected="false" aria-controls="tab-whatsapp" tabindex="-1" type="button" title="WhatsApp">
+          <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.4-4.2A8 8 0 1 1 8.3 18.7L4 20z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5"/></svg>
+          <span class="sb-label">WhatsApp</span>
+        </button>
+        <button id="tab-btn-alerts" class="sb-item" role="tab" aria-selected="false" aria-controls="tab-alerts" tabindex="-1" type="button" title="Alerts health">
+          <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2z"/><path d="M10 21h4"/></svg>
+          <span class="sb-label">Alerts health</span>
+        </button>
         <button id="tab-btn-settings" class="sb-item" role="tab" aria-selected="false" aria-controls="tab-settings" tabindex="-1" type="button" title="Settings">
           <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10"/><circle cx="17" cy="7" r="2.5"/><path d="M4 17h3"/><circle cx="10" cy="17" r="2.5"/><path d="M13 17h7"/></svg>
           <span class="sb-label">Settings</span>
@@ -227,6 +235,26 @@
             <button id="users-load-more" class="btn btn-ghost" type="button" hidden>Load more</button>
           </div>
         </div>
+
+        <!-- The user page (M14): one account in full; tap a uid in the table or paste one. -->
+        <div class="card" id="user-page-card">
+          <h3>User page</h3>
+          <div class="user-lookup">
+            <label class="sr-only" for="user-page-uid">User id</label>
+            <input id="user-page-uid" type="search" placeholder="Paste a uid, or tap one in the table" autocomplete="off" spellcheck="false">
+            <button id="user-page-open" class="btn" type="button">Open</button>
+          </div>
+          <p id="user-page-status" class="muted" role="status" hidden></p>
+          <div id="user-page" hidden>
+            <dl class="kv" id="user-page-kv"></dl>
+            <h4>WhatsApp messages</h4>
+            <dl class="kv" id="user-page-wa"></dl>
+            <h4>Phones (alerts health)</h4>
+            <dl class="kv" id="user-page-alerts"></dl>
+            <h4>Recent WhatsApp sends</h4>
+            <dl class="kv" id="user-page-sends"></dl>
+          </div>
+        </div>
       </section>
 
       <!-- Revenue ---------------------------------------------------------------------------- -->
@@ -359,6 +387,99 @@
             <span class="stat-caption">Est. cost (USD)</span>
             <span class="metric-value num" id="ai-total-cost">-</span>
             <p class="muted small">Estimated from per-token pricing for the selected range.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- WhatsApp (M13) ---------------------------------------------------------------------- -->
+      <section id="tab-whatsapp" role="tabpanel" aria-labelledby="tab-btn-whatsapp" hidden>
+        <header class="view-head">
+          <div class="vh-left">
+            <p class="vh-crumb"><span class="crumb-root">Admin</span><span class="crumb-sep" aria-hidden="true">/</span><span class="crumb-here">WhatsApp</span></p>
+            <h1 class="vh-title">WhatsApp</h1>
+            <p class="vh-desc muted">Linked users, the opt-ins to the messages the bot starts, the sends of the last 7 days and the template states Meta reports. No phone numbers or message text.</p>
+          </div>
+          <div class="vh-right">
+            <button id="whatsapp-refresh" class="btn" type="button">Refresh</button>
+          </div>
+        </header>
+        <p id="whatsapp-status" class="muted" role="status" hidden></p>
+        <div class="stat-row stat-row-compact">
+          <div class="card stat-card acc-pro"><span class="stat-caption">Mode</span><span class="metric-value" id="wa-mode">-</span></div>
+          <div class="card stat-card acc-input"><span class="stat-caption">Linked users</span><span class="metric-value num" id="wa-linked">-</span></div>
+          <div class="card stat-card acc-total"><span class="stat-caption">Opted in</span><span class="metric-value num" id="wa-optedin">-</span></div>
+          <div class="card stat-card acc-week"><span class="stat-caption">STOP, 30 days</span><span class="metric-value num" id="wa-stopped">-</span></div>
+        </div>
+        <div class="chart-grid">
+          <div class="card">
+            <h3>Switches on</h3>
+            <dl class="kv" id="wa-switches"></dl>
+          </div>
+          <div class="card">
+            <h3>Sends, last 7 days</h3>
+            <dl class="kv" id="wa-sends"></dl>
+          </div>
+        </div>
+        <div class="card table-card">
+          <h3>Templates</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Template</th><th scope="col">Language</th><th scope="col">Status</th><th scope="col">Category</th><th scope="col" class="num">Validity</th><th scope="col">Usable</th></tr></thead>
+              <tbody id="wa-templates"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card table-card">
+          <h3>Recent sends</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Created</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Reason or code</th><th scope="col">User</th></tr></thead>
+              <tbody id="wa-recent"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Alerts health (M14) ------------------------------------------------------------------ -->
+      <section id="tab-alerts" role="tabpanel" aria-labelledby="tab-btn-alerts" hidden>
+        <header class="view-head">
+          <div class="vh-left">
+            <p class="vh-crumb"><span class="crumb-root">Admin</span><span class="crumb-sep" aria-hidden="true">/</span><span class="crumb-here">Alerts health</span></p>
+            <h1 class="vh-title">Alerts health</h1>
+            <p class="vh-desc muted">What the phones report about their own alarms: permissions, alarms scheduled and when they were last planned. Reported once per session from app 1.7.0.</p>
+          </div>
+          <div class="vh-right">
+            <button id="alerts-refresh" class="btn" type="button">Refresh</button>
+          </div>
+        </header>
+        <p id="alerts-status" class="muted" role="status" hidden></p>
+        <div class="stat-row stat-row-compact">
+          <div class="card stat-card acc-pro"><span class="stat-caption">Phones</span><span class="metric-value num" id="al-installations">-</span></div>
+          <div class="card stat-card acc-input"><span class="stat-caption">Notifications off</span><span class="metric-value num" id="al-notifications">-</span></div>
+          <div class="card stat-card acc-total"><span class="stat-caption">Exact alarms off</span><span class="metric-value num" id="al-exact">-</span></div>
+          <div class="card stat-card acc-week"><span class="stat-caption">Not planned for a day</span><span class="metric-value num" id="al-stale">-</span></div>
+        </div>
+        <div class="chart-grid">
+          <div class="card">
+            <h3>Platforms and versions</h3>
+            <dl class="kv" id="al-platforms"></dl>
+          </div>
+          <div class="card">
+            <h3>Other</h3>
+            <dl class="kv">
+              <dt>Full-screen alarms off</dt><dd id="al-fullscreen" class="num">-</dd>
+              <dt>No alarms scheduled</dt><dd id="al-noalarms" class="num">-</dd>
+              <dt>Accounts reporting</dt><dd id="al-users" class="num">-</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="card table-card">
+          <h3>Phones that need attention</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">User</th><th scope="col">Platform</th><th scope="col">Version</th><th scope="col">Reasons</th><th scope="col">Reported</th></tr></thead>
+              <tbody id="al-attention"></tbody>
+            </table>
           </div>
         </div>
       </section>

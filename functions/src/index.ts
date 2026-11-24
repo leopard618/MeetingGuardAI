@@ -26,8 +26,10 @@
  *   REST API (src/revenuecat/reconcile.ts, docs/v1/ARCHITECTURE.md §20).
  * HTTPS:
  * - revenuecatWebhook: RevenueCat -> entitlements/{uid} writer (secret Authorization header).
- * - whatsappWebhook: the WhatsApp bot (deployed only while WHATSAPP_ENABLED=true; the ONLY
- *   function binding the WHATSAPP_* secrets).
+ * - whatsappWebhook: the WhatsApp bot (deployed only while WHATSAPP_ENABLED=true; binds the
+ *   WHATSAPP_* secrets). M13: whatsappTick (every 5 minutes, binds WHATSAPP_ACCESS_TOKEN only) and
+ *   whatsappTaskReminderSync (task writes, no secret) deploy under the same rule; the
+ *   whatsappMessages callable binds no secret and always deploys.
  * - summaryInbound: notetaker summary emails forwarded through Postmark (deployed only while
  *   SUMMARIES_ENABLED=true; binds SUMMARIES_WEBHOOK_AUTH and SUMMARIES_DATA_KEY, the callables
  *   bind neither; src/summaries, docs/v2/M10-DESIGN.md section 4).
@@ -53,12 +55,20 @@ export {
   adminSetUserDisabled,
   adminSetUserPlan,
 } from './admin';
+// M13/M14 admin additions (WhatsApp panel, alerts health view, user page) and the phones' alerts
+// health reports (src/admin/operations.ts; read-only for viewers, no secrets).
+export { adminGetAlertsHealth, adminGetUser, adminGetWhatsapp, reportAlertHealth } from './admin/operations';
+// M14 guest invitation links (src/guests): no secrets, always deployed.
+export { guestLinkCreate, guestLinkRevoke, guestRespond, guestView } from './guests';
 // The write callables are `undefined` while ZOOM_ENABLED is false at deploy time (the loader
 // skips undefined exports), so a deploy without the ZOOM_* secrets always succeeds.
 export { zoomCreateMeeting, zoomDeleteMeeting, zoomStatus, zoomSyncMeeting } from './zoom';
 // Same gating pattern: whatsappWebhook is `undefined` while WHATSAPP_ENABLED is false at deploy
 // time, so a deploy without the WHATSAPP_* secrets always succeeds; the callables bind none.
 export { whatsappLinkStart, whatsappLinkStatus, whatsappUnlink, whatsappWebhook } from './whatsapp';
+// M13 (docs/v2/WhatsApp-Templates-2026-11-12.md): whatsappMessages always (no secrets); whatsappTick
+// (binds WHATSAPP_ACCESS_TOKEN) and whatsappTaskReminderSync only while WHATSAPP_ENABLED at deploy.
+export { whatsappMessages, whatsappTaskReminderSync, whatsappTick } from './whatsapp';
 // Same gating pattern: summaryInbound and summaryRead are `undefined` while SUMMARIES_ENABLED is
 // false at deploy time, so a deploy without the SUMMARIES_* secrets always succeeds; the callables
 // bind none.

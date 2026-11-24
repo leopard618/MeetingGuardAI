@@ -61,6 +61,18 @@ let mockCalendar: {
 // Google + Outlook invitations choice (null = not chosen yet).
 let mockInvitations: { both: boolean; invitationsFrom: 'google' | 'outlook' | null } = { both: false, invitationsFrom: null };
 const mockSetInvitations = jest.fn(async (_choice: string) => undefined);
+// M14: the reply link for guests (the real helpers, a fake callable).
+const mockCreateLink = jest.fn(async (_meetingId: string) => 'T'.repeat(43));
+jest.mock('../../../services/guests', () => {
+  const actual = jest.requireActual('../../../services/guests/guestLinks');
+  return {
+    guestLinkUrl: actual.guestLinkUrl,
+    hasGuestLink: actual.hasGuestLink,
+    withGuestLink: actual.withGuestLink,
+    newMeetingId: () => 'newMeetingId00000001',
+    guestService: { createLink: (id: string) => mockCreateLink(id) },
+  };
+});
 jest.mock('../../../services/calendar', () => ({
   useCalendarStatus: () => mockCalendar,
   useInvitationsChoice: () => ({ ...mockInvitations, set: (choice: string) => mockSetInvitations(choice) }),
@@ -622,4 +634,51 @@ it('with Google and Outlook both connected, asks once which calendar sends the i
   expect(mockSetInvitations).toHaveBeenCalledWith('outlook');
   expect(mockUpdate).toHaveBeenCalledTimes(1);
   expect((Alert.alert as jest.Mock).mock.calls).toHaveLength(1);
+});
+
+describe('M14: the reply link for guests', () => {
+  async function createWithGuest(toggleOff = false) {
+    mockInvitations = { both: false, invitationsFrom: null };
+    mockCreate.mockImplementation(async (input: unknown) => meeting(input as Partial<Parameters<typeof buildMeeting>[0]>));
+    await renderForm('CreateMeeting');
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Kickoff');
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByText('Add participant'));
+    });
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-participant-0-email'), 'guest@example.com');
+    });
+    if (toggleOff) {
+      await act(async () => {
+        fireEvent(screen.getByTestId('meeting-form-guest-link'), 'valueChange', false);
+      });
+    }
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-save'));
+    });
+  }
+
+  beforeEach(() => mockCreateLink.mockClear());
+
+  it('a new meeting with a guest gets the reply line in the invitation before it is saved', async () => {
+    await createWithGuest();
+    expect(mockCreateLink).toHaveBeenCalledWith('newMeetingId00000001');
+    const [input, options] = mockCreate.mock.calls.at(-1)! as [{ description: string }, unknown];
+    expect(options).toEqual({ origin: 'user', id: 'newMeetingId00000001' });
+    expect(input.description).toBe(`Reply to this invitation: https://meetingguard-ai-app.web.app/g#t=${'T'.repeat(43)}&l=en`);
+  });
+
+  it('turned off, or the link failing, the meeting is saved without it', async () => {
+    await createWithGuest(true);
+    expect(mockCreateLink).not.toHaveBeenCalled();
+    expect(mockCreate.mock.calls.at(-1)![1]).toEqual({ origin: 'user' });
+
+    mockCreateLink.mockRejectedValueOnce(new Error('offline'));
+    await createWithGuest();
+    const [input] = mockCreate.mock.calls.at(-1)! as [{ description: string }];
+    expect(input.description).toBe('');
+    expect(jest.requireMock<{ default: { show: jest.Mock } }>('react-native-toast-message').default.show).toHaveBeenCalledWith(expect.objectContaining({ text1: 'Could not add the reply link now. Add it later from the meeting details.' }));
+  });
 });

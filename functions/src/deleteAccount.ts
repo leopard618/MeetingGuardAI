@@ -13,7 +13,7 @@
  *      transaction (it re-reads the address), and users/{uid}/meetingSummaries goes with the
  *      recursive passes below;
  *   2. users/{uid} (recursively: profile, meetings, notes, settings) -> entitlements/{uid} ->
- *      usage/{uid} (recursively);
+ *      usage/{uid} (recursively) -> alertHealth/{uid} (M14);
  *   2a. the assistant's matters (A1): users/{uid}/matters with their timelines and emails go with
  *      the recursive passes; their lookup documents (matterAddresses, matterMessageIds) are
  *      deleted by uid;
@@ -90,6 +90,11 @@ export interface AccountDeletionPorts {
    * live under users/{uid} and go with the recursive delete. Idempotent.
    */
   deleteMatterLookups(uid: string): Promise<void>;
+  /**
+   * M14: the user's guest links (guestLinks/{hash} and guestMeetings/{uid}__{meetingId} with this
+   * uid), so a link already sent answers "invalid". The answers live under users/{uid}.
+   */
+  deleteGuestLinks(uid: string): Promise<void>;
 }
 
 export async function deleteAccountData(uid: string, ports: AccountDeletionPorts, now: Date = new Date()): Promise<DeleteAccountResponse> {
@@ -101,10 +106,13 @@ export async function deleteAccountData(uid: string, ports: AccountDeletionPorts
   await ports.recursiveDelete(`users/${uid}`);
   await ports.deleteDocument(`entitlements/${uid}`);
   await ports.recursiveDelete(`usage/${uid}`);
+  // M14: the alarm health the phones reported (alertHealth/{uid}, admin alerts health view).
+  await ports.deleteDocument(`alertHealth/${uid}`);
   await ports.deleteWhatsAppData(uid);
   await ports.deleteZoomRegistry(uid);
   await ports.deleteMicrosoftIdentities(uid);
   await ports.deleteMatterLookups(uid);
+  await ports.deleteGuestLinks(uid);
   await ports.deleteAuthUser(uid);
   // Late writes accepted between the first pass and the Auth deletion (see the header).
   await ports.recursiveDelete(`users/${uid}`);
@@ -178,6 +186,16 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
       // A2 adds the follow-up schedule and the read retry queue (both carry the uid)
       // A4 adds the retention entries and the daily spend (matterRetention, matterSpend; both carry the uid)
       for (const name of [MATTER_ADDRESSES_COLLECTION, MATTER_MESSAGE_IDS_COLLECTION, MATTER_SCHEDULE_COLLECTION, MATTER_READ_QUEUE_COLLECTION, MATTER_RETENTION_COLLECTION, MATTER_SPEND_COLLECTION]) {
+        const snapshot = await db.collection(name).where('uid', '==', uid).select().get();
+        for (let start = 0; start < snapshot.docs.length; start += 400) {
+          const batch = db.batch();
+          for (const document of snapshot.docs.slice(start, start + 400)) batch.delete(document.ref);
+          await batch.commit();
+        }
+      }
+    },
+    async deleteGuestLinks(uid) {
+      for (const name of ['guestLinks', 'guestMeetings']) {
         const snapshot = await db.collection(name).where('uid', '==', uid).select().get();
         for (let start = 0; start < snapshot.docs.length; start += 400) {
           const batch = db.batch();

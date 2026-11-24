@@ -32,11 +32,13 @@ import { ThemeProvider, useAppThemes } from '../contexts/ThemeContext';
 import { toAppError } from '../core/errors';
 import { createLogger, setErrorReporter } from '../core/logger';
 import { I18nProvider } from '../i18n';
-import { alertEngine, briefingScheduler, statusNotification, taskReminders } from '../services/alerts';
+import { alertEngine, briefingScheduler, startAlertHealthReporter, statusNotification, taskReminders } from '../services/alerts';
 import { AuthProvider } from '../services/auth';
 import { DataProvider } from '../services/data';
+import { startGuestNotifier } from '../services/guests';
 import { captureException } from '../services/sentry';
 import { reportUpdateLaunch } from '../services/updates';
+import { registerWhatsAppZoneRefresh } from '../services/whatsapp';
 import { linking } from './linking';
 import { navigationRef, onNavigationReady } from './navigationService';
 import { RootNavigator } from './RootNavigator';
@@ -102,7 +104,18 @@ export function AppRoot(): ReactElement | null {
     taskReminders.start();
     briefingScheduler.start();
     statusNotification.start();
-    return () => setErrorReporter(null);
+    // M13: the device zone for the WhatsApp messages (agenda, reminders), once per session.
+    const offWhatsAppZone = registerWhatsAppZoneRefresh();
+    // M14: the alarm health of this phone for the admin alerts health view, once per session.
+    const offAlertHealth = startAlertHealthReporter(() => alertEngine.getStatus());
+    // M14: a notification when a guest answers a reply link (while a session is active).
+    const offGuests = startGuestNotifier();
+    return () => {
+      offGuests();
+      offWhatsAppZone();
+      offAlertHealth();
+      setErrorReporter(null);
+    };
   }, []);
 
   // The native splash stays up until the first frame; the fonts take a few tens of milliseconds.

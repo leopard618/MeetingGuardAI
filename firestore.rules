@@ -15,7 +15,10 @@ rules_version = '2';
 //   adminStats/ai/days/{day}/**        admin aggregates   server only (no client access at all)
 //   adminAudit/{entryId}               admin audit log    server only (no client access at all)
 //   zoomMeetings/{zoomMeetingId}       Zoom owner registry server only (no client access at all)
-//   whatsapp*/** (5 collections)       WhatsApp bot state server only (no client access at all)
+//   whatsapp*/** (7 collections)       WhatsApp bot state server only (no client access at all)
+//   alertHealth/{uid}                  M14 alarm health   server only (no client access at all)
+//   guestLinks, guestMeetings, guestCounters  M14 guest links  server only (no client access at all)
+//   users/{uid}/guestResponses/{id}    M14 guest answers  owner read, owner marks seen/decided only
 //   microsoftIdentities/{oid}          Microsoft sign-in  server only (no client access at all)
 //   summaryAddresses/{tokenHash}       M10 address index  server only (no client access at all)
 //   summaryUsers/{uid}                 M10 address state  server only (no client access at all)
@@ -409,6 +412,19 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // M14 guest answers (functions/src/guests): written by guestRespond (Admin SDK); the owner
+      // reads them and may only mark one seen or decided (approve or decline a proposal; the
+      // meeting itself changes through the owner's normal meeting write).
+      match /guestResponses/{responseId} {
+        allow read: if isOwner(uid);
+        allow create, delete: if false;
+        allow update: if isOwner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'decidedAt', 'updatedAt'])
+          && request.resource.data.state in ['seen', 'approved', 'declined', 'superseded']
+          && (request.resource.data.decidedAt == null || request.resource.data.decidedAt is string)
+          && request.resource.data.updatedAt is string;
+      }
+
       // Executive assistant matters (ARCHITECTURE section 36): the mandate, its timeline and
       // its emails. Written ONLY by the matter functions (Admin SDK), which check every change
       // and every send against the mandate the user confirmed; the owner reads them. A client
@@ -508,6 +524,32 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /whatsappEvents/{eventId} {
+      allow read, write: if false;
+    }
+    // M13: the send log of the messages the bot starts (whatsappSends/{sendId}: uid, phone, kind,
+    // ids of the meeting, task or summary, status) and the template states Meta reports
+    // (whatsappTemplates/{name}_{language}). Server only, like the rest of the bot state.
+    match /whatsappSends/{sendId} {
+      allow read, write: if false;
+    }
+    match /whatsappTemplates/{templateKey} {
+      allow read, write: if false;
+    }
+    // M14: the alarm health each phone reports (reportAlertHealth callable) for the admin alerts
+    // health view: permissions and alarm counts, no meeting data. Server only.
+    match /alertHealth/{uid} {
+      allow read, write: if false;
+    }
+    // M14 guest links (functions/src/guests): the token hash index, the owner's copy of the token
+    // and the per-day rate counters. Server only: a client that could read guestMeetings would
+    // learn other accounts' tokens.
+    match /guestLinks/{linkHash} {
+      allow read, write: if false;
+    }
+    match /guestMeetings/{key} {
+      allow read, write: if false;
+    }
+    match /guestCounters/{key} {
       allow read, write: if false;
     }
 

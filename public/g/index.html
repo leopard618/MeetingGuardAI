@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Meeting invitation - Meeting Guard AI</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/g/guest.css">
+</head>
+<body>
+  <main class="wrap" id="main" aria-live="polite">
+    <header class="brand">
+      <img src="/icon.png" alt="" width="36" height="36">
+      <span>Meeting Guard AI</span>
+    </header>
+
+    <section id="loading" class="card">
+      <p class="muted" id="loading-text">Loading the invitation...</p>
+    </section>
+
+    <section id="closed" class="card" hidden>
+      <h1 id="closed-title"></h1>
+      <p class="muted" id="closed-body"></p>
+    </section>
+
+    <section id="invite" class="card" hidden>
+      <p class="eyebrow" id="invite-from"></p>
+      <h1 id="invite-title"></h1>
+      <p class="when" id="invite-when"></p>
+      <p class="muted small" id="invite-zone" hidden></p>
+      <p class="current" id="invite-current" hidden></p>
+
+      <div class="actions" id="actions">
+        <button type="button" class="btn primary" id="btn-accept"></button>
+        <button type="button" class="btn" id="btn-decline"></button>
+        <button type="button" class="btn ghost" id="btn-propose"></button>
+      </div>
+
+      <form id="details" class="details" hidden novalidate>
+        <div id="propose-fields" hidden>
+          <label for="propose-at" id="propose-label"></label>
+          <input type="datetime-local" id="propose-at">
+        </div>
+        <label for="guest-name" id="name-label"></label>
+        <input type="text" id="guest-name" maxlength="80" autocomplete="name">
+        <label for="guest-email" id="email-label"></label>
+        <input type="email" id="guest-email" maxlength="254" autocomplete="email" inputmode="email">
+        <label for="guest-message" id="message-label"></label>
+        <textarea id="guest-message" maxlength="300" rows="3"></textarea>
+        <p class="error" id="form-error" role="alert" hidden></p>
+        <div class="actions">
+          <button type="submit" class="btn primary" id="btn-send"></button>
+          <button type="button" class="btn ghost" id="btn-cancel"></button>
+        </div>
+      </form>
+    </section>
+
+    <section id="done" class="card" hidden>
+      <h1 id="done-title"></h1>
+      <p class="muted" id="done-body"></p>
+      <button type="button" class="btn ghost" id="btn-change"></button>
+    </section>
+
+    <footer class="foot">
+      <p class="muted small" id="foot-privacy"></p>
+      <p class="small"><a href="https://meetingguard.ai" rel="noopener" id="foot-link"></a></p>
+    </footer>
+  </main>
+  <script type="module" src="/g/guest.js"></script>
+</body>
+</html>

@@ -27,6 +27,7 @@ import {
   WHATSAPP_LINK_CODES_COLLECTION,
   WHATSAPP_SESSIONS_COLLECTION,
 } from '../whatsapp/session';
+import { WHATSAPP_SENDS_COLLECTION } from '../whatsapp/outboundStore';
 import { ACCOUNT_DELETIONS_COLLECTION, runDailyMaintenance, type MaintenancePorts } from './core';
 
 /** Firestore writes per batch (the limit is 500). */
@@ -63,6 +64,21 @@ export function firestoreMaintenancePorts(db: Firestore = adminDb()): Maintenanc
         .limit(limit)
         .select()
         .get();
+      return snapshot.docs.map((document) => document.ref.path);
+    },
+    // M14: guest link state; each carries its own expiresAt (guests/index.ts).
+    async listExpiredGuestDocs(nowIso, limit) {
+      const paths: string[] = [];
+      for (const name of ['guestCounters', 'guestLinks', 'guestMeetings']) {
+        if (paths.length >= limit) break;
+        const snapshot = await db.collection(name).where('expiresAt', '<', nowIso).orderBy('expiresAt').limit(limit - paths.length).select().get();
+        paths.push(...snapshot.docs.map((document) => document.ref.path));
+      }
+      return paths;
+    },
+    // M13: the send log of the bot-started messages (whatsapp/outboundStore.ts).
+    async listExpiredWhatsappSends(nowIso, limit) {
+      const snapshot = await db.collection(WHATSAPP_SENDS_COLLECTION).where('expiresAt', '<', nowIso).orderBy('expiresAt').limit(limit).select().get();
       return snapshot.docs.map((document) => document.ref.path);
     },
     async listExpiredWhatsappCodes(nowIso, limit) {

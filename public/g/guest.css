@@ -1,0 +1,62 @@
+/* M14 guest page: phone first, light and dark, the app's brand colors. */
+:root {
+  --bg: #f4f5fb;
+  --card: #ffffff;
+  --fg: #141833;
+  --muted: #5b6080;
+  --line: #dfe2ef;
+  --accent: #4b47c9;
+  --accent-fg: #ffffff;
+  --error: #b3261e;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1026;
+    --card: #161a37;
+    --fg: #eef0ff;
+    --muted: #a6abcf;
+    --line: #2a2f55;
+    --accent: #a9a4ff;
+    --accent-fg: #0d1026;
+    --error: #ffb4ab;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding: env(safe-area-inset-top, 0) 16px env(safe-area-inset-bottom, 0);
+}
+.wrap { max-width: 520px; margin: 0 auto; padding-block: 24px 40px; display: flex; flex-direction: column; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.brand img { border-radius: 8px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+h1 { font-size: 1.35rem; line-height: 1.3; margin: 4px 0 8px; text-wrap: balance; overflow-wrap: anywhere; }
+.eyebrow { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.when { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+.current { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+.muted { color: var(--muted); }
+.small { font-size: 0.85rem; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.btn {
+  min-height: 44px; padding: 10px 16px; border-radius: 12px; border: 1px solid var(--line);
+  background: transparent; color: var(--fg); font: inherit; font-weight: 600; cursor: pointer; flex: 1 1 auto;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.ghost { border-color: transparent; color: var(--accent); }
+.btn:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn[disabled] { opacity: 0.6; cursor: default; }
+.details { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+.details label { font-size: 0.9rem; color: var(--muted); margin-top: 8px; }
+input, textarea {
+  width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--fg); font: inherit;
+}
+.error { color: var(--error); margin: 8px 0 0; }
+.foot { text-align: center; }
+.foot a { color: var(--accent); }
+[hidden] { display: none !important; }

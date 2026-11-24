@@ -62,6 +62,10 @@ export interface MaintenancePorts {
   listExpiredDeletionRecords(cutoffIso: string, limit: number): Promise<string[]>;
   /** Paths of whatsappEvents dedupe markers whose `expiresAt` (ISO) is before `nowIso`. */
   listExpiredWhatsappEvents(nowIso: string, limit: number): Promise<string[]>;
+  /** M13: paths of whatsappSends entries whose `expiresAt` is before `nowIso` (optional for older fakes). */
+  listExpiredWhatsappSends?(nowIso: string, limit: number): Promise<string[]>;
+  /** M14: paths of guestCounters, guestLinks and guestMeetings documents past their `expiresAt`. */
+  listExpiredGuestDocs?(nowIso: string, limit: number): Promise<string[]>;
   /** Paths of whatsappLinkCodes whose `expiresAt` (ISO) is before `nowIso`. */
   listExpiredWhatsappCodes(nowIso: string, limit: number): Promise<string[]>;
   /** Paths of whatsappSessions whose `updatedAt` (ISO) is before `cutoffIso`. */
@@ -92,6 +96,10 @@ export interface MaintenanceResult {
   whatsappEventsPurged: number;
   whatsappCodesPurged: number;
   whatsappSessionsPurged: number;
+  /** M13: expired whatsappSends entries (the send log of the bot-started messages). */
+  whatsappSendsPurged?: number;
+  /** M14: expired guest link state (counters, links, the owners' token copies). */
+  guestDocsPurged?: number;
   /** M10: expired users/{uid}/meetingSummaries documents (summaries and refused rows). */
   meetingSummariesPurged: number;
   /** M10: expired summaryEvents documents (markers and first-seen records). */
@@ -180,6 +188,11 @@ export async function runDailyMaintenance(ports: MaintenancePorts, now: Date): P
     cutoffIso(now, WHATSAPP_SESSION_RETENTION_DAYS),
     ports,
   );
+  // M13: the send log carries its own expiresAt.
+  const listSends = ports.listExpiredWhatsappSends?.bind(ports);
+  const sends = listSends ? await purgeInPages((cutoff, limit) => listSends(cutoff, limit), nowIso, ports) : null;
+  const listGuests = ports.listExpiredGuestDocs?.bind(ports);
+  const guests = listGuests ? await purgeInPages((cutoff, limit) => listGuests(cutoff, limit), nowIso, ports) : null;
   // M10: both carry their own expiresAt, so they purge against now itself; neither can fail the run.
   const purgeErrors: Partial<Record<SummaryPurge, string>> = {};
   const summaries = await purgeSummaryState(
@@ -202,6 +215,8 @@ export async function runDailyMaintenance(ports: MaintenancePorts, now: Date): P
     whatsappEventsPurged: events.purged,
     whatsappCodesPurged: codes.purged,
     whatsappSessionsPurged: sessions.purged,
+    ...(sends !== null ? { whatsappSendsPurged: sends.purged } : {}),
+    ...(guests !== null ? { guestDocsPurged: guests.purged } : {}),
     meetingSummariesPurged: summaries.purged,
     summaryEventsPurged: summaryEvents.purged,
     complete:
@@ -210,6 +225,8 @@ export async function runDailyMaintenance(ports: MaintenancePorts, now: Date): P
       events.complete &&
       codes.complete &&
       sessions.complete &&
+      (sends?.complete ?? true) &&
+      (guests?.complete ?? true) &&
       summaries.complete &&
       summaryEvents.complete,
     ...(Object.keys(purgeErrors).length > 0 ? { purgeErrors } : {}),

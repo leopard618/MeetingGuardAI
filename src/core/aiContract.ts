@@ -112,6 +112,15 @@ export const CALLABLES = {
   whatsappLinkStart: 'whatsappLinkStart',
   whatsappLinkStatus: 'whatsappLinkStatus',
   whatsappUnlink: 'whatsappUnlink',
+  /** M13: the opt-in to messages the bot starts (daily agenda, debrief prompts, reminders). */
+  whatsappMessages: 'whatsappMessages',
+  /** M14: the phone reports its alarm health for the admin alerts health view. */
+  reportAlertHealth: 'reportAlertHealth',
+  /** M14 guest links: the owner's two (signed in) and the guest page's two (no sign-in). */
+  guestLinkCreate: 'guestLinkCreate',
+  guestLinkRevoke: 'guestLinkRevoke',
+  guestView: 'guestView',
+  guestRespond: 'guestRespond',
   summaryStatus: 'summaryStatus',
   summaryAction: 'summaryAction',
   summaryRead: 'summaryRead',
@@ -1002,6 +1011,150 @@ export const whatsappUnlinkResponseSchema = z.object({
   unlinked: z.boolean(),
 });
 export type WhatsappUnlinkResponse = z.infer<typeof whatsappUnlinkResponseSchema>;
+
+// M13: messages the bot starts by itself (docs/v2/WhatsApp-Templates-2026-11-12.md section 7).
+// All switches are off until the user turns one on in the app; STOP in the chat turns all off.
+// The record is server-only (whatsappUsers/{uid}.messages) and tied to the linked phone.
+export const WHATSAPP_MESSAGE_SWITCHES = ['agenda', 'debrief', 'confirmations', 'commitments', 'reminders'] as const;
+export type WhatsappMessageSwitch = (typeof WHATSAPP_MESSAGE_SWITCHES)[number];
+export const whatsappMessageSwitchesSchema = z.object({
+  agenda: z.boolean(),
+  debrief: z.boolean(),
+  confirmations: z.boolean(),
+  commitments: z.boolean(),
+  reminders: z.boolean(),
+});
+export type WhatsappMessageSwitches = z.infer<typeof whatsappMessageSwitchesSchema>;
+/** The opt-in wording the app shows; stored with the opt-in (bump when the text changes). */
+export const WHATSAPP_MESSAGES_WORDING_VERSION = 1;
+
+export const whatsappMessagesRequestSchema = z.discriminatedUnion('op', [
+  /** Reads the record; also refreshes the device zone of an opted-in user (every app start). */
+  z.object({ op: z.literal('get'), deviceTimeZone: timeZoneSchema.nullable().optional() }),
+  z.object({
+    op: z.literal('set'),
+    switches: whatsappMessageSwitchesSchema,
+    deviceTimeZone: timeZoneSchema.nullable().optional(),
+    wordingVersion: z.number().int().min(1).max(1000),
+  }),
+]);
+export type WhatsappMessagesRequest = z.infer<typeof whatsappMessagesRequestSchema>;
+export const whatsappMessagesResponseSchema = z.object({
+  /** false while the bot cannot start messages (templates mode off): the app hides the section. */
+  available: z.boolean(),
+  linked: z.boolean(),
+  switches: whatsappMessageSwitchesSchema,
+  /** The switches this account may use (commitments: summaries pilot; confirmations: not yet). */
+  offered: whatsappMessageSwitchesSchema,
+  /** ISO time of the last STOP written in the chat, or null. */
+  stoppedAt: z.string().nullable(),
+});
+export type WhatsappMessagesResponse = z.infer<typeof whatsappMessagesResponseSchema>;
+
+// M14: alerts health (reportAlertHealth; the admin alerts health view reads alertHealth/{uid}).
+// What the phone knows about its own alarms, nothing about meetings: permissions, how many alarms
+// are scheduled and when they were last planned. One entry per installation of the app.
+export const reportAlertHealthRequestSchema = z.object({
+  installationId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+  platform: z.enum(['ios', 'android', 'web']),
+  appVersion: z.string().min(1).max(32),
+  notifications: z.enum(['granted', 'denied', 'undetermined']),
+  /** Android exact alarms; null where they are not needed or not known. */
+  exactAlarms: z.boolean().nullable(),
+  /** Android full-screen alarms; null on iOS. */
+  fullScreen: z.boolean().nullable(),
+  /** Android battery optimization off for the app; null when not known. */
+  batteryUnrestricted: z.boolean().nullable(),
+  scheduledCount: z.number().int().min(0).max(10_000),
+  lastReconcileAt: isoDateTimeSchema.nullable(),
+});
+export type ReportAlertHealthRequest = z.infer<typeof reportAlertHealthRequestSchema>;
+export const reportAlertHealthResponseSchema = z.object({ ok: z.literal(true) });
+export type ReportAlertHealthResponse = z.infer<typeof reportAlertHealthResponseSchema>;
+
+// M14: guest invitation links (functions/src/guests). One link per meeting, a 256-bit random
+// token (43 base64url characters) that the server stores only as a hash. The guest page shows
+// the title, the time and the organizer's name, never the other guests, the description or the
+// call link; a guest answers accept, decline or another time. Only a proposal the owner
+// approves in the app changes the meeting.
+export const GUEST_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+export const GUEST_LANGUAGES = ['en', 'es', 'pt', 'fr', 'de'] as const;
+export const GUEST_LIMITS = { maxMessageChars: 300, maxNameChars: 80, maxEmailChars: 254 } as const;
+export const guestTokenSchema = z.string().regex(GUEST_TOKEN_PATTERN);
+/** The guest browser's own random id: the same browser updates its answer. */
+export const guestClientIdSchema = z.string().regex(/^[A-Za-z0-9_-]{16,64}$/);
+
+export const guestLinkCreateRequestSchema = z.object({ meetingId: meetingIdSchema });
+export type GuestLinkCreateRequest = z.infer<typeof guestLinkCreateRequestSchema>;
+export const guestLinkCreateResponseSchema = z.object({ token: guestTokenSchema, expiresAt: isoDateTimeSchema });
+export type GuestLinkCreateResponse = z.infer<typeof guestLinkCreateResponseSchema>;
+
+export const guestLinkRevokeRequestSchema = z.object({ meetingId: meetingIdSchema });
+export const guestLinkRevokeResponseSchema = z.object({ revoked: z.boolean() });
+export type GuestLinkRevokeResponse = z.infer<typeof guestLinkRevokeResponseSchema>;
+
+export const GUEST_LINK_STATES = ['open', 'past', 'cancelled', 'expired', 'revoked', 'invalid'] as const;
+export type GuestLinkState = (typeof GUEST_LINK_STATES)[number];
+export const GUEST_RESPONSE_KINDS = ['accepted', 'declined', 'proposed'] as const;
+export type GuestResponseKind = (typeof GUEST_RESPONSE_KINDS)[number];
+
+export const guestViewRequestSchema = z.object({ token: z.string().max(64), clientId: guestClientIdSchema.optional() });
+export const guestMeetingViewSchema = z.object({
+  title: z.string().max(200),
+  startAt: isoDateTimeSchema,
+  durationMinutes: z.number().int().min(1).max(20_160),
+  allDay: z.boolean(),
+  timezone: timeZoneSchema,
+  recurring: z.boolean(),
+});
+export const guestViewResponseSchema = z.object({
+  state: z.enum(GUEST_LINK_STATES),
+  meeting: guestMeetingViewSchema.nullable(),
+  organizerName: z.string().max(120).nullable(),
+  /** The owner's app language, the page's default when the browser asks for none of ours. */
+  language: z.enum(GUEST_LANGUAGES),
+  canPropose: z.boolean(),
+  myResponse: z.object({ kind: z.enum(GUEST_RESPONSE_KINDS), proposedStartAt: isoDateTimeSchema.nullable() }).nullable(),
+});
+export type GuestViewResponse = z.infer<typeof guestViewResponseSchema>;
+
+export const guestRespondRequestSchema = z
+  .object({
+    token: z.string().max(64),
+    clientId: guestClientIdSchema,
+    kind: z.enum(GUEST_RESPONSE_KINDS),
+    proposedStartAt: isoDateTimeSchema.nullable().optional(),
+    name: z.string().max(GUEST_LIMITS.maxNameChars).optional(),
+    email: z.string().max(GUEST_LIMITS.maxEmailChars).optional(),
+    message: z.string().max(GUEST_LIMITS.maxMessageChars).optional(),
+  })
+  .refine((r) => r.kind !== 'proposed' || (r.proposedStartAt !== undefined && r.proposedStartAt !== null), {
+    message: 'a proposal needs proposedStartAt',
+    path: ['proposedStartAt'],
+  });
+export type GuestRespondRequest = z.infer<typeof guestRespondRequestSchema>;
+export const guestRespondResponseSchema = z.object({ state: z.enum(GUEST_LINK_STATES), saved: z.boolean() });
+export type GuestRespondResponse = z.infer<typeof guestRespondResponseSchema>;
+
+/** users/{uid}/guestResponses/{id}: written by the server, the owner only marks it seen or decided. */
+export const GUEST_RESPONSE_STATES = ['new', 'seen', 'approved', 'declined', 'superseded'] as const;
+export type GuestResponseState = (typeof GUEST_RESPONSE_STATES)[number];
+export const guestResponseDocSchema = z.object({
+  v: z.literal(1),
+  meetingId: meetingIdSchema,
+  kind: z.enum(GUEST_RESPONSE_KINDS),
+  guestName: z.string().max(GUEST_LIMITS.maxNameChars).nullable(),
+  guestEmail: z.string().max(GUEST_LIMITS.maxEmailChars).nullable(),
+  proposedStartAt: isoDateTimeSchema.nullable(),
+  message: z.string().max(GUEST_LIMITS.maxMessageChars).nullable(),
+  /** The meeting start the guest saw when answering (a moved meeting makes a proposal stale). */
+  meetingStartAtSeen: isoDateTimeSchema,
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+  state: z.enum(GUEST_RESPONSE_STATES),
+  decidedAt: isoDateTimeSchema.nullable(),
+});
+export type GuestResponseDoc = z.infer<typeof guestResponseDocSchema>;
 
 /** Error taxonomy of the whatsapp* callables (details.reason, like the zoom ones). */
 export const WHATSAPP_ERROR_CODES = [
