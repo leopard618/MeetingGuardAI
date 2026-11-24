@@ -28,7 +28,10 @@ exports[`bot strings EN snapshot 1`] = `
     "where": "Where",
   },
   "taskListEmpty": "I found no matching tasks.",
-  "unsupportedType": "I can only read text messages for now. Please type your request.",
+  "unsupportedType": "I can read text messages and voice notes. Please type your request or send a voice note.",
+  "voiceHeard": "I heard: "{text}"",
+  "voiceTooLong": "That voice note is too long for me. Please keep it under 3 minutes, or type your request.",
+  "voiceUnread": "I could not understand that voice note. Please try again or type your request.",
 }
 `;
 
@@ -60,6 +63,9 @@ exports[`bot strings ES snapshot 1`] = `
     "where": "Dónde",
   },
   "taskListEmpty": "No encontré tareas que coincidan.",
-  "unsupportedType": "Por ahora solo puedo leer mensajes de texto. Escribe tu solicitud.",
+  "unsupportedType": "Puedo leer mensajes de texto y notas de voz. Escribe tu solicitud o envía una nota de voz.",
+  "voiceHeard": "Te escuché: «{text}»",
+  "voiceTooLong": "Esa nota de voz es demasiado larga para mí. Que dure menos de 3 minutos, o escribe tu solicitud.",
+  "voiceUnread": "No pude entender esa nota de voz. Inténtalo de nuevo o escribe tu solicitud.",
 }
 `;

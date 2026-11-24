@@ -7,6 +7,7 @@ import {
   consumeQuota,
   evaluateQuota,
   paidCycle,
+  peekQuota,
   readUsageRoot,
   refundQuota,
   settleClarification,
@@ -139,6 +140,17 @@ describe('resolveEffectivePlan and startedAt', () => {
     // Expired and revoked writes keep what was stored.
     expect(withStartedAt(stored, { ...renewal, status: 'expired' }, '2026-10-05T00:00:00.000Z').startedAt).toBe('2026-08-05T00:00:00.000Z');
     expect(withStartedAt(undefined, { ...renewal, status: 'revoked' }, '2026-10-05T00:00:00.000Z').startedAt).toBeNull();
+  });
+});
+
+describe('peekQuota (M13 voice notes, read-only)', () => {
+  it('answers whether one more request is allowed and writes nothing', async () => {
+    const store = new FakeQuotaStore();
+    expect(await peekQuota(store, 'u1', NOW)).toBe(true);
+    expect(store.usage.size).toBe(0);
+    expect(store.roots.has('u1')).toBe(false);
+    store.roots.set('u1', { introStartedAt: '2026-10-03T10:00:00.000Z', introUsed: 10 });
+    expect(await peekQuota(store, 'u1', NOW)).toBe(false);
   });
 });
 

@@ -302,5 +302,40 @@
     "messageSeries": "Só esta ocorrência é encurtada para terminar agora. O resto da série mantém a duração.",
     "confirm": "Encerrar agora",
     "ended": "Reunião encerrada."
+  },
+  "guests": {
+    "linkLine": "Responda a este convite",
+    "formToggle": "Adicionar um link de resposta para convidados",
+    "formHint": "Os convidados aceitam, recusam ou propõem outro horário pelo celular, sem instalar nada.",
+    "section": "Respostas dos convidados",
+    "empty": "Ainda não há respostas. Os convidados respondem pelo link do convite.",
+    "share": "Compartilhar o link de resposta",
+    "shareMessage": "Responda ao convite de \"{{title}}\": {{url}}",
+    "addToInvite": "Adicionar o link de resposta ao convite",
+    "addToInviteDone": "Link adicionado. O calendário envia uma atualização aos convidados.",
+    "turnOff": "Desativar o link de resposta",
+    "turnOffTitle": "Desativar o link de resposta?",
+    "turnOffBody": "O link deixa de funcionar para todos os convidados. Você pode criar outro depois.",
+    "turnOffDone": "Link de resposta desativado.",
+    "accepted": "Aceitou",
+    "declined": "Recusou",
+    "proposed": "Propõe {{time}}",
+    "approve": "Aprovar o novo horário",
+    "keep": "Manter o horário",
+    "approved": "Aprovado",
+    "kept": "Horário mantido",
+    "stale": "A reunião mudou desde esta proposta.",
+    "approveTitle": "Mover a reunião?",
+    "approveBody": "A reunião passa para {{time}}. Seus alarmes e calendários acompanham, e os convidados recebem o convite atualizado.",
+    "approveAction": "Mover",
+    "someone": "Um convidado",
+    "note": "Nota: {{message}}",
+    "linkFailed": "Não foi possível adicionar o link de resposta agora. Adicione depois nos detalhes da reunião.",
+    "failed": "Não foi possível salvar a alteração. Tente de novo.",
+    "notify": {
+      "accepted": "{{name}} aceitou",
+      "declined": "{{name}} recusou",
+      "proposed": "{{name}} propõe outro horário"
+    }
   }
 }

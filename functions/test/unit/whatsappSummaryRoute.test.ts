@@ -130,11 +130,11 @@ function world(options: { db?: FakeFirestore; port?: FakePort; summaries?: boole
 let wamids = 0;
 function text(body: string): InboundMessage {
   wamids += 1;
-  return { wamid: `wamid.t${wamids}`, from: PHONE, type: 'text', text: body, buttonReplyId: null, profileName: null, timestamp: null };
+  return { wamid: `wamid.t${wamids}`, from: PHONE, type: 'text', text: body, buttonReplyId: null, profileName: null, timestamp: null, audio: null };
 }
 function button(id: string): InboundMessage {
   wamids += 1;
-  return { wamid: `wamid.b${wamids}`, from: PHONE, type: 'interactive', text: null, buttonReplyId: id, profileName: null, timestamp: null };
+  return { wamid: `wamid.b${wamids}`, from: PHONE, type: 'interactive', text: null, buttonReplyId: id, profileName: null, timestamp: null, audio: null };
 }
 
 function sessionOf(w: World) {

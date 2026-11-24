@@ -302,5 +302,40 @@
     "messageSeries": "Seule cette occurrence est raccourcie pour se terminer maintenant. Le reste de la série garde sa durée.",
     "confirm": "Terminer maintenant",
     "ended": "Réunion terminée."
+  },
+  "guests": {
+    "linkLine": "Répondre à cette invitation",
+    "formToggle": "Ajouter un lien de réponse pour les invités",
+    "formHint": "Les invités acceptent, refusent ou proposent un autre horaire depuis leur téléphone, sans rien installer.",
+    "section": "Réponses des invités",
+    "empty": "Pas encore de réponse. Les invités répondent avec le lien de l'invitation.",
+    "share": "Partager le lien de réponse",
+    "shareMessage": "Merci de répondre à l'invitation pour \"{{title}}\" : {{url}}",
+    "addToInvite": "Ajouter le lien de réponse à l'invitation",
+    "addToInviteDone": "Lien ajouté. Le calendrier envoie une mise à jour aux invités.",
+    "turnOff": "Désactiver le lien de réponse",
+    "turnOffTitle": "Désactiver le lien de réponse ?",
+    "turnOffBody": "Le lien cesse de fonctionner pour tous les invités. Vous pourrez en créer un nouveau.",
+    "turnOffDone": "Lien de réponse désactivé.",
+    "accepted": "A accepté",
+    "declined": "A refusé",
+    "proposed": "Propose {{time}}",
+    "approve": "Approuver le nouvel horaire",
+    "keep": "Garder l'horaire",
+    "approved": "Approuvé",
+    "kept": "Horaire conservé",
+    "stale": "La réunion a changé depuis cette proposition.",
+    "approveTitle": "Déplacer la réunion ?",
+    "approveBody": "La réunion passe à {{time}}. Vos alarmes et vos calendriers suivent, et les invités reçoivent l'invitation mise à jour.",
+    "approveAction": "Déplacer",
+    "someone": "Un invité",
+    "note": "Mot : {{message}}",
+    "linkFailed": "Impossible d'ajouter le lien de réponse maintenant. Ajoutez-le plus tard depuis les détails de la réunion.",
+    "failed": "Impossible d'enregistrer la modification. Réessayez.",
+    "notify": {
+      "accepted": "{{name}} a accepté",
+      "declined": "{{name}} a refusé",
+      "proposed": "{{name}} propose un autre horaire"
+    }
   }
 }

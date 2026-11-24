@@ -101,11 +101,20 @@
           "The meeting is hosted on our Zoom account, so when anyone joins it, Zoom handles the call under its own terms and privacy policy and may make its usual meeting reports (for example, who joined and when) available to us as the host."
         ]
       },
+      "guests": {
+        "title": "Reply links for guests",
+        "body": [
+          "When you add a reply link to a meeting with guests, the invitation carries a link to a page of Meeting Guard AI. Anyone with the link sees the meeting's title, date, time, time zone and your name, never the other guests, the description, the place or the call link, and can answer: accept, decline or propose another time, with a name, an email and a short note if they want. We store each answer in your account so you see it in the app. A proposed time changes your meeting only if you approve it.",
+          "The link is a long random code that our server keeps only in a scrambled form. You can turn it off at any time on the meeting, and it stops working when the meeting is cancelled or over. The answers are deleted with your account. To limit abuse we count the requests of each network address for a day, without storing the address itself."
+        ]
+      },
       "whatsapp": {
         "title": "WhatsApp assistant",
         "body": [
           "The WhatsApp assistant is optional. To use it, you link your WhatsApp number with a one-time code that you get in the app, on the WhatsApp assistant screen in Settings. From then on, the messages you send to the Meeting Guard AI WhatsApp number reach our server through Meta (WhatsApp Business Platform). Our server treats them like requests to the AI assistant in the app: it sends OpenAI the recent messages of the chat and the same limited view of your meetings and tasks described in \"AI assistant (OpenAI)\". Nothing is created, changed or deleted until you confirm it in the chat. The replies, including the meetings and tasks you ask about (with their title, date, time and video-call link or address), reach you through Meta too. Your use of WhatsApp itself is subject to WhatsApp's own terms and privacy policy.",
-          "To follow the conversation, our server keeps the last 10 messages of the chat, yours and the assistant's, and any proposal that waits for your confirmation. After 15 minutes without messages they are no longer used and your next message starts a new conversation; the conversation state is deleted once 30 days pass without messages. Our server logs never contain the text of your messages or your phone number. You can unlink your number at any time on the same screen, which deletes the link and the conversation state."
+          "If you send a voice note, our server downloads it from Meta and sends the audio to OpenAI to turn it into text, under the conditions described in \"AI assistant (OpenAI)\". The audio is not stored; its text is handled like a typed message, and the reply starts with the text the assistant understood.",
+          "To follow the conversation, our server keeps the last 10 messages of the chat, yours and the assistant's, and any proposal that waits for your confirmation. After 15 minutes without messages they are no longer used and your next message starts a new conversation; the conversation state is deleted once 30 days pass without messages. Our server logs never contain the text of your messages or your phone number. You can unlink your number at any time on the same screen, which deletes the link and the conversation state.",
+          "Messages from Meeting Guard AI are optional and off until you turn them on, each kind with its own switch on the WhatsApp assistant screen: the daily agenda, debrief prompts, commitments to review and task reminders. For them, our server reads your meetings and tasks and the title and date of your filed meeting summaries, and sends the message through Meta. It keeps a record of each message (what it was about, when it was sent and whether it was delivered) for 30 days. Reply STOP in the WhatsApp chat to turn off the messages Meeting Guard AI sends without you writing first. The assistant still answers when you write."
         ]
       },
       "ai": {

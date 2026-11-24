@@ -302,5 +302,40 @@
     "messageSeries": "Only this occurrence is shortened so it ends now. The rest of the series keeps its length.",
     "confirm": "End now",
     "ended": "Meeting ended."
+  },
+  "guests": {
+    "linkLine": "Reply to this invitation",
+    "formToggle": "Add a reply link for guests",
+    "formHint": "Guests accept, decline or propose another time from their phone, without installing anything.",
+    "section": "Guest replies",
+    "empty": "No replies yet. Guests answer with the reply link in the invitation.",
+    "share": "Share the reply link",
+    "shareMessage": "Please reply to the invitation for \"{{title}}\": {{url}}",
+    "addToInvite": "Add the reply link to the invitation",
+    "addToInviteDone": "Reply link added. The calendar sends the guests an update.",
+    "turnOff": "Turn off the reply link",
+    "turnOffTitle": "Turn off the reply link?",
+    "turnOffBody": "The link stops working for every guest. You can make a new one later.",
+    "turnOffDone": "Reply link turned off.",
+    "accepted": "Accepted",
+    "declined": "Declined",
+    "proposed": "Proposes {{time}}",
+    "approve": "Approve the new time",
+    "keep": "Keep the time",
+    "approved": "Approved",
+    "kept": "Time kept",
+    "stale": "The meeting changed since this proposal.",
+    "approveTitle": "Move the meeting?",
+    "approveBody": "The meeting moves to {{time}}. Your alarms and calendars follow, and the guests get the updated invitation.",
+    "approveAction": "Move",
+    "someone": "A guest",
+    "note": "Note: {{message}}",
+    "linkFailed": "Could not add the reply link now. Add it later from the meeting details.",
+    "failed": "Could not save the change. Try again.",
+    "notify": {
+      "accepted": "{{name}} accepted",
+      "declined": "{{name}} declined",
+      "proposed": "{{name}} proposes another time"
+    }
   }
 }

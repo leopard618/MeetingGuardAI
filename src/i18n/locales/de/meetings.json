@@ -302,5 +302,40 @@
     "messageSeries": "Nur dieser Termin wird gekürzt, sodass er jetzt endet. Der Rest der Serie behält seine Dauer.",
     "confirm": "Jetzt beenden",
     "ended": "Besprechung beendet."
+  },
+  "guests": {
+    "linkLine": "Auf diese Einladung antworten",
+    "formToggle": "Antwortlink für Gäste hinzufügen",
+    "formHint": "Gäste sagen zu, sagen ab oder schlagen eine andere Zeit vor, am Handy und ohne etwas zu installieren.",
+    "section": "Antworten der Gäste",
+    "empty": "Noch keine Antworten. Gäste antworten über den Link in der Einladung.",
+    "share": "Antwortlink teilen",
+    "shareMessage": "Bitte antworten Sie auf die Einladung zu \"{{title}}\": {{url}}",
+    "addToInvite": "Antwortlink zur Einladung hinzufügen",
+    "addToInviteDone": "Link hinzugefügt. Der Kalender sendet den Gästen eine Aktualisierung.",
+    "turnOff": "Antwortlink ausschalten",
+    "turnOffTitle": "Antwortlink ausschalten?",
+    "turnOffBody": "Der Link funktioniert dann für keinen Gast mehr. Sie können später einen neuen erstellen.",
+    "turnOffDone": "Antwortlink ausgeschaltet.",
+    "accepted": "Zugesagt",
+    "declined": "Abgesagt",
+    "proposed": "Schlägt {{time}} vor",
+    "approve": "Neue Zeit bestätigen",
+    "keep": "Zeit beibehalten",
+    "approved": "Bestätigt",
+    "kept": "Zeit beibehalten",
+    "stale": "Das Meeting hat sich seit diesem Vorschlag geändert.",
+    "approveTitle": "Meeting verschieben?",
+    "approveBody": "Das Meeting wird auf {{time}} verschoben. Ihre Alarme und Kalender folgen, und die Gäste erhalten die aktualisierte Einladung.",
+    "approveAction": "Verschieben",
+    "someone": "Ein Gast",
+    "note": "Notiz: {{message}}",
+    "linkFailed": "Der Antwortlink konnte jetzt nicht hinzugefügt werden. Fügen Sie ihn später in den Meeting-Details hinzu.",
+    "failed": "Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    "notify": {
+      "accepted": "{{name}} hat zugesagt",
+      "declined": "{{name}} hat abgesagt",
+      "proposed": "{{name}} schlägt eine andere Zeit vor"
+    }
   }
 }

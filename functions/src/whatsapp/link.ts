@@ -16,6 +16,7 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError } from 'firebase-functions/https';
 import type { Firestore } from 'firebase-admin/firestore';
 
+import { WHATSAPP_SENDS_COLLECTION } from './outboundStore';
 import { WHATSAPP_TUNING } from '../config';
 import {
   WHATSAPP_ERROR_HTTPS_CODES,
@@ -80,6 +81,8 @@ export interface LinkStore {
   deleteLink(phoneE164: string): Promise<void>;
   deleteSession(phoneE164: string): Promise<void>;
   deleteUser(uid: string): Promise<void>;
+  /** M13: the uid's send log (queued and sent bot-started messages). Optional for older fakes. */
+  deleteSends?(uid: string): Promise<void>;
 }
 
 export interface LinkDeps {
@@ -173,6 +176,7 @@ export async function deleteWhatsAppDataForUid(uid: string, store: LinkStore): P
     await store.deleteSession(user.phoneE164);
   }
   await store.deleteUser(uid);
+  if (store.deleteSends) await store.deleteSends(uid);
   return user.phoneE164 !== null;
 }
 
@@ -221,6 +225,16 @@ export function firestoreLinkStore(db: Firestore): LinkStore {
     },
     async deleteUser(uid) {
       await db.doc(`${WHATSAPP_USERS_COLLECTION}/${uid}`).delete();
+    },
+    async deleteSends(uid) {
+      for (;;) {
+        const snapshot = await db.collection(WHATSAPP_SENDS_COLLECTION).where('uid', '==', uid).limit(400).get();
+        if (snapshot.empty) return;
+        const batch = db.batch();
+        for (const doc of snapshot.docs) batch.delete(doc.ref);
+        await batch.commit();
+        if (snapshot.size < 400) return;
+      }
     },
   };
 }

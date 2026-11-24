@@ -285,6 +285,20 @@ export async function consumeQuota(store: QuotaStore, uid: string, now: Date): P
   });
 }
 
+/**
+ * Read-only: whether one more request would be allowed now (M13 voice notes check this before
+ * paying for a download and a transcription; the request itself is charged by consumeQuota).
+ */
+export async function peekQuota(store: QuotaStore, uid: string, now: Date): Promise<boolean> {
+  const dayKey = usageDayKey(now);
+  return store.runTransaction(async (tx) => {
+    const entitlement = resolveEffectivePlan(await tx.readEntitlement(uid), now);
+    const dayCount = await tx.readUsageCount(uid, dayKey);
+    const root = readUsageRoot(await tx.readUsageRoot(uid));
+    return evaluateQuota({ plan: entitlement.plan, startedAt: entitlement.startedAt, dayCount, root, now }).allowed;
+  });
+}
+
 function refundIn(tx: QuotaTransaction, uid: string, dayKey: string, charges: QuotaCharges, root: UsageRoot, dayCount: number, nowIso: string): UsageRoot {
   let next = root;
   if (charges.day && dayCount > 0) tx.writeUsageCount(uid, dayKey, dayCount - 1, nowIso);

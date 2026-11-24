@@ -49,6 +49,7 @@ import { MeetingSummarySection } from '../summaries/MeetingSummarySection';
 import { MeetingCommitmentsButton } from '../summaries/MeetingCommitmentsButton';
 import { canDebrief } from './debrief';
 import { conferenceCardState } from './meetingForm';
+import { MeetingGuestReplies } from './MeetingGuestReplies';
 import { endNowWrite, isRunningNow, resolveRunningLateMeeting } from './runningLate';
 import { openRunningLate } from './RunningLateSheet';
 import { applyScopedWrite } from './scopedWrite';
@@ -433,6 +434,9 @@ function MeetingDetails({
           </ListGroup>
         </>
       ) : null}
+
+      {/* M14: the guests' answers through the reply link, and the link itself. */}
+      <MeetingGuestReplies meeting={meeting} />
 
       {meeting.description ? (
         <>

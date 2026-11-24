@@ -34,5 +34,31 @@
   "error": {
     "rateLimited": "You have requested too many codes today. Try again tomorrow.",
     "generic": "Something went wrong. Try again."
+  },
+  "messages": {
+    "title": "Messages from Meeting Guard AI",
+    "explainer": "Choose which messages Meeting Guard AI may send you on WhatsApp without you writing first. Reply STOP in the chat to turn them all off.",
+    "stopped": "You turned these messages off with STOP in the chat. Turn one on here to receive it again.",
+    "error": "Could not save the change. Try again.",
+    "agenda": {
+      "title": "Daily agenda",
+      "hint": "Your day at your briefing time, with the full list one tap away."
+    },
+    "debrief": {
+      "title": "Debrief prompts",
+      "hint": "After a meeting ends, a prompt to note who does what, and by when."
+    },
+    "confirmations": {
+      "title": "Meeting confirmations",
+      "hint": "When Meeting Guard AI saves a meeting for you outside this chat."
+    },
+    "commitments": {
+      "title": "Commitments to review (pilot)",
+      "hint": "When a notetaker summary with commitments is filed."
+    },
+    "reminders": {
+      "title": "Task reminders",
+      "hint": "At the reminder time of the tasks you accepted from a summary."
+    }
   }
 }

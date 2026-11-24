@@ -32,6 +32,9 @@ import {
 } from '../../src/whatsapp/session';
 import type { MeetingStore } from '../../src/whatsapp/executor';
 import type { WhatsappButton, WhatsappSender } from '../../src/whatsapp/send';
+import type { VoicePort, VoiceResult } from '../../src/whatsapp/voice';
+import { OUTBOUND_TEXTS } from '../../src/whatsapp/outboundTexts';
+import { MemoryOutboundStore, MemoryReader } from './whatsappOutboundFakes';
 import {
   CANCEL_BUTTON_PREFIX,
   CONFIRM_BUTTON_PREFIX,
@@ -221,6 +224,7 @@ function textMessage(overrides: Partial<InboundMessage> = {}): InboundMessage {
     buttonReplyId: null,
     profileName: 'Ana',
     timestamp: null,
+    audio: null,
     ...overrides,
   };
 }
@@ -267,6 +271,7 @@ describe('extractInboundMessages', () => {
               contacts: [{ wa_id: PHONE, profile: { name: 'Ana' } }],
               messages: [
                 { id: 'wamid.text', from: PHONE, type: 'text', text: { body: 'hola' } },
+                { id: 'wamid.voice', from: PHONE, type: 'audio', audio: { id: 'media9', mime_type: 'audio/ogg; codecs=opus', voice: true } },
                 {
                   id: 'wamid.button',
                   from: PHONE,
@@ -285,9 +290,10 @@ describe('extractInboundMessages', () => {
 
   it('flattens messages, keeps the profile name, and drops statuses and other fields', () => {
     const messages = extractInboundMessages(payload);
-    expect(messages).toHaveLength(2);
-    expect(messages[0]).toMatchObject({ wamid: 'wamid.text', from: PHONE, text: 'hola', buttonReplyId: null, profileName: 'Ana' });
-    expect(messages[1]).toMatchObject({ wamid: 'wamid.button', buttonReplyId: 'wa_confirm:n1', text: null });
+    expect(messages).toHaveLength(3);
+    expect(messages[0]).toMatchObject({ wamid: 'wamid.text', from: PHONE, text: 'hola', buttonReplyId: null, profileName: 'Ana', audio: null });
+    expect(messages[1]).toMatchObject({ wamid: 'wamid.voice', text: null, audio: { mediaId: 'media9', mimeType: 'audio/ogg; codecs=opus', voice: true } });
+    expect(messages[2]).toMatchObject({ wamid: 'wamid.button', buttonReplyId: 'wa_confirm:n1', text: null });
   });
 
   it('ignores foreign objects and malformed payloads', () => {
@@ -480,7 +486,16 @@ describe('assistant bridge (linked phones)', () => {
     const store = linkedStore();
     const sender = new FakeSender();
     const { deps, requests } = makeDeps(store, sender);
-    await processInboundMessage(textMessage({ type: 'audio', text: null }), deps);
+    await processInboundMessage(textMessage({ type: 'image', text: null }), deps);
+    expect(requests).toHaveLength(0);
+    expect(sender.sent[0]?.body).toBe(BOT_STRINGS.en.unsupportedType);
+  });
+
+  it('replies unsupportedType to a voice note while voice is not wired', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    await processInboundMessage(voiceMessage(), deps);
     expect(requests).toHaveLength(0);
     expect(sender.sent[0]?.body).toBe(BOT_STRINGS.en.unsupportedType);
   });
@@ -492,6 +507,76 @@ describe('assistant bridge (linked phones)', () => {
     const { deps } = makeDeps(store, sender);
     await expect(processInboundMessage(textMessage(), deps)).resolves.toBeUndefined();
     expect(store.sessions.get(PHONE)?.turns.length).toBeGreaterThan(0);
+  });
+});
+
+function voiceMessage(): InboundMessage {
+  return textMessage({ type: 'audio', text: null, audio: { mediaId: 'media1', mimeType: 'audio/ogg; codecs=opus', voice: true } });
+}
+
+function fakeVoice(result: VoiceResult, allowance = true): VoicePort & { calls: number } {
+  const port = {
+    calls: 0,
+    hasAllowance: async () => allowance,
+    async transcribe() {
+      port.calls += 1;
+      return result;
+    },
+  };
+  return port;
+}
+
+describe('voice notes (M13)', () => {
+  it('a voice note is echoed and then answered like the same typed text', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    deps.voice = fakeVoice({ ok: true, text: 'What do I have tomorrow?' });
+    await processInboundMessage(voiceMessage(), deps);
+    expect(sender.sent[0]?.body).toBe('I heard: "What do I have tomorrow?"');
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.request.messages.at(-1)).toEqual({ role: 'user', content: 'What do I have tomorrow?' });
+    expect(sender.sent[1]?.body).toBe('Here you go.');
+  });
+
+  it('a voice note never answers a pending proposal (a heard "yes" goes to the assistant)', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, meetings, requests } = makeDeps(store, sender, undefined);
+    const session = store.sessions.get(PHONE) ?? emptySession(NOW);
+    store.sessions.set(PHONE, { ...session, uid: 'u1', pendingActions: [createAction], pendingNonce: 'n0', actionsExpireAt: '2099-01-01T00:00:00.000Z' });
+    deps.voice = fakeVoice({ ok: true, text: 'yes' });
+    await processInboundMessage(voiceMessage(), deps);
+    expect(meetings.docs.size).toBe(0);
+    expect(requests).toHaveLength(1);
+  });
+
+  it('no AI action left: nothing is downloaded and the allowance text is sent', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    const voice = fakeVoice({ ok: true, text: 'x' }, false);
+    deps.voice = voice;
+    await processInboundMessage(voiceMessage(), deps);
+    expect(voice.calls).toBe(0);
+    expect(requests).toHaveLength(0);
+    expect(sender.sent.map((m) => m.body)).toEqual([BOT_STRINGS.en.quotaExceeded]);
+  });
+
+  it('a note too long or unreadable gets its own answer and no assistant call', async () => {
+    for (const [reason, text] of [
+      ['too_long', BOT_STRINGS.en.voiceTooLong],
+      ['failed', BOT_STRINGS.en.voiceUnread],
+      ['empty', BOT_STRINGS.en.voiceUnread],
+    ] as const) {
+      const store = linkedStore();
+      const sender = new FakeSender();
+      const { deps, requests } = makeDeps(store, sender);
+      deps.voice = fakeVoice({ ok: false, reason });
+      await processInboundMessage(voiceMessage(), deps);
+      expect(requests).toHaveLength(0);
+      expect(sender.sent.map((m) => m.body)).toEqual([text]);
+    }
   });
 });
 
@@ -807,5 +892,66 @@ describe('re-linking a linked phone', () => {
     await processInboundMessage(textMessage({ text: '123456' }), deps);
     expect(requests).toHaveLength(1); // 'invalid' falls through to the bridge
     expect(requests[0]?.request.messages.at(-1)?.content).toBe('123456');
+  });
+});
+
+describe('M13: STOP, template buttons and the debrief', () => {
+  function withOutbound(store: FakeStore, sender: FakeSender) {
+    const made = makeDeps(store, sender);
+    const outbound = new MemoryOutboundStore();
+    const reader = new MemoryReader();
+    reader.links.set(PHONE, 'u1');
+    outbound.link('u1', PHONE, { switches: { agenda: true, debrief: true, confirmations: false, commitments: false, reminders: true } });
+    made.deps.outbound = { store: outbound, reader };
+    return { ...made, outbound, reader };
+  }
+
+  it('STOP turns every switch off at no AI action, even past the daily cap', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests, outbound } = withOutbound(store, sender);
+    deps.dailyLimit = 0;
+    await processInboundMessage(textMessage({ text: 'Stop.' }), deps);
+    expect(requests).toHaveLength(0);
+    expect(Object.values(outbound.records.get('u1')!.switches).every((on) => !on)).toBe(true);
+    expect(outbound.records.get('u1')!.stoppedAt).toBe(NOW.toISOString());
+    expect(sender.sent.map((m) => m.body)).toEqual([OUTBOUND_TEXTS.en.stopped]);
+  });
+
+  it('a template quick reply (type button) is read by its payload, or by its label when it has none', () => {
+    const messages = extractInboundMessages({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                messages: [
+                  { id: 'w1', from: PHONE, type: 'button', button: { payload: 'wa_skip:0123456789abcdef0123456789abcdef', text: 'Not this time' } },
+                  { id: 'w2', from: PHONE, type: 'button', button: { text: 'Commitments' } },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(messages[0]).toMatchObject({ buttonReplyId: 'wa_skip:0123456789abcdef0123456789abcdef', text: null });
+    expect(messages[1]).toMatchObject({ buttonReplyId: null, text: 'Commitments' });
+  });
+
+  it('after Debrief, the next message alone goes to the assistant in debrief mode', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests, outbound } = withOutbound(store, sender);
+    await processInboundMessage(textMessage({ text: 'Earlier chat turn' }), deps);
+    await outbound.armDebrief(PHONE, { uid: 'u1', meetingId: 'm1', occurrenceDate: null, title: 'Weekly sync', expiresAt: '2099-01-01T00:00:00.000Z' });
+    await processInboundMessage(textMessage({ text: 'Ana sends the proposal by Friday' }), deps);
+    const last = requests.at(-1)!.request;
+    expect(last).toMatchObject({ mode: 'debrief', followUpMeetingId: 'm1' });
+    expect(last.messages).toEqual([{ role: 'user', content: 'Ana sends the proposal by Friday' }]);
+    await processInboundMessage(textMessage({ text: 'And now a normal question' }), deps);
+    expect(requests.at(-1)!.request.mode).toBe('chat');
   });
 });

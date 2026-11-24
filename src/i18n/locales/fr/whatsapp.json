@@ -34,5 +34,31 @@
   "error": {
     "rateLimited": "Vous avez demandé trop de codes aujourd'hui. Réessayez demain.",
     "generic": "Un problème est survenu. Réessayez."
+  },
+  "messages": {
+    "title": "Messages de Meeting Guard AI",
+    "explainer": "Choisissez les messages que Meeting Guard AI peut vous envoyer sur WhatsApp sans que vous écriviez d'abord. Répondez STOP dans la conversation pour tous les désactiver.",
+    "stopped": "Vous avez désactivé ces messages avec STOP dans la conversation. Activez-en un ici pour le recevoir à nouveau.",
+    "error": "Impossible d'enregistrer la modification. Réessayez.",
+    "agenda": {
+      "title": "Agenda du jour",
+      "hint": "Votre journée à l'heure de votre résumé quotidien, avec la liste complète en un geste."
+    },
+    "debrief": {
+      "title": "Rappels de compte rendu",
+      "hint": "À la fin d'une réunion, un rappel pour noter qui fait quoi, et pour quand."
+    },
+    "confirmations": {
+      "title": "Confirmations de réunions",
+      "hint": "Quand Meeting Guard AI enregistre une réunion pour vous en dehors de cette conversation."
+    },
+    "commitments": {
+      "title": "Engagements à revoir (pilote)",
+      "hint": "Quand un compte rendu avec des engagements est classé."
+    },
+    "reminders": {
+      "title": "Rappels de tâches",
+      "hint": "À l'heure du rappel des tâches acceptées depuis un compte rendu."
+    }
   }
 }
