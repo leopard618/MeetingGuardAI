@@ -131,6 +131,20 @@ A user, a bug or a flood makes the assistant spend money without limit.
 | Disconnect, and account deletion, delete it at once | A4 part 2 |
 | The assistant opens only the threads of a matter and the threads the owner picked to watch; it never lists or reads the rest of the mailbox | A4 part 2 |
 | Sending from the mailbox is allowed per matter, fixed when the mandate is confirmed, and goes through the same send check, hash, caps and approval as the assistant's own address | A4 part 2 |
+| Replies are found by checking the mailbox every 5 minutes (agreed with Francisco for the tester phase), and only for the conversations the assistant is allowed to follow: it asks Microsoft for new messages in those conversations, never for the inbox as a whole. A message from any other conversation that comes back anyway is dropped before it is stored or shown to the model | A4 part 2 |
+| Pausing a matter or a watched thread stops reading and sending for it; nothing that arrived during the pause is processed until it is resumed | A4 part 2 |
+| Disconnecting the mailbox, or the runtime switch being off, stops all reading and sending from it at once; a check already running stops before its next read or send | A4 part 2 |
+
+Tests to be written in part 2 (`mattersMailbox.test.ts`), requested by Francisco because `Mail.Read` grants access to the whole mailbox:
+
+1. Only authorized threads are processed: with mail in the mailbox from other conversations, other senders and other folders, only the messages of the matter's own conversation and of watched threads are read and stored; nothing else reaches the store, the model or a card.
+2. A message that claims to belong to a matter (copied subject, forged `In-Reply-To` or `References`) but is in another conversation is ignored.
+3. Pausing a matter stops it: a reply that arrives while it is paused is not read, no draft is written and nothing is sent; after resume it is processed once.
+4. Pausing a watched thread stops it the same way, without affecting the owner's other matters.
+5. Disconnecting stops everything: no further reads or sends for any of the owner's matters, the stored access is deleted, and a send that was approved before the disconnect fails safely with a card instead of going out.
+6. A revoked or expired access (the owner removes the app in Microsoft) is handled like a disconnect: the assistant stops, tells the owner, and does not retry with the old token.
+7. The runtime switch off stops all mailbox reads and sends, as it does for the assistant's own address.
+8. The access token never appears in a Firestore document the app can read, in a function response, or in a log line.
 
 ### T10. Calls from something other than our app
 
