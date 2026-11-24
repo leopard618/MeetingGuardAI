@@ -231,7 +231,7 @@ it('offers "Running late" on both meetings and "End now" on the running one (M9)
     buttons.find((button) => button.text === 'End now')?.onPress?.();
   });
   // Started 10 minutes ago: it now lasts those 10 minutes.
-  expect(mockUpdate).toHaveBeenCalledWith('current', { durationMinutes: 10 }, { origin: 'user' });
+  expect(mockUpdate).toHaveBeenCalledWith('current', { durationMinutes: 10 }, { origin: 'system' });
 });
 
 it("lists today's meetings and highlights overlaps", async () => {

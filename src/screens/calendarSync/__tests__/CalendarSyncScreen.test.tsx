@@ -70,8 +70,12 @@ jest.mock('../../../services/auth', () => ({
 }));
 
 // Getters: the factory runs while the screen is imported, before the mocks above are initialized.
+// Google + Outlook invitations choice (calendar-invitations rows on the Outlook card).
+const mockInvitations: { both: boolean; invitationsFrom: 'google' | 'outlook' | null } = { both: false, invitationsFrom: null };
+const mockSetInvitations = jest.fn(async (_choice: string) => undefined);
 jest.mock('../../../services/calendar', () => ({
   useCalendarStatus: () => mockStatus.current,
+  useInvitationsChoice: () => ({ ...mockInvitations, set: (choice: string) => mockSetInvitations(choice) }),
   get googleCalendarService() {
     return mockGoogle;
   },
@@ -195,6 +199,8 @@ beforeEach(async () => {
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   mockDarkMode = false;
+  mockInvitations.both = false;
+  mockInvitations.invitationsFrom = null;
   mockStatus.current = status();
   mockPreferences = createDefaultPreferences({ language: 'en', timezone: 'UTC' });
   mockPreferencesLoaded = true;
@@ -432,6 +438,25 @@ it('shows the connected Outlook account and asks before stopping the sync', asyn
   });
   expect(mockOutlook.disconnect).toHaveBeenCalledWith({ revoke: true });
   expect(Alert.alert).toHaveBeenLastCalledWith('Outlook sync is off');
+});
+
+it('with Google and Outlook both connected, the Outlook card picks the calendar that sends invitations', async () => {
+  mockStatus.current = status({ outlook: { configured: true, connected: true, enabled: true, accountEmail: 'me@outlook.com' } });
+  await renderScreen();
+  expect(screen.queryByTestId('calendar-invitations')).toBeNull();
+
+  mockInvitations.both = true;
+  await renderScreen();
+  expect(screen.getByText('Send invitations from')).toBeTruthy();
+  expect(screen.getByText('Not chosen yet. Google Calendar sends them until you choose.')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('calendar-invitations-outlook'));
+  });
+  expect(mockSetInvitations).toHaveBeenCalledWith('outlook');
+
+  mockInvitations.invitationsFrom = 'outlook';
+  await renderScreen();
+  expect(screen.getByTestId('calendar-invitations-outlook').props.accessibilityState).toMatchObject({ checked: true });
 });
 
 it('includes the Outlook line in the sync summary', async () => {

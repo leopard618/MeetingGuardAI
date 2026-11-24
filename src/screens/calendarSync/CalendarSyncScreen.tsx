@@ -35,6 +35,8 @@ import {
   outlookCalendarService,
   todoSyncService,
   useCalendarStatus,
+  useInvitationsChoice,
+  type InvitationCalendar,
 } from '../../services/calendar';
 import { usePreferences } from '../../services/data';
 import {
@@ -180,6 +182,7 @@ function OutlookCard({
   t,
   language,
   now,
+  invitations,
 }: {
   outlook: NonNullable<CalendarStatus['outlook']>;
   busy: Busy;
@@ -190,6 +193,8 @@ function OutlookCard({
   t: TranslateFn;
   language: AppLanguage;
   now: Date;
+  /** Google + Outlook both connected: the calendar that sends invitations (null = not chosen). */
+  invitations: { from: InvitationCalendar | null; onChoose: (choice: InvitationCalendar) => void } | null;
 }): ReactElement {
   const state = outlookStateView(outlook);
   const stateBadge = toneBadgeColors(palette, state.tone);
@@ -243,6 +248,27 @@ function OutlookCard({
           testID="calendar-outlook-connect"
         />
       )}
+
+      {invitations !== null ? (
+        <View testID="calendar-invitations">
+          <Text style={[partStyles.cardTitle, { color: palette.text }]} accessibilityRole="header">
+            {t('calendar:invitations.title')}
+          </Text>
+          <Text style={[partStyles.meta, { color: palette.muted }]}>
+            {invitations.from === null ? t('calendar:invitations.notChosen') : t('calendar:invitations.hint')}
+          </Text>
+          {(['google', 'outlook'] as const).map((choice) => (
+            <RadioRow
+              key={choice}
+              selected={invitations.from === choice}
+              label={t(`calendar:invitations.${choice}`)}
+              onPress={() => invitations.onChoose(choice)}
+              palette={palette}
+              testID={`calendar-invitations-${choice}`}
+            />
+          ))}
+        </View>
+      ) : null}
 
       {busy === 'outlookDisconnect' ? (
         <InlineProgress label={t('calendar:outlook.disconnecting')} palette={palette} />
@@ -372,6 +398,7 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
   const now = useLiveNow(CLOCK_MS);
   const google = useGoogleConnect();
   const outlook = useOutlookConnect();
+  const invitations = useInvitationsChoice();
 
   useEffect(() => {
     refreshGoogleState();
@@ -612,6 +639,7 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
           t={t}
           language={language}
           now={now}
+          invitations={invitations.both ? { from: invitations.invitationsFrom, onChoose: (choice) => void invitations.set(choice) } : null}
         />
       ) : (
         <View />

@@ -94,6 +94,8 @@ export const USER_STORAGE = {
   gtasksTasks: 'tasks.gtasks',
   /** Outlook sync state: deltaLink, lastSyncAt, pending pushes (never tokens). Owner: calendar. */
   outlookCalendar: 'calendar.outlook',
+  /** Google + Outlook both connected: which calendar sends invitations, per meeting. Owner: calendar. */
+  calendarInvites: 'calendar.invites',
   /** Fired/acknowledged alerts, snoozes, last reconcile. Owner: alerts. */
   alerts: 'alerts.state',
   /** Assistant conversation. Owner: ai. */

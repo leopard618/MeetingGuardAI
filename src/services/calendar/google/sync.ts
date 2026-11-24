@@ -22,9 +22,10 @@ import { AppError, toAppError, type AppErrorCode } from '../../../core/errors';
 import { googleEventIdForMeeting, meetingIdFromGoogleEventId } from '../../../core/identifiers';
 import { createLogger } from '../../../core/logger';
 import { recurrenceEndsAt } from '../../../core/recurrence';
-import { addMinutesIso, toDate, toUtcIso } from '../../../core/time';
+import { addMinutesIso, endIso, toDate, toUtcIso } from '../../../core/time';
 import type { ExternalRefs, Meeting, MeetingPatch } from '../../../core/types';
 import { chunk, isOwnMeeting, overlapsWindow, syncWindow, type SyncWindow } from '../shared';
+import type { InvitationRouter } from '../invitationRouting';
 import type { GoogleSyncState, PendingGooglePush, StateStore } from '../stateStore';
 import { googleHttpStatus, type GoogleCalendarApi, type PatchParams, type WriteParams } from './api';
 import {
@@ -80,6 +81,16 @@ export interface GoogleSyncDeps {
   sleep(ms: number): Promise<void>;
   /** true while the meeting waits for its Zoom link: its queued push is skipped, not dropped. */
   holdPush?(meetingId: string): boolean;
+  /**
+   * Google + Outlook both connected: which calendar's event carries a meeting's guests
+   * (../invitations.ts). Absent: every event carries them.
+   */
+  invitations?: Pick<InvitationRouter, 'withoutGuests' | 'withoutGuestsSync' | 'load'>;
+}
+
+/** What Google is sent for a Meeting Guard meeting whose guests another calendar carries. */
+function guestsView<T extends Pick<Meeting, 'participants'>>(meeting: T, withoutGuests: boolean): T {
+  return withoutGuests ? { ...meeting, participants: [] } : meeting;
 }
 
 function updatedIso(event: GoogleEvent): string | null {
@@ -358,9 +369,13 @@ export async function pullGoogleChanges(deps: GoogleSyncDeps, options: { full?: 
     for (const meeting of await deps.meetings.list({ includeDeleted: true, includeCancelled: true })) {
       if (meeting.external.googleEventId !== null && meeting.deletedAt === null) stored.set(meeting.external.googleEventId, meeting);
     }
+    // Hashed as pushed: a guest-less event of a Meeting Guard meeting hashes without its guests.
+    const invites = deps.invitations ? await deps.invitations.load() : null;
     for (const eventId of appliedIds) {
       const meeting = stored.get(eventId);
-      storedHashes[eventId] = meeting ? googleVisibleHash(meeting, defaultTimeZone) : null;
+      const withoutGuests =
+        meeting !== undefined && invites !== null && meeting.source !== 'google' && deps.invitations!.withoutGuestsSync(invites, 'google', meeting.id);
+      storedHashes[eventId] = meeting ? googleVisibleHash(guestsView(meeting, withoutGuests), defaultTimeZone) : null;
     }
   }
 
@@ -399,10 +414,12 @@ export interface PushOptions {
   requestMeetLink?: boolean;
 }
 
-function writeParams(meeting: Meeting, requestMeetLink: boolean): WriteParams {
+function writeParams(meeting: Meeting, requestMeetLink: boolean, now: Date): WriteParams {
+  // A one-off meeting that is already over (End now, a late fix) never emails its guests.
+  const ended = (meeting.recurrence ?? null) === null && Date.parse(endIso(meeting)) <= now.getTime();
   return {
     // Attendees get an email only when there are attendees (and only for visible changes).
-    sendUpdates: meeting.participants.length > 0 ? 'all' : 'none',
+    sendUpdates: meeting.participants.length > 0 && !ended ? 'all' : 'none',
     conferenceDataVersion: requestMeetLink ? 1 : undefined,
   };
 }
@@ -501,19 +518,23 @@ export async function pushGoogleMeeting(deps: GoogleSyncDeps, meeting: Meeting, 
   }
   const requestMeetLink = options.requestMeetLink === true || wantsMeetLink(meeting);
   const defaultTimeZone = deps.defaultTimeZone();
+  // Google + Outlook: the guests of a Meeting Guard meeting live in one calendar only.
+  const withoutGuests =
+    meeting.source !== 'google' && deps.invitations !== undefined ? await deps.invitations.withoutGuests('google', meeting, linkedId === null) : false;
+  const sent = guestsView(meeting, withoutGuests);
 
   if (linkedId !== null && !requestMeetLink) {
     const state = await deps.state.load();
-    if (state.hashes[linkedId] === googleVisibleHash(meeting, defaultTimeZone)) {
+    if (state.hashes[linkedId] === googleVisibleHash(sent, defaultTimeZone)) {
       return { meeting, sent: false };
     }
   }
 
-  const body = meetingToGoogleEvent(meeting, {
+  const body = meetingToGoogleEvent(sent, {
     requestMeetLink,
     requestId: `mg-${meeting.id}-${deps.now().getTime().toString(36)}`,
   });
-  const params = writeParams(meeting, requestMeetLink);
+  const params = writeParams(sent, requestMeetLink, deps.now());
 
   let event: GoogleEvent;
   if (linkedId !== null) {
@@ -577,7 +598,7 @@ export async function pushGoogleMeeting(deps: GoogleSyncDeps, meeting: Meeting, 
     }
   }
   const updated = await writeBack(deps, meeting, patch);
-  await setHash(deps, event.id, googleVisibleHash(updated, defaultTimeZone));
+  await setHash(deps, event.id, googleVisibleHash(guestsView(updated, withoutGuests), defaultTimeZone));
   return { meeting: updated, sent: true };
 }
 

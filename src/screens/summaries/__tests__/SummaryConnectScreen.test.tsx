@@ -536,6 +536,18 @@ describe('activity', () => {
     expect(screen.queryByTestId('summary-connect-microsoft-hint')).toBeNull();
   });
 
+  it('never shows the email forwarding hint while Fathom is connected', async () => {
+    mockStatus = {
+      ...CONNECTED,
+      mailboxes: ['ana@company.com'],
+      lastRefused: { reason: 'not_from_your_notetaker', at: '2026-11-11T08:00:00.000Z', senderDomain: null },
+    };
+    mockFathomStatus = { available: true, connected: true, connectedAt: '2026-11-11T08:00:00.000Z', lastEventAt: null };
+    await renderScreen();
+    expect(screen.getByTestId('fathom-card-connected')).toBeTruthy();
+    expect(screen.queryByTestId('summary-connect-microsoft-hint')).toBeNull();
+  });
+
   it('keeps the last answer on screen with a notice when a later ask failed', async () => {
     mockError = new AppError('offline');
     await renderScreen();

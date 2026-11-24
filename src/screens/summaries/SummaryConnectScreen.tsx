@@ -853,12 +853,14 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
             ) : null}
           </Section>
 
-          {showMicrosoftHint(status, nowMs) ? (
+          {/* Email forwarding advice only: never while Fathom delivers the summaries. */}
+          {!fathomConnected && showMicrosoftHint(status, nowMs) ? (
             <Banner
               tone="info"
               title={t('summaries:connect.microsoftHint.title')}
               text={t('summaries:connect.microsoftHint.body')}
               action={{ label: t('summaries:connect.microsoftHint.action'), onPress: () => shareAdminSteps(SUMMARY_MICROSOFT_ADMIN_KEY) }}
+              actionPlacement="below"
               style={styles.block}
               testID="summary-connect-microsoft-hint"
             />

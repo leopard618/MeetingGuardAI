@@ -152,4 +152,113 @@ describe('planExternalUpserts', () => {
     expect(id).toMatch(/^d_h[0-9a-f]{16}$/);
     expect(plan.writes[0]?.meeting).toMatchObject({ source: 'device', external: { deviceEventId: 'ABC:DEF/1', deviceCalendarId: 'cal:1' } });
   });
+
+  it("a guest-less calendar copy never clears a Meeting Guard meeting's participants; an imported one follows its calendar", () => {
+    const own = buildMeeting(
+      { title: 'Prueba', startAt: '2026-10-06T09:00:00.000Z', source: 'manual', participants: [{ email: 'guest@example.com' }] },
+      { id: 'meet1', userId: 'u1', now, defaultTimezone: 'Europe/Madrid', defaultLanguage: 'en' },
+    );
+    const plan = planExternalUpserts(
+      [googleItem({ externalId: googleEventIdForMeeting('meet1'), providerUpdatedAt: '2026-10-01T11:00:00.000Z', meeting: { title: 'Prueba 2', startAt: '2026-10-06T09:00:00.000Z', participants: [] } })],
+      lookup(own),
+      { ...ctx, now: new Date('2026-10-01T11:01:00.000Z') },
+    );
+    expect(plan.writes[0]?.meeting).toMatchObject({ title: 'Prueba 2', participants: [{ email: 'guest@example.com' }] });
+
+    const imported = planExternalUpserts([googleItem({ meeting: { ...googleItem().meeting!, participants: [{ email: 'guest@example.com' }] } })], new Map(), ctx).writes[0]!.meeting;
+    const cleared = planExternalUpserts(
+      [googleItem({ etag: '"e2"', providerUpdatedAt: '2026-10-01T11:00:00.000Z', meeting: { ...googleItem().meeting!, participants: [] } })],
+      lookup(imported),
+      { ...ctx, now: new Date('2026-10-01T11:01:00.000Z') },
+    );
+    expect(cleared.writes[0]?.meeting.participants).toEqual([]);
+  });
+
+  describe('copies of one meeting across Google and Outlook (both connected)', () => {
+    const own = buildMeeting(
+      { title: 'Reunión Dusko', startAt: '2026-10-05T17:53:00.000Z', durationMinutes: 4, source: 'manual' },
+      { id: 'own1', userId: 'u1', now, defaultTimezone: 'Europe/Madrid', defaultLanguage: 'es' },
+    );
+    const outlookItem = (partial: Partial<ExternalMeetingUpsert> = {}): ExternalMeetingUpsert =>
+      googleItem({
+        provider: 'outlook',
+        externalId: 'AAMkInvite',
+        calendarId: 'cal',
+        etag: 'ck1',
+        meeting: { title: ' reunión  dusko ', startAt: '2026-10-05T19:53:00+02:00', durationMinutes: 4, timezone: 'Europe/Madrid' },
+        ...partial,
+      });
+
+    it('an invitation copy of a Meeting Guard meeting is not imported', () => {
+      const plan = planExternalUpserts([outlookItem()], lookup(own), ctx);
+      expect(plan.writes).toHaveLength(0);
+      expect(plan.result).toMatchObject({ created: 0, unchanged: 1 });
+    });
+
+    it('an event imported from one calendar is not imported again from the other', () => {
+      const fromOutlook = planExternalUpserts([outlookItem({ meeting: { title: 'Board', startAt: '2026-10-07T08:00:00.000Z', durationMinutes: 60 } })], new Map(), ctx)
+        .writes[0]!.meeting;
+      const plan = planExternalUpserts([googleItem({ meeting: { title: 'Board', startAt: '2026-10-07T08:00:00.000Z', durationMinutes: 60 } })], lookup(fromOutlook), ctx);
+      expect(plan.result).toMatchObject({ created: 0, unchanged: 1 });
+    });
+
+    it('a different title, start or length is a different meeting; device events and deleted meetings never match', () => {
+      const deleted: Meeting = { ...own, id: 'own2', title: 'Old', deletedAt: '2026-10-01T09:00:00.000Z' };
+      const plan = planExternalUpserts(
+        [
+          outlookItem({ externalId: 'a', meeting: { title: 'Reunión Dusko 2', startAt: '2026-10-05T17:53:00.000Z', durationMinutes: 4 } }),
+          outlookItem({ externalId: 'b', meeting: { title: 'Reunión Dusko', startAt: '2026-10-05T17:54:00.000Z', durationMinutes: 4 } }),
+          outlookItem({ externalId: 'c', meeting: { title: 'Reunión Dusko', startAt: '2026-10-05T17:53:00.000Z', durationMinutes: 30 } }),
+          googleItem({ provider: 'device', externalId: 'd', calendarId: 'cal:1', meeting: { title: 'Reunión Dusko', startAt: '2026-10-05T17:53:00.000Z', durationMinutes: 4 } }),
+          outlookItem({ externalId: 'e', meeting: { title: 'Old', startAt: '2026-10-05T17:53:00.000Z', durationMinutes: 4 } }),
+        ],
+        lookup(own, deleted),
+        ctx,
+      );
+      expect(plan.result.created).toBe(5);
+    });
+
+    it('a copy imported before is removed (locally) by the next batch from its calendar and stays removed', () => {
+      const copy = buildMeeting(
+        { title: 'Reunión Dusko', startAt: '2026-10-05T17:53:00.000Z', durationMinutes: 4, source: 'outlook', external: { outlookEventId: 'AAMkInvite', outlookChangeKey: 'ck1' } },
+        { id: 'o_copy', userId: 'u1', now, defaultTimezone: 'Europe/Madrid', defaultLanguage: 'es' },
+      );
+      const unrelated = outlookItem({ externalId: 'other', meeting: { title: 'Lunch', startAt: '2026-10-08T12:00:00.000Z', durationMinutes: 60 } });
+      const plan = planExternalUpserts([unrelated], lookup(own, copy), ctx);
+      expect(plan.result).toMatchObject({ created: 1, removed: 1 });
+      const removed = plan.writes.find((write) => write.meeting.id === 'o_copy')!;
+      expect(removed).toMatchObject({ mode: 'set', outcome: 'removed', provider: 'outlook' });
+      expect(removed.meeting.deletedAt).not.toBeNull();
+      // The Meeting Guard meeting is untouched.
+      expect(plan.writes.some((write) => write.meeting.id === 'own1')).toBe(false);
+
+      // A later change of the copy in Outlook does not bring it back while it still copies the meeting.
+      const later = planExternalUpserts(
+        [outlookItem({ etag: 'ck2', providerUpdatedAt: '2026-10-02T09:00:00.000Z' })],
+        lookup(own, removed.meeting),
+        { ...ctx, now: new Date('2026-10-02T09:30:00.000Z') },
+      );
+      expect(later.writes).toHaveLength(0);
+      expect(later.result).toMatchObject({ unchanged: 1 });
+    });
+
+    it('a Google batch leaves Outlook imports alone, and a copy of an import (not a Meeting Guard meeting) is kept', () => {
+      const outlookCopy = buildMeeting(
+        { title: 'Reunión Dusko', startAt: '2026-10-05T17:53:00.000Z', durationMinutes: 4, source: 'outlook', external: { outlookEventId: 'AAMkInvite' } },
+        { id: 'o_copy', userId: 'u1', now, defaultTimezone: 'Europe/Madrid', defaultLanguage: 'es' },
+      );
+      const google = planExternalUpserts([googleItem()], lookup(own, outlookCopy), ctx);
+      expect(google.writes.some((write) => write.meeting.id === 'o_copy')).toBe(false);
+      const googleImport = buildMeeting(
+        { title: 'Board', startAt: '2026-10-07T08:00:00.000Z', durationMinutes: 60, source: 'google', external: { googleEventId: 'g1' } },
+        { id: 'g_board', userId: 'u1', now, defaultTimezone: 'Europe/Madrid', defaultLanguage: 'es' },
+      );
+      const outlookImport = buildMeeting(
+        { title: 'Board', startAt: '2026-10-07T08:00:00.000Z', durationMinutes: 60, source: 'outlook', external: { outlookEventId: 'o1' } },
+        { id: 'o_board', userId: 'u1', now, defaultTimezone: 'Europe/Madrid', defaultLanguage: 'es' },
+      );
+      const plan = planExternalUpserts([outlookItem({ externalId: 'other', meeting: { title: 'Lunch', startAt: '2026-10-08T12:00:00.000Z', durationMinutes: 60 } })], lookup(googleImport, outlookImport), ctx);
+      expect(plan.result.removed).toBe(0);
+    });
+  });
 });

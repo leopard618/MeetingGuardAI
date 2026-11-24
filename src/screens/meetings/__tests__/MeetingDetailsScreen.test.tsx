@@ -426,7 +426,7 @@ describe('running late and end now (M9)', () => {
     expect(mockOpenRunningLate).toHaveBeenCalledWith({ meetingId: 'm1', startAt: null });
   });
 
-  it('ends a running meeting now after a confirmation (origin user)', async () => {
+  it('ends a running meeting now after a confirmation (origin system: never sent to the calendars)', async () => {
     mockUpdate.mockReset().mockResolvedValue(undefined);
     mockMeeting = meeting({ startAt: minutesFromNow(-25), durationMinutes: 60 });
     await renderDetails();
@@ -438,7 +438,7 @@ describe('running late and end now (M9)', () => {
     await act(async () => {
       buttons.find((button) => button.text === 'End now')?.onPress?.();
     });
-    expect(mockUpdate).toHaveBeenCalledWith('m1', { durationMinutes: 25 }, { origin: 'user' });
+    expect(mockUpdate).toHaveBeenCalledWith('m1', { durationMinutes: 25 }, { origin: 'system' });
   });
 });
 
