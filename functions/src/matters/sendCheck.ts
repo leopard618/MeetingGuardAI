@@ -51,7 +51,7 @@ export function checkSend(input: {
   if (!input.enabled) return { ok: false, reason: 'switched_off' };
   if (matter.status !== 'active') return { ok: false, reason: 'not_active' };
   if (!matter.mandate || !matter.firstEmail || !matter.confirmedHash) return { ok: false, reason: 'not_confirmed' };
-  if (draftHash(matter.mandate, matter.firstEmail) !== matter.confirmedHash) {
+  if (draftHash(matter.mandate, matter.firstEmail, matter.scheduling) !== matter.confirmedHash) {
     return { ok: false, reason: 'changed_since_confirmation' };
   }
   if (now.getTime() >= Date.parse(matter.mandate.endsAt)) return { ok: false, reason: 'ended' };

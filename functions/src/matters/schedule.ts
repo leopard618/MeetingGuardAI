@@ -10,6 +10,8 @@
  *   zone, so a daylight saving change never moves it to 8:00 or 10:00.
  * - matterSchedule/{matterId}.nextActionAt is the next instant matterTick looks at the matter: the
  *   next follow-up, else the end date (to close the matter then).
+ * - A3: no follow-up once the meeting is booked; after a resume the interval counts from the
+ *   resume (resumedAt), so a matter paused for a week does not chase the moment it resumes.
  */
 import { addDaysToLocalDate, getZonedParts, toLocalDateTime, zonedDateTimeToUtcIso } from '../shared/time';
 import type { MatterDoc } from './model';
@@ -58,9 +60,14 @@ export function followUpDueAt(matter: MatterDoc): number | null {
   const mandate = matter.mandate;
   if (!mandate || !matter.firstSentAt) return null;
   if (matter.followUpsSent >= mandate.followUp.maxCount) return null;
+  // A3: once the meeting is booked the assistant stops chasing (the confirmation is our last email)
+  if (matter.booking) return null;
   if (answeredSinceLastEmail(matter)) return null;
-  const last = ms(matter.lastOutboundAt) ?? ms(matter.firstSentAt);
-  if (last === null) return null;
+  const sent = ms(matter.lastOutboundAt) ?? ms(matter.firstSentAt);
+  if (sent === null) return null;
+  // A3: a resumed matter counts the interval from the resume, never chases at once
+  const resumed = ms(matter.resumedAt);
+  const last = resumed !== null && resumed > sent ? resumed : sent;
   const due = last + mandate.followUp.everyDays * DAY_MS;
   const end = Date.parse(mandate.endsAt);
   return due < end ? due : null;

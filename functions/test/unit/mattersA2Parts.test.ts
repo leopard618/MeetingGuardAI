@@ -161,7 +161,7 @@ describe('read decision', () => {
       direction: 'inbound', status: 'received', rfcMessageId: '<a@b.example>', inReplyTo: null, references: [],
       from: { name: null, email: 'c@example.com' }, to: [], cc: [], subject: '', text: 'Hi', at: '2026-11-12T09:00:00.000Z', providerId: 'p', auth: null,
     });
-    const decision = decideRead({ assessment: { intent: 'answer_within_mandate', reason: 'none', quote: null, reply: '  ', commitments: [] }, matter, email, contactName: 'C' });
+    const decision = decideRead({ assessment: { intent: 'answer_within_mandate', reason: 'none', quote: null, reply: '  ', commitments: [], time_words: null, offered_choice: null }, matter, email, contactName: 'C' });
     expect(decision).toMatchObject({ outcome: 'unclear', cards: [{ kind: 'unclear' }], replyBody: null });
   });
 });

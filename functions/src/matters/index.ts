@@ -30,6 +30,12 @@
  *   OPENAI_API_KEY and MATTERS_POSTMARK_TOKEN), matterTick (every 15 minutes: end dates, follow-ups,
  *   read retries; both secrets) and matterDeliveryEvents (Postmark's bounce and spam-complaint
  *   webhook, the same basic auth as the inbound one). The logic is in ./replies.ts.
+ * - A3: matterSetStatus (pause, resume) and matterChange (a change, read back and confirmed):
+ *   ./manage.ts, OPENAI_API_KEY for the change draft. matterAsk (questions by voice or text, one
+ *   model call): ./ask.ts. matterSpeak (MATTERS_NATURAL_VOICE, demo only: OpenAI text-to-speech).
+ *   Scheduling reads the owner's meetings through the assistant's bounded reader
+ *   (assistant/context.ts firestoreMeetingReader) and MATTERS_AUTO_SCHEDULE; matterDecide also books
+ *   an approved time, so it reads the calendar too.
  */
 import { timingSafeEqual } from 'node:crypto';
 
@@ -38,6 +44,7 @@ import * as logger from 'firebase-functions/logger';
 import { onDocumentCreated } from 'firebase-functions/firestore';
 import { onCall, onRequest, type CallableOptions } from 'firebase-functions/https';
 import { onSchedule } from 'firebase-functions/scheduler';
+import OpenAI from 'openai';
 
 import {
   ASSISTANT_GLOBAL_DAILY_LIMIT,
@@ -45,17 +52,33 @@ import {
   MATTERS_TUNING,
   OPENAI_API_KEY,
   OPENAI_MODEL,
+  OPENAI_PRICE_IN_PER_M,
+  OPENAI_PRICE_OUT_PER_M,
   OPENAI_REASONING_EFFORT,
   isMatterUserAllowed,
   mattersParams,
+  parsePricePerM,
   parseReasoningEffort,
 } from '../config';
 import { adminDb } from '../firebase';
 import { instanceOpenAiKeyProvider, withKeyRetry } from '../openaiKey';
 import { AI_STATS_SHARD_COUNT, adminStatsAiShardPath } from '../admin/schemas';
 import { createGlobalBudget, firestoreGlobalBudgetStore, type GlobalBudget } from '../assistant/globalBudget';
+import { firestoreMeetingReader } from '../assistant/context';
 import { createOpenAiClient } from '../assistant/llm';
-import type { MatterCancelResponse, MatterConfirmResponse, MatterDecideResponse, MatterDraftResponse, MatterViewResponse } from '../shared/aiContract';
+import type {
+  MatterAskResponse,
+  MatterCancelResponse,
+  MatterConfirmResponse,
+  MatterDecideResponse,
+  MatterDraftResponse,
+  MatterMessageResponse,
+  MatterMoveResponse,
+  MatterSetStatusResponse,
+  MatterSpeakResponse,
+  MatterViewResponse,
+} from '../shared/aiContract';
+import { handleMatterAsk, handleMatterSpeak } from './ask';
 import { createPostmarkSender, EmailSendError } from './email';
 import {
   handleInboundEmail,
@@ -66,10 +89,12 @@ import {
   type MatterCaller,
   type MatterDeps,
 } from './handlers';
+import { handleMatterChange, handleMatterSetStatus } from './manage';
 import type * as MailCheckNs from './mailCheck';
 import type { SenderCheck } from './mailCheck';
 import { handleDeliveryEvent, handleInboundRead, handleMatterDecide, handleMatterView, runMatterTick } from './replies';
 import { firestoreMatterStore } from './store';
+import { handleMatterMessage, handleMatterMove } from './write';
 
 type MailCheckModule = typeof MailCheckNs;
 let mailCheckModule: MailCheckModule | null = null;
@@ -172,6 +197,23 @@ function deps(): MatterDeps {
     autoReply: params.MATTERS_AUTO_REPLY.value() === true,
     dailySendLimit: params.MATTERS_USER_DAILY_SENDS.value(),
     globalBudget: instanceGlobalBudget(),
+    // A3
+    autoSchedule: params.MATTERS_AUTO_SCHEDULE.value() === true,
+    meetings: firestoreMeetingReader(adminDb()),
+    prices: { inPerM: parsePricePerM(OPENAI_PRICE_IN_PER_M.value()), outPerM: parsePricePerM(OPENAI_PRICE_OUT_PER_M.value()) },
+    naturalVoice: params.MATTERS_NATURAL_VOICE.value() === true,
+    speech: async (text, language) => {
+      const { key } = await instanceOpenAiKeyProvider().get();
+      const client = new OpenAI({ apiKey: key, timeout: MATTERS_TUNING.speechTimeoutMs, maxRetries: 0 });
+      const response = await client.audio.speech.create({
+        model: MATTERS_TUNING.speechModel,
+        voice: MATTERS_TUNING.speechVoice,
+        input: text,
+        response_format: 'mp3',
+        instructions: language === 'es' ? 'Speak natural, friendly Spanish from Spain, at a calm pace.' : 'Speak in a natural, friendly tone, at a calm pace.',
+      });
+      return Buffer.from(await response.arrayBuffer());
+    },
     // the assistant's admin stats: one merge-set with increments on a random shard
     recordAiUsage: async (dayKey, tokens) => {
       const shard = Math.floor(Math.random() * AI_STATS_SHARD_COUNT);
@@ -222,6 +264,20 @@ function makeCallables() {
     ),
     // the app's open matters and matter page, read for the owner (no client rule needed)
     matterView: onCall(CALLABLE_BASE, (request): Promise<MatterViewResponse> => handleMatterView(callerOf(request.auth), request.data, deps())),
+    // A3
+    matterSetStatus: onCall(CALLABLE_BASE, (request): Promise<MatterSetStatusResponse> => handleMatterSetStatus(callerOf(request.auth), request.data, deps())),
+    matterChange: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterDraftResponse> =>
+      handleMatterChange(callerOf(request.auth), request.data, deps()),
+    ),
+    matterAsk: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterAskResponse> => handleMatterAsk(callerOf(request.auth), request.data, deps())),
+    matterSpeak: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterSpeakResponse> =>
+      handleMatterSpeak(callerOf(request.auth), request.data, deps()),
+    ),
+    // A3 feedback: write to the contact now, move the booked meeting (each only makes a card the owner sends)
+    matterMessage: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterMessageResponse> =>
+      handleMatterMessage(callerOf(request.auth), request.data, deps()),
+    ),
+    matterMove: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterMoveResponse> => handleMatterMove(callerOf(request.auth), request.data, deps())),
   };
 }
 
@@ -384,6 +440,12 @@ export const matterConfirm = callables?.matterConfirm;
 export const matterCancel = callables?.matterCancel;
 export const matterDecide = callables?.matterDecide;
 export const matterView = callables?.matterView;
+export const matterSetStatus = callables?.matterSetStatus;
+export const matterChange = callables?.matterChange;
+export const matterAsk = callables?.matterAsk;
+export const matterSpeak = callables?.matterSpeak;
+export const matterMessage = callables?.matterMessage;
+export const matterMove = callables?.matterMove;
 export const assistantInboundEmail = enabledAtLoad ? makeInboundWebhook() : undefined;
 export const matterInboundRead = enabledAtLoad ? makeInboundRead() : undefined;
 export const matterTick = enabledAtLoad ? makeTick() : undefined;

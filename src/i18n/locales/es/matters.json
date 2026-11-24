@@ -73,7 +73,12 @@
     "notSent": "La respuesta no se ha podido enviar todavía. Inténtalo de nuevo en un momento.",
     "unknown": "No hemos podido confirmar que la respuesta haya salido. Puede que se haya enviado, así que no se enviará de nuevo.",
     "notFound": "Este asunto ya no está disponible.",
-    "loadFailed": "No se ha podido cargar este asunto ahora mismo. Comprueba tu conexión e inténtalo de nuevo."
+    "loadFailed": "No se ha podido cargar este asunto ahora mismo. Comprueba tu conexión e inténtalo de nuevo.",
+    "meetingBooked": "Reunión reservada: {{value}}",
+    "pause": "Poner en pausa este asunto",
+    "resume": "Reanudar este asunto",
+    "cost": "Coste hasta ahora: unos {{value}} ({{calls}} llamadas de IA, {{emails}} correos)",
+    "usage": "Hasta ahora: {{calls}} llamadas de IA, {{emails}} correos"
   },
   "card": {
     "from": "De: {{value}}",
@@ -87,7 +92,8 @@
       "goal_reached": "Parece que el objetivo se ha cumplido",
       "unclear": "No he sabido qué pide esta respuesta",
       "bounce": "Un correo no se ha podido entregar",
-      "many_replies": "Muchas respuestas hoy"
+      "many_replies": "Muchas respuestas hoy",
+      "owner_email": "Correo listo para enviar"
     },
     "reason": {
       "money": "Trata de dinero o precios, algo que nunca gestiono.",
@@ -101,7 +107,16 @@
       "cap_reached": "Se ha alcanzado el límite de hoy para este asunto. Las demás respuestas se guardan sin leer.",
       "read_failed": "No he podido leer esta respuesta. Léela en tu copia.",
       "loop": "Este hilo ha ido y venido muchas veces hoy, así que dejo de leerlo hasta mañana.",
-      "other": "Te pregunto primero."
+      "other": "Te pregunto primero.",
+      "no_free_time": "Tu agenda no tiene ningún hueco libre que encaje con este asunto, así que no ofrecí ninguno.",
+      "slot_busy": "Esa hora no está libre en tu agenda.",
+      "outside_windows": "Esa hora queda fuera de las horas que permitiste o de tu horario de trabajo.",
+      "after_end": "Esa hora es después de la fecha límite de este asunto.",
+      "unclear_time": "No pude leer una hora exacta en la respuesta.",
+      "ask_before_booking": "La hora está libre. Resérvala con un toque.",
+      "no_meeting": "Una reunión no forma parte de este asunto.",
+      "owner_message": "Me pediste que escribiera esto. No se envía nada hasta que toques Enviar.",
+      "meeting_moved": "Has movido la reunión. Envía esto para que sepa la nueva hora."
     },
     "guard": {
       "title": "Revísalo antes de enviar, menciona:",
@@ -114,12 +129,114 @@
     "approve": {
       "reply_draft": "Enviar esta respuesta",
       "goal_reached": "Marcar el asunto como terminado",
-      "default": "De acuerdo"
+      "book": "Reservar esta hora",
+      "owner_email": "Enviar este correo"
     },
     "decline": {
       "reply_draft": "No enviar",
       "goal_reached": "Todavía no",
-      "default": "Descartar"
+      "book": "No reservar",
+      "owner_email": "No enviar"
+    },
+    "markRead": "Marcar como leído",
+    "noReply": "No se ha enviado nada. Respóndele tú si hace falta.",
+    "slot": "Hora: {{value}}"
+  },
+  "voice": {
+    "speak": "Hablar",
+    "stopListening": "Dejar de escuchar",
+    "stop": "Dejar de hablar",
+    "natural": "Voz natural (prueba, mide su coste)",
+    "naturalFailed": "La voz natural no está disponible, así que uso la voz del teléfono.",
+    "sayYes": "Di sí para confirmar, o no.",
+    "sayYesChange": "Di sí para aplicar este cambio, o no.",
+    "sayYesSend": "Di sí para confirmar y enviar, o dime qué cambio.",
+    "sayYesMove": "Di sí para moverla, o no."
+  },
+  "ask": {
+    "title": "Pregunta al asistente",
+    "titleMatter": "Pregunta sobre este asunto",
+    "label": "Pregunta sobre tus asuntos",
+    "labelMatter": "Pregunta o cambia algo",
+    "placeholder": "¿Qué pasa con Carlos? Mueve la fecha límite al lunes.",
+    "send": "Preguntar",
+    "notNow": "Ahora no",
+    "changeTitle": "El asunto después del cambio",
+    "confirmChange": "Aplicar este cambio",
+    "answerChange": "Responde en el cuadro de arriba y toca Preguntar.",
+    "yes": {
+      "pause": "Ponerlo en pausa",
+      "resume": "Reanudarlo",
+      "cancel": "Cancelarlo",
+      "change": "Preparar el cambio",
+      "new_matter": "Preparar el asunto nuevo",
+      "move_meeting": "Enséñame la nueva hora",
+      "message": "Escribir el correo"
+    },
+    "done": {
+      "pause": "En pausa. No se envía nada hasta que lo reanudes.",
+      "resume": "Reanudado.",
+      "cancel": "Asunto cancelado. No se enviará nada más.",
+      "change": "Cambio aplicado."
     }
+  },
+  "timeline": {
+    "title": "Qué ha pasado",
+    "type": {
+      "created": "Asunto creado",
+      "mandate_drafted": "Plan preparado",
+      "mandate_confirmed": "Confirmaste el plan",
+      "email_sent": "Correo enviado",
+      "email_failed": "No se pudo enviar un correo",
+      "email_unconfirmed": "Correo enviado, entrega sin confirmar",
+      "email_test": "Correo de prueba (no se entrega a nadie)",
+      "email_received": "Respuesta recibida",
+      "status_changed": "Cambio de estado",
+      "reply_read": "Respuesta leída",
+      "reply_not_acted_on": "Respuesta guardada, sin actuar",
+      "approval_requested": "Algo espera tu decisión",
+      "approval_decided": "Decidiste",
+      "commitment_proposed": "Tareas propuestas",
+      "commitment_decided": "Decidiste sobre una tarea",
+      "reply_sent": "Respuesta enviada",
+      "follow_up_sent": "Seguimiento enviado",
+      "email_bounced": "Correo no entregado",
+      "spam_complaint": "Marcado como spam",
+      "times_offered": "Horas libres ofrecidas",
+      "meeting_booked": "Reunión reservada",
+      "booking_refused": "No se pudo reservar una hora",
+      "paused": "En pausa",
+      "resumed": "Reanudado",
+      "change_drafted": "Cambio preparado",
+      "mandate_changed": "Cambio aplicado",
+      "question_answered": "Preguntaste por él",
+      "other": "Novedad",
+      "meeting_moved": "Reunión movida",
+      "message_drafted": "Correo listo para que lo envíes"
+    }
+  },
+  "contact": {
+    "title": "Escribirle",
+    "label": "¿Qué le digo a {{name}}?",
+    "someone": "tu contacto",
+    "placeholder": "Llego 10 minutos tarde.",
+    "write": "Escribir el correo",
+    "written": "El correo está listo en \"Te espera\". Revísalo y toca Enviar."
+  },
+  "move": {
+    "title": "Mover la reunión",
+    "label": "Nuevo día y hora",
+    "placeholder": "El viernes a las 16:00",
+    "check": "Comprobar esta hora",
+    "newTime": "Nueva hora: {{value}}",
+    "free": "Esta hora está libre en tu agenda.",
+    "busy": "A esta hora ya tienes otra cosa.",
+    "apply": "Moverla",
+    "moved": "Reunión movida. El correo para avisarle está en \"Te espera\": revísalo y toca Enviar."
+  },
+  "letThemKnow": {
+    "question": "Este cambio afecta a lo que se le dijo a {{name}}. ¿Le aviso? Escribo el correo y te lo enseño antes de enviar nada.",
+    "yes": "Escribirle",
+    "instruction": "Cuéntale este cambio:"
   }
 }

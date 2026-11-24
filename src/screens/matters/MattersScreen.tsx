@@ -1,7 +1,12 @@
 /**
- * AI executive assistant, prototype (route "Matters", from Settings; A1 and A2 of the November 10
+ * AI executive assistant, prototype (route "Matters", from Settings; A1 to A3 of the November 10
  * plan, docs/v1/ARCHITECTURE.md section 36). Shown only when EXPO_PUBLIC_MATTERS_ENABLED; the full
- * screens (timeline, settings, voice) come in A3 and A5.
+ * screens and settings come in A5.
+ *
+ * A3, voice: the matter can be dictated (source 'voice'); the questions or the read-back are then
+ * said aloud, and a spoken "yes" confirms exactly like the button (assistant/voiceModel.ts
+ * voiceCommand: whole short answers only, anything else is never a yes). Under the open matters,
+ * AskPanel.tsx answers questions and confirms actions by voice or text.
  *
  * open:    A2: under the new-matter box, the open matters (active and paused); a tap opens the
  *          matter page (MatterPage.tsx: the cards waiting for the owner and the proposed tasks)
@@ -28,9 +33,12 @@ import { toBaseLanguage } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { matterService, type MatterOpenItem } from '../../services/matters';
 import { spacing, useAppTheme } from '../../theme';
+import { voiceCommand } from '../assistant/voiceModel';
 import { ScreenBody, Section } from '../shared/Section';
+import { AskPanel } from './AskPanel';
 import { MatterPage } from './MatterPage';
 import { matterErrorKey } from './matterErrors';
+import { useMatterVoice } from './useMatterVoice';
 
 export { matterErrorKey };
 
@@ -59,6 +67,9 @@ export function MattersScreen(): ReactElement {
   const [busy, setBusy] = useState<Busy>(null);
   const [openMatters, setOpenMatters] = useState<MatterOpenItem[] | null>(null);
   const [openMatterId, setOpenMatterId] = useState<string | null>(null);
+  /** A3: the matter was dictated, so the assistant answers aloud. */
+  const [spoken, setSpoken] = useState(false);
+  const base = toBaseLanguage(language); // M12: the executive assistant stays en/es
 
   // every state update comes after the await (react-hooks/set-state-in-effect); the list is a
   // convenience, so a failed read (or the assistant off) simply shows none
@@ -88,27 +99,64 @@ export function MattersScreen(): ReactElement {
     [t],
   );
 
-  const prepare = (): Promise<void> =>
+  // the draft said aloud: its questions, or the read-back and how to confirm it
+  const sayDraft = (next: MatterDraftResponse, aloud: boolean): void => {
+    if (!aloud) return;
+    voice.speak(next.draftHash ? `${next.readBack} ${t('matters:voice.sayYesSend')}` : next.questions.join(' '));
+  };
+
+  const prepare = (text: string = request, source: 'text' | 'voice' = spoken ? 'voice' : 'text'): Promise<void> =>
     run('prepare', async () => {
-      const next = await matterService.draft({ text: request, source: 'text', language: toBaseLanguage(language), timeZone: getDeviceTimeZone() }); // M12: the executive assistant stays en/es
+      const next = await matterService.draft({ text, source, language: base, timeZone: getDeviceTimeZone() });
       setDraft(next);
       setAnswer('');
+      sayDraft(next, source === 'voice');
     });
 
-  const sendAnswer = (): Promise<void> =>
+  const sendAnswer = (text: string = answer): Promise<void> =>
     run('answer', async () => {
       if (!draft) return;
-      const next = await matterService.revise(draft.matterId, answer);
+      const next = await matterService.revise(draft.matterId, text);
       setDraft(next);
       setAnswer('');
+      sayDraft(next, spoken);
     });
 
   const confirm = (): Promise<void> =>
     run('confirm', async () => {
       if (!draft?.draftHash) return;
+      voice.stopSpeaking();
       const result = await matterService.confirm(draft.matterId, draft.draftHash);
       setDone(doneFor(result));
     });
+
+  /** A finished dictation: the matter, an answer to its questions, or a yes to the read-back. */
+  const heard = (text: string, autoSend: boolean): void => {
+    setSpoken(true);
+    if (!draft) {
+      setRequest(text);
+      if (autoSend) void prepare(text, 'voice');
+      return;
+    }
+    const command = draft.draftHash ? voiceCommand(text, base) : null;
+    if (command === 'confirm' && autoSend) {
+      void confirm();
+      return;
+    }
+    if (command === 'cancel') {
+      voice.stopSpeaking();
+      return;
+    }
+    setAnswer(text);
+    if (autoSend) void sendAnswer(text);
+  };
+
+  const voice = useMatterVoice({
+    language: base,
+    onTranscript: (text) => (draft ? setAnswer(text) : setRequest(text)),
+    onFinal: (text, meta) => heard(text, meta.autoSend),
+    onProblem: (problem) => Toast.show({ type: 'info', text1: t(`ai:voice.${problem}`) }),
+  });
 
   const cancel = (): Promise<void> =>
     run('cancel', async () => {
@@ -118,12 +166,25 @@ export function MattersScreen(): ReactElement {
     });
 
   const startOver = (): void => {
+    voice.stopSpeaking();
     setDraft(null);
     setDone(null);
     setRequest('');
     setAnswer('');
+    setSpoken(false);
     void loadOpen();
   };
+
+  const micButton = (
+    <MGButton variant="tonal" icon={voice.listening ? 'stop' : 'microphone'} style={styles.action} onPress={voice.toggleMic} disabled={busy !== null} testID="matters-mic">
+      {t(voice.listening ? 'matters:voice.stopListening' : 'matters:voice.speak')}
+    </MGButton>
+  );
+  const stopButton = voice.speaking ? (
+    <MGButton variant="tonal" icon="volume-off" style={styles.action} onPress={voice.stopSpeaking} testID="matters-stop-speaking">
+      {t('matters:voice.stop')}
+    </MGButton>
+  ) : null;
 
   const closeMatter = (): void => {
     setOpenMatterId(null);
@@ -215,9 +276,13 @@ export function MattersScreen(): ReactElement {
           maxLength={2000}
           testID="matters-request"
         />
-        <MGButton style={styles.action} onPress={() => void prepare()} loading={busy === 'prepare'} disabled={busy !== null || request.trim().length === 0} testID="matters-prepare">
-          {t('matters:prepare')}
-        </MGButton>
+        <View style={styles.buttons}>
+          <MGButton style={styles.action} onPress={() => void prepare()} loading={busy === 'prepare'} disabled={busy !== null || request.trim().length === 0} testID="matters-prepare">
+            {t('matters:prepare')}
+          </MGButton>
+          {micButton}
+          {stopButton}
+        </View>
         {openMatters && openMatters.length > 0 ? (
           <Section title={t('matters:open.title')} testID="matters-open-list">
             <ListGroup>
@@ -238,6 +303,17 @@ export function MattersScreen(): ReactElement {
                 />
               ))}
             </ListGroup>
+          </Section>
+        ) : null}
+        {openMatters && openMatters.length > 0 ? (
+          <Section title={t('matters:ask.title')} testID="matters-ask-section">
+            <AskPanel
+              onChanged={() => void loadOpen()}
+              onNewMatter={(text) => {
+                setRequest(text);
+                void prepare(text, 'text');
+              }}
+            />
           </Section>
         ) : null}
       </ScreenBody>
@@ -265,6 +341,10 @@ export function MattersScreen(): ReactElement {
       <Text variant="titleMedium" style={styles.title} testID="matters-title">
         {draft.title}
       </Text>
+      <View style={styles.buttons}>
+        {micButton}
+        {stopButton}
+      </View>
       {draft.questions.length > 0 ? (
         <Section title={t('matters:questions.title')} testID="matters-questions">
           {draft.questions.map((question) => (
@@ -319,4 +399,5 @@ const styles = StyleSheet.create({
   subject: { marginTop: spacing.sm, marginBottom: spacing.sm },
   action: { marginTop: spacing.md, marginBottom: spacing.md },
   change: { marginTop: spacing.lg },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.sm },
 });

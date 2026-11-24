@@ -12,6 +12,14 @@
  *                    follow-ups (a fixed template, in working hours, claimed once), retries stale
  *                    and failed reads
  * handleDeliveryEvent matterDeliveryEvents: Postmark's bounce and spam-complaint webhook
+ * A3 scheduling     a reply that asks for times gets free times from the calendar (availability.ts),
+ *                   in a fixed template; a reply that picks or proposes a time is read by code
+ *                   (scheduling.ts), checked against the mandate and the calendar, then booked
+ *                   (scheduling 'auto', a trusted sender, MATTERS_AUTO_SCHEDULE on) or turned into a
+ *                   time_proposal card the owner books with one tap. bookSlot re-checks the calendar
+ *                   right before booking; the meeting id comes from the matter and is created with
+ *                   create() in the same transaction as matter.booking, so a matter books at most one
+ *                   meeting and sends at most one confirmation, whatever is retried.
  *
  * Who may move a matter forward (decided by code, never by the model):
  * - a mandate contact: read by the model; an automatic reply only when the sender is trusted
@@ -35,7 +43,9 @@ import {
   type MatterSendOutcome,
   type MatterViewResponse,
 } from '../shared/aiContract';
-import { isValidTimeZone } from '../shared/time';
+import { createHash } from 'node:crypto';
+
+import { isValidTimeZone, toLocalDateTime } from '../shared/time';
 import { UpstreamError } from '../assistant/errors';
 import { safetyIdentifierFor } from '../assistant/llm';
 import { buildCommitmentTaskDoc, defaultSchedule } from '../commitments/taskDoc';
@@ -70,13 +80,19 @@ import {
   type MatterEvent,
   type MatterMessage,
   type MatterProposal,
+  type MatterUsage,
+  type Slot,
   type StoredMessage,
+  withModelCall,
 } from './model';
-import { autoSendDecision, decideRead, parseAssessment, readDataChars, readRequest, type CardSpec, type ProposalSpec } from './read';
+import { autoSendDecision, decideRead, parseAssessment, readDataChars, readRequest, type CardSpec, type ProposalSpec, type SchedulingIntent } from './read';
+import { readClockTimes } from '../commitments/due';
+import { allowedRanges, fitSlot, loadBusy, offerSlots, searchBounds, type SlotFit, type TimeRange } from './availability';
+import { readRangeOf, resolvePick } from './scheduling';
 import { followUpDueAt, inWorkingHours, nextActionAt, nextWorkingSlot } from './schedule';
 import { checkSend } from './sendCheck';
 import type { CardUpdate } from './store';
-import { followUpText, matterTaskOrigin, quoteBelow, replySubject, senderName } from './text';
+import { confirmationText, followUpText, formatInstant, matterTaskOrigin, meetingOrigin, meetingTitle, offerTimesText, quoteBelow, replySubject, senderName } from './text';
 
 /** Per matter and UTC day (section 4.7 of the A2 plan). */
 export const MATTER_CAPS = { readsPerDay: 10, autoRepliesPerDay: 3, exchangesPerDay: 6 } as const;
@@ -85,7 +101,7 @@ export const DEFAULT_DAILY_SENDS = 30;
 /** A refused or failed follow-up is looked at again after this long. */
 const RETRY_LATER_MS = 60 * 60_000;
 /** Messages of the thread the model sees (newest last; threadText cuts them to a budget). */
-const THREAD_MESSAGES = 30;
+export const THREAD_MESSAGES = 30;
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -94,7 +110,7 @@ export function countsFor(current: DailyCounts | null, dayKey: string): DailyCou
   return current && current.day === dayKey ? { ...current } : { day: dayKey, reads: 0, autoReplies: 0, exchanges: 0, capCard: false };
 }
 
-function cardDoc(spec: Pick<MatterApproval, 'kind' | 'reason' | 'quote'> & Partial<MatterApproval>, nowIso: string): MatterApproval {
+export function cardDoc(spec: Pick<MatterApproval, 'kind' | 'reason' | 'quote'> & Partial<MatterApproval>, nowIso: string): MatterApproval {
   return {
     status: 'pending',
     from: null,
@@ -110,7 +126,9 @@ function cardDoc(spec: Pick<MatterApproval, 'kind' | 'reason' | 'quote'> & Parti
     createdAt: nowIso,
     updatedAt: nowIso,
     decidedAt: null,
+    offers: [],
     ...spec,
+    slot: spec.slot ?? null,
   };
 }
 
@@ -200,7 +218,7 @@ async function finishWithout(ref: MessageRef, deps: MatterDeps, outcome: string,
     ...(doc && cards.length
       ? {
           patch: { pendingApprovals: doc.pendingApprovals + cards.length, updatedAt: nowIso },
-          cards: cards.map((spec, i) => ({ id: ids[i]!, doc: cardDoc({ ...spec, from, sourceMessageId: ref.messageId }, nowIso) })),
+          cards: cards.map((spec, i) => ({ id: ids[i]!, doc: cardDoc({ ...spec, slot: spec.slot ?? null, from, sourceMessageId: ref.messageId }, nowIso) })),
           events: cards.map((spec) => event('approval_requested', nowIso, spec.kind)),
         }
       : { events: [event('reply_not_acted_on', nowIso, outcome)] }),
@@ -273,20 +291,31 @@ async function readClaimed(ref: MessageRef, message: StoredMessage, deps: Matter
   if (decision.replyBody) {
     reply = await prepareReply({ uid, matterId, messageId, matter, message, contactEmail: contact.email, body: decision.replyBody, deps, dayKey });
   }
+  // A3: the calendar. Free times go out like a reply draft (the same card, caps and send check);
+  // a time to book is booked after this read is finished and stored (bookSlot)
+  let toBook: Slot | null = null;
+  if (decision.scheduling) {
+    const plan = await planScheduling({ uid, matterId, messageId, matter, message, contact, intent: decision.scheduling, deps, dayKey });
+    if (plan.kind === 'offer') reply = plan.reply;
+    else if (plan.kind === 'card') decision.cards.push(plan.card);
+    else toBook = plan.slot;
+  }
 
   const cardIds = decision.cards.map(() => deps.store.newDocId());
   const from = senderLabel(message);
   const finished = await deps.store.updateMatter<'finished' | 'gone'>(uid, matterId, (doc) => {
     const done = { message: { id: messageId, patch: { readState: 'done' as const, readOutcome: decision.outcome } }, readQueue: { messageId, doc: null } };
     if (!doc || doc.status !== 'active') return { result: 'gone', ...done };
-    const cards: { id: string; doc: MatterApproval }[] = decision.cards.map((spec, i) => ({ id: cardIds[i]!, doc: cardDoc({ ...spec, from, sourceMessageId: messageId }, nowIso) }));
+    const cards: { id: string; doc: MatterApproval }[] = decision.cards.map((spec, i) => ({ id: cardIds[i]!, doc: cardDoc({ ...spec, slot: spec.slot ?? null, from, sourceMessageId: messageId }, nowIso) }));
     if (reply) cards.push({ id: reply.cardId, doc: reply.card });
     const proposals = decision.proposals.map((spec, i) => ({ id: proposalIdFor(matterId, messageId, i), doc: proposalDoc(spec, messageId, nowIso) }));
     const pending = cards.filter((c) => c.doc.status === 'pending').length;
     const events: MatterEvent[] = [event('reply_read', nowIso, decision.outcome)];
     if (proposals.length) events.push(event('commitment_proposed', nowIso, String(proposals.length)));
+    if (reply && reply.card.offers.length) events.push(event('times_offered', nowIso, String(reply.card.offers.length)));
     for (const card of cards) if (card.doc.status === 'pending') events.push(event('approval_requested', nowIso, card.doc.kind));
-    const patch: Partial<MatterDoc> = { pendingApprovals: doc.pendingApprovals + pending, updatedAt: nowIso };
+    // A3: the read's model call counts on the matter's usage (its cost)
+    const patch: Partial<MatterDoc> = { pendingApprovals: doc.pendingApprovals + pending, updatedAt: nowIso, usage: withModelCall(doc.usage, completion.usage) };
     if (reply?.auto) {
       const counts = countsFor(doc.dailyCounts, dayKey);
       counts.autoReplies += 1;
@@ -307,6 +336,8 @@ async function readClaimed(ref: MessageRef, message: StoredMessage, deps: Matter
     modelCommitments: decision.modelCommitments,
     auto: reply?.auto ?? false,
     stop: decision.stop,
+    scheduling: decision.scheduling?.kind ?? null,
+    book: toBook !== null,
   });
   if (finished === 'finished' && reply?.auto) {
     // the read is finished and stored: whatever happens now must never make it read (and answer)
@@ -318,7 +349,256 @@ async function readClaimed(ref: MessageRef, message: StoredMessage, deps: Matter
       logger.error('matters.auto_reply_record_failed', { uid, matterId, errorName: error instanceof Error ? error.name : 'unknown' });
     }
   }
+  if (finished === 'finished' && toBook) {
+    // the same rule: the read is stored, so a failed booking is a card, never a second read
+    let booked: BookResult;
+    try {
+      booked = await bookSlot({ uid, matterId, slot: toBook, by: 'auto', contactEmail: contact.email, deps });
+    } catch (error) {
+      logger.error('matters.auto_booking_failed', { uid, matterId, errorName: error instanceof Error ? error.name : 'unknown' });
+      booked = 'failed';
+    }
+    if (booked !== 'booked' && booked !== 'already') await bookingCard(uid, matterId, messageId, toBook, booked, from, deps);
+  }
   return decision.outcome;
+}
+
+// ---------------------------------------------------------------------------------------------
+// A3: scheduling
+// ---------------------------------------------------------------------------------------------
+
+type SchedulePlan =
+  | { kind: 'offer'; reply: { card: MatterApproval; cardId: string; auto: boolean } }
+  | { kind: 'card'; card: CardSpec }
+  | { kind: 'book'; slot: Slot };
+
+/** Whether this matter may book (and offer) on its own right now. */
+function autoScheduling(matter: MatterDoc, deps: MatterDeps): boolean {
+  return matter.scheduling === 'auto' && deps.autoSchedule === true;
+}
+
+/** What a reply that asks for times, or picks one, leads to (see the module comment). */
+async function planScheduling(input: {
+  uid: string;
+  matterId: string;
+  messageId: string;
+  matter: MatterDoc;
+  message: StoredMessage;
+  contact: { name: string; email: string };
+  intent: SchedulingIntent;
+  deps: MatterDeps;
+  dayKey: string;
+}): Promise<SchedulePlan> {
+  const { matter, message, deps, intent } = input;
+  const mandate = matter.mandate!;
+  const meeting = mandate.meeting!;
+  const zone = mandate.timeZone;
+  const quote = intent.kind === 'pick' ? intent.quote : null;
+  if (!deps.meetings) return { kind: 'card', card: { kind: 'time_proposal', reason: 'no_free_time', quote } };
+  const now = deps.now();
+  const { fromMs, toMs } = searchBounds(now, mandate.endsAt);
+  const busy = await loadBusy(deps.meetings, input.uid, fromMs, toMs);
+  const allowed = allowedRanges(meeting, zone, fromMs, toMs);
+  // free times to offer, kept to when the contact would like to meet (readRange), if they said
+  const offer = async (range: TimeRange | null): Promise<SchedulePlan> => {
+    const { slots, nearest } = offerSlots({ busy, allowed, durationMinutes: meeting.durationMinutes, zone, count: MATTER_LIMITS.maxOfferedSlots, range, fromMs, toMs });
+    if (slots.length === 0) return { kind: 'card', card: { kind: 'time_proposal', reason: 'no_free_time', quote: null } };
+    const body = offerTimesText({ contactName: input.contact.name, ownerName: matter.ownerName, slots, durationMinutes: meeting.durationMinutes, timeZone: zone, language: mandate.language, nearest });
+    const reply = await prepareReply({ ...input, contactEmail: input.contact.email, body, autoAllowed: autoScheduling(matter, deps), offers: slots });
+    return { kind: 'offer', reply };
+  };
+  if (intent.kind === 'offer') return offer(readRangeOf([intent.words, intent.quote], message.at, zone));
+  const slot = resolvePick({ words: intent.words, choice: intent.choice, offered: matter.offeredSlots, emailAt: message.at, zone, durationMinutes: meeting.durationMinutes });
+  if (!slot) {
+    // a day without a clock time ("Tuesday works", "next week is fine"): free times that day
+    const texts = [intent.words, intent.quote];
+    const noClock = texts.every((text) => !text || readClockTimes(text).length === 0);
+    const range = intent.choice === null && !matter.booking && noClock ? readRangeOf(texts, message.at, zone) : null;
+    if (range) return offer(range);
+    return { kind: 'card', card: { kind: 'time_proposal', reason: 'unclear_time', quote } };
+  }
+  if (matter.booking) return { kind: 'card', card: { kind: 'time_proposal', reason: 'other', quote, slot } };
+  const fit = fitSlot(slot, { busy, allowed, fromMs, endsAtMs: Date.parse(mandate.endsAt) });
+  if (fit !== 'ok') return { kind: 'card', card: { kind: 'time_proposal', reason: fit, quote, slot } };
+  if (!autoScheduling(matter, deps)) return { kind: 'card', card: { kind: 'time_proposal', reason: 'ask_before_booking', quote, slot } };
+  if (message.auth?.verdict !== 'trusted') return { kind: 'card', card: { kind: 'time_proposal', reason: 'unverified_sender', quote, slot } };
+  return { kind: 'book', slot };
+}
+
+export type BookResult = 'booked' | 'already' | 'not_active' | 'no_calendar' | 'failed' | Exclude<SlotFit, 'ok'>;
+
+/** The card when an automatic booking could not happen: the owner sees the time and decides. */
+async function bookingCard(uid: string, matterId: string, messageId: string, slot: Slot, result: BookResult, from: string, deps: MatterDeps): Promise<void> {
+  const nowIso = deps.now().toISOString();
+  const reason: MatterApprovalReason = result === 'slot_busy' || result === 'after_end' || result === 'outside_windows' ? result : 'other';
+  const cardId = deps.store.newDocId();
+  await deps.store.updateMatter(uid, matterId, (doc) => {
+    if (!doc || doc.status !== 'active') return { result: null };
+    return {
+      result: null,
+      patch: { pendingApprovals: doc.pendingApprovals + 1, updatedAt: nowIso },
+      cards: [{ id: cardId, doc: cardDoc({ kind: 'time_proposal', reason, quote: null, slot, from, sourceMessageId: messageId }, nowIso) }],
+      events: [event('booking_refused', nowIso, result), event('approval_requested', nowIso, 'time_proposal')],
+    };
+  });
+}
+
+/** The booked meeting's id: one per matter, so a retried booking can never create a second one. */
+export function meetingIdFor(matterId: string): string {
+  return `mtm_${createHash('sha256').update(`${matterId}:meeting`).digest('hex').slice(0, 24)}`;
+}
+
+/**
+ * The source of a booked meeting. 'ai_chat' is one the rules and the app already accept, so the
+ * owner can edit or move the meeting like any other; an own 'assistant' source needs a rules
+ * deploy first.
+ */
+export const BOOKED_MEETING_SOURCE = 'ai_chat';
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Books one time for the matter (A3): re-reads the matter and the calendar right before booking,
+ * then, in ONE transaction, creates the meeting (create(): never a second one), links the matter's
+ * accepted tasks to it, sets matter.booking, and adds the confirmation email (claimed, so sent once)
+ * and a goal_reached card. 'auto' keeps the mandate's windows and bounds; 'owner' (the owner
+ * approved a time_proposal card) only needs the time to be free and in the future.
+ * pushPending: the app pushes the meeting to Google Calendar and Outlook (ARCHITECTURE section 32).
+ */
+export async function bookSlot(input: { uid: string; matterId: string; slot: Slot; by: 'auto' | 'owner'; contactEmail: string | null; deps: MatterDeps }): Promise<BookResult> {
+  const { uid, matterId, slot, by, deps } = input;
+  const now = deps.now();
+  const nowIso = now.toISOString();
+  const matter = await deps.store.getMatter(uid, matterId);
+  const mandate = matter?.mandate;
+  if (!matter || matter.status !== 'active' || !mandate?.meeting) return 'not_active';
+  if (matter.booking) return 'already';
+  if (!deps.meetings) return 'no_calendar';
+  const zone = mandate.timeZone;
+  const start = Date.parse(slot.start);
+  const end = Date.parse(slot.end);
+  // the calendar again, right before booking (it may have changed since the reply was read)
+  const busy = await loadBusy(deps.meetings, uid, start - DAY_MS, end + DAY_MS);
+  const fit =
+    by === 'auto'
+      ? (() => {
+          const { fromMs } = searchBounds(now, mandate.endsAt);
+          const endsAtMs = Date.parse(mandate.endsAt);
+          return fitSlot(slot, { busy, allowed: allowedRanges(mandate.meeting!, zone, fromMs, endsAtMs), fromMs, endsAtMs });
+        })()
+      : fitSlot(slot, { busy, allowed: [{ start: now.getTime(), end: Number.MAX_SAFE_INTEGER }], fromMs: now.getTime(), endsAtMs: Number.MAX_SAFE_INTEGER });
+  if (fit !== 'ok') return fit;
+
+  const wanted = input.contactEmail?.trim().toLowerCase() ?? '';
+  const contact = mandate.contacts.find((c) => c.email.toLowerCase() === wanted) ?? mandate.contacts[0]!;
+  const meetingId = meetingIdFor(matterId);
+  const local = toLocalDateTime(new Date(start), zone);
+  const meeting: Record<string, unknown> = {
+    userId: uid,
+    title: meetingTitle(matter.title, contact.name),
+    description: meetingOrigin({ title: matter.title, contactName: contact.name, language: matter.language }),
+    startAt: new Date(start).toISOString(),
+    durationMinutes: Math.max(1, Math.round((end - start) / 60_000)),
+    timezone: zone,
+    allDay: false,
+    date: local.date,
+    time: local.time,
+    location: null,
+    conference: null,
+    participants: [{ email: contact.email.toLowerCase(), name: contact.name, status: null }],
+    source: BOOKED_MEETING_SOURCE,
+    confidence: null,
+    language: matter.language,
+    preparationTips: [],
+    customAlertTimes: null,
+    alertIntensity: null,
+    notes: null,
+    status: 'scheduled',
+    external: {},
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    pushPending: true,
+  };
+
+  // the confirmation: a fixed template, threaded under the contact's last email, through the send check
+  const thread = await deps.store.listMessages(uid, matterId, THREAD_MESSAGES);
+  const theirs = [...thread].reverse().find((m) => m.direction === 'inbound' && m.senderRole === 'contact') ?? null;
+  const theirId = theirs ? threadSafeId(theirs.rfcMessageId) : null;
+  const references = theirs ? [...new Set([...theirs.references.map(threadSafeId).filter((id): id is string => id !== null), ...(theirId ? [theirId] : [])])].slice(-20) : [];
+  const threading = { inReplyTo: theirId, references };
+  const to = [contact.email];
+  const cc = mandate.copyOwner === 'cc' && matter.ownerEmail ? [matter.ownerEmail] : [];
+  const composed = composeMatterEmail({
+    matter,
+    matterId,
+    uid,
+    domain: deps.domain,
+    fromLocalPart: deps.fromLocalPart,
+    to,
+    cc,
+    subject: replySubject(theirs?.subject || matter.firstEmail?.subject || matter.title),
+    body: confirmationText({ contactName: contact.name, ownerName: matter.ownerName, slot: { start: new Date(start).toISOString(), end: new Date(end).toISOString() }, timeZone: zone, language: mandate.language }),
+    inReplyTo: threading.inReplyTo,
+    references: threading.references,
+  });
+  const draft = { to, cc, subject: composed.subject.slice(0, MATTER_LIMITS.subjectChars), text: composed.text.slice(0, MATTER_LIMITS.bodyChars) };
+  const check = checkSend({ matter, to, cc, now, enabled: deps.enabled, domain: deps.domain, requireFirstSent: true });
+  const claim = check.ok && (await deps.store.consumeDailySend(uid, usageDayKey(now), deps.dailySendLimit ?? DEFAULT_DAILY_SENDS, nowIso));
+  const confirmId = deps.store.newDocId();
+  const confirmation = cardDoc(
+    {
+      kind: 'reply_draft',
+      status: claim ? 'approved' : 'pending',
+      reason: claim ? null : check.ok ? 'cap_reached' : 'other',
+      quote: null,
+      from: `${contact.name} <${contact.email}>`,
+      draft,
+      draftHash: draftEmailHash(draft, threading),
+      threading,
+      auto: claim && by === 'auto',
+      sendState: claim ? 'sending' : 'none',
+      sendClaimedAt: claim ? nowIso : null,
+      decidedAt: claim ? nowIso : null,
+      sourceMessageId: null,
+    },
+    nowIso,
+  );
+  const goalId = deps.store.newDocId();
+  const goal = cardDoc({ kind: 'goal_reached', reason: null, quote: null, from: null }, nowIso);
+  const accepted = await deps.store.listProposals(uid, matterId, 'accepted');
+  const taskIds = accepted.map((p) => p.doc.taskId).filter((id): id is string => typeof id === 'string');
+
+  const outcome = await deps.store.bookMeeting<'booked' | 'already' | 'not_active'>(uid, matterId, { meetingId, meeting, taskIds }, (doc, exists, existingTasks) => {
+    if (!doc || doc.status !== 'active') return { result: 'not_active' };
+    if (doc.booking || exists) return { result: 'already' };
+    const booking = { meetingId, start: new Date(start).toISOString(), end: new Date(end).toISOString(), bookedAt: nowIso, by };
+    const next: MatterDoc = { ...doc, booking };
+    return {
+      result: 'booked',
+      createMeeting: true,
+      linkTasks: [...existingTasks],
+      patch: { booking, offeredSlots: [], pendingApprovals: doc.pendingApprovals + 1 + (claim ? 0 : 1), updatedAt: nowIso },
+      events: [event('meeting_booked', nowIso, `${formatInstant(booking.start, zone, matter.language)} (${zone})`)],
+      cards: [
+        { id: confirmId, doc: confirmation },
+        { id: goalId, doc: goal },
+      ],
+      schedule: { nextActionAt: nextActionAt(next) },
+    };
+  });
+  if (outcome !== 'booked') return outcome;
+  logger.info('matters.meeting_booked', { uid, matterId, by, confirmation: claim });
+  if (claim) {
+    try {
+      const fresh = await deps.store.getMatter(uid, matterId);
+      if (fresh) await sendCard(uid, matterId, confirmId, confirmation, fresh, deps);
+    } catch (error) {
+      // the claim stays 'sending': never sent twice
+      logger.error('matters.confirmation_record_failed', { uid, matterId, errorName: error instanceof Error ? error.name : 'unknown' });
+    }
+  }
+  return 'booked';
 }
 
 function proposalDoc(spec: ProposalSpec, messageId: string, nowIso: string): MatterProposal {
@@ -347,6 +627,10 @@ async function prepareReply(input: {
   body: string;
   deps: MatterDeps;
   dayKey: string;
+  /** A3: whether this draft may go out on its own at all (default MATTERS_AUTO_REPLY). */
+  autoAllowed?: boolean;
+  /** A3: the free times this draft offers. */
+  offers?: Slot[];
 }): Promise<{ card: MatterApproval; cardId: string; auto: boolean }> {
   const { matter, message, deps } = input;
   const mandate = matter.mandate!;
@@ -374,7 +658,7 @@ async function prepareReply(input: {
   const check = checkSend({ matter, to, cc, now: deps.now(), enabled: deps.enabled, domain: deps.domain, requireFirstSent: true });
   const counts = countsFor(matter.dailyCounts, input.dayKey);
   let decision = autoSendDecision({
-    autoReplyEnabled: deps.autoReply === true,
+    autoReplyEnabled: input.autoAllowed ?? deps.autoReply === true,
     verdict: message.auth?.verdict ?? null,
     guardFlags,
     autoRepliesLeft: MATTER_CAPS.autoRepliesPerDay - counts.autoReplies,
@@ -401,6 +685,7 @@ async function prepareReply(input: {
       sendClaimedAt: auto ? nowIso : null,
       decidedAt: auto ? nowIso : null,
       sourceMessageId: input.messageId,
+      offers: input.offers ?? [],
     },
     nowIso,
   );
@@ -442,12 +727,17 @@ function outboundMessage(email: OutboundEmail, at: string, status: 'sent' | 'sen
   };
 }
 
+/** A3: an email that offers free times makes them the matter's offered times once it goes out. */
+function offered(card: MatterApproval): Partial<MatterDoc> {
+  return card.offers.length ? { offeredSlots: card.offers } : {};
+}
+
 /**
  * Sends a claimed reply_draft card (sendState 'sending') and records the result: 'sent' (the
  * follow-up clock restarts), 'unknown' (it may have gone out: never resent), 'failed' (a clear
  * refusal: the owner may approve again).
  */
-async function sendCard(uid: string, matterId: string, cardId: string, card: MatterApproval, matter: MatterDoc, deps: MatterDeps): Promise<MatterSendOutcome> {
+export async function sendCard(uid: string, matterId: string, cardId: string, card: MatterApproval, matter: MatterDoc, deps: MatterDeps): Promise<MatterSendOutcome> {
   const email = cardEmail(uid, matterId, card, matter, deps);
   const language = matter.mandate!.language;
   const contacts = email.to.join(', ');
@@ -461,7 +751,7 @@ async function sendCard(uid: string, matterId: string, cardId: string, card: Mat
     if (UNCERTAIN_SEND_KINDS.has(error.kind)) {
       await deps.store.addMessage(uid, matterId, outboundMessage(email, at, 'sending', null, matter.ownerName, language), event('email_unconfirmed', at, contacts), {
         indexMessageId: true,
-        patch: { lastOutboundAt: at },
+        patch: { lastOutboundAt: at, ...offered(card) },
         card: { id: cardId, patch: { sendState: 'unknown', sendOutcome: 'unknown' } },
         schedule: { nextActionAt: nextActionAt({ ...matter, lastOutboundAt: at }) },
       });
@@ -479,7 +769,7 @@ async function sendCard(uid: string, matterId: string, cardId: string, card: Mat
   const status = result.test ? 'test' : 'sent';
   await deps.store.addMessage(uid, matterId, outboundMessage(email, at, status, result.providerId, matter.ownerName, language), event('reply_sent', at, contacts), {
     indexMessageId: true,
-    patch: { lastOutboundAt: at },
+    patch: { lastOutboundAt: at, ...offered(card) },
     card: { id: cardId, patch: { sendState: 'sent', sendOutcome: 'sent' } },
     schedule: { nextActionAt: nextActionAt({ ...matter, lastOutboundAt: at }) },
   });
@@ -490,6 +780,9 @@ async function sendCard(uid: string, matterId: string, cardId: string, card: Mat
 // ---------------------------------------------------------------------------------------------
 // matterDecide
 // ---------------------------------------------------------------------------------------------
+
+/** time_proposal reasons whose approval books the time (slot_busy, no_meeting and the rest are information). */
+const BOOKABLE_ON_APPROVE = new Set<MatterApproval['reason']>(['ask_before_booking', 'unverified_sender', 'outside_windows', 'after_end', null]);
 
 type CardOutcome =
   | { kind: 'not_found' }
@@ -538,6 +831,18 @@ async function decideCard(
   const nowIso = now.toISOString();
   const { matterId, id } = request;
   const approve = request.action === 'approve';
+  if (approve) {
+    // A3: approving a time_proposal card with a bookable time books it first (bookSlot re-checks
+    // the calendar); the card is marked approved below only when the meeting is booked
+    const peek = await deps.store.getCard(caller.uid, matterId, id);
+    if (peek && peek.kind === 'time_proposal' && peek.status === 'pending' && peek.slot && BOOKABLE_ON_APPROVE.has(peek.reason)) {
+      const contactEmail = peek.from?.match(/<([^>]+)>$/)?.[1] ?? peek.from;
+      const booked = await bookSlot({ uid: caller.uid, matterId, slot: peek.slot, by: 'owner', contactEmail, deps });
+      if (booked === 'slot_busy') throw matterError('not_allowed', 'This time is no longer free in your calendar.');
+      if (booked === 'not_active') throw matterError('not_allowed', 'This matter is not active.');
+      if (booked !== 'booked' && booked !== 'already') throw matterError('not_allowed', 'This time cannot be booked.');
+    }
+  }
   const outcome = await deps.store.updateCard<CardOutcome>(caller.uid, matterId, id, (matter, card): CardUpdate<CardOutcome> => {
     if (!matter || !card) return { result: { kind: 'not_found' } };
     const done = (status: MatterApproval['status'], sendOutcome: MatterSendOutcome | null = null, matterStatus = matter.status): CardOutcome => ({ kind: 'done', status, outcome: sendOutcome, matterStatus });
@@ -630,7 +935,8 @@ async function decideProposal(
       dueTime: schedule.dueTime,
       timezone: zone,
       reminderMinutesBefore: schedule.reminderMinutesBefore,
-      meetingId: null,
+      // A3: a commitment accepted after the meeting was booked is linked to it
+      meetingId: matter.booking?.meetingId ?? null,
       owner: proposal.owner ? { name: proposal.owner.name, isUser: proposal.owner.isUser } : null,
       now,
     });
@@ -655,8 +961,31 @@ async function decideProposal(
 type ViewItem = NonNullable<MatterViewResponse['matters']>[number];
 
 function viewItem(matterId: string, doc: MatterDoc): ViewItem {
-  return { matterId, status: doc.status, title: doc.title, updatedAt: doc.updatedAt, stopReason: doc.stopReason, pendingApprovals: doc.pendingApprovals };
+  return {
+    matterId,
+    status: doc.status,
+    title: doc.title,
+    updatedAt: doc.updatedAt,
+    stopReason: doc.stopReason,
+    pendingApprovals: doc.pendingApprovals,
+    meeting: doc.booking ? { start: doc.booking.start, end: doc.booking.end } : null,
+    contacts: doc.mandate?.contacts.map((c) => c.name) ?? [],
+  };
 }
+
+/** A3: estimated prices (display only): Postmark per email, and the natural voice per character. */
+export const COST_RATES = { emailUsd: 0.0015, speechUsdPerMinute: 0.015, speechCharsPerMinute: 900 } as const;
+
+/** A matter's estimated cost in USD; null when the model price is not configured. */
+export function costUsd(usage: MatterUsage, prices: { inPerM: number; outPerM: number } | undefined): number | null {
+  if (!prices || (prices.inPerM <= 0 && prices.outPerM <= 0)) return null;
+  const model = (usage.inputTokens * prices.inPerM + usage.outputTokens * prices.outPerM) / 1_000_000;
+  const speech = (usage.speechChars / COST_RATES.speechCharsPerMinute) * COST_RATES.speechUsdPerMinute;
+  return Math.round((model + usage.emails * COST_RATES.emailUsd + speech) * 1_000_000) / 1_000_000;
+}
+
+/** The timeline lines the matter page shows (newest first). */
+const TIMELINE_EVENTS = 50;
 
 const newestFirst = <T extends { createdAt: string }>(list: T[]): T[] => list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -678,7 +1007,11 @@ export function handleMatterView(callerIn: MatterCaller | null, data: unknown, d
     }
     const doc = await deps.store.getMatter(caller.uid, matterId);
     if (!doc) return { matters: null, page: null };
-    const [cards, proposals] = await Promise.all([deps.store.listCards(caller.uid, matterId, 'pending'), deps.store.listProposals(caller.uid, matterId, 'open')]);
+    const [cards, proposals, events] = await Promise.all([
+      deps.store.listCards(caller.uid, matterId, 'pending'),
+      deps.store.listProposals(caller.uid, matterId, 'open'),
+      deps.store.listEvents(caller.uid, matterId, TIMELINE_EVENTS),
+    ]);
     return {
       matters: null,
       page: {
@@ -697,11 +1030,14 @@ export function handleMatterView(callerIn: MatterCaller | null, data: unknown, d
             sendOutcome: card.sendOutcome,
             auto: card.auto,
             createdAt: card.createdAt,
+            slot: card.slot,
           })),
         ),
         proposals: newestFirst(
           proposals.map(({ id, doc: p }) => ({ id, quote: p.quote, title: p.title, owner: p.owner, due: p.due, status: p.status, taskId: p.taskId, createdAt: p.createdAt })),
         ),
+        events: events.map((e) => ({ type: e.type, at: e.at, detail: e.detail })),
+        usage: { ...doc.usage, costUsd: costUsd(doc.usage, deps.prices) },
       },
     };
   });

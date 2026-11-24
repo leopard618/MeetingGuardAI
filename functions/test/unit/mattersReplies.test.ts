@@ -7,7 +7,7 @@ import { handleInboundEmail, handleMatterConfirm, handleMatterDraft, type Matter
 import { MAX_READ_ATTEMPTS, READ_STALE_MS, type EmailAuth } from '../../src/matters/model';
 import { MATTER_CAPS, handleDeliveryEvent, handleInboundRead, handleMatterDecide, handleMatterView, runMatterTick } from '../../src/matters/replies';
 import { EmailSendError } from '../../src/matters/email';
-import { CALLER, DOMAIN, NOW, REQUEST, inboundPayload, makeDeps, proposal } from './mattersFakes';
+import { CALLER, DOMAIN, FakeCalendar, NOW, REQUEST, inboundPayload, makeDeps, proposal } from './mattersFakes';
 
 jest.mock('firebase-functions/logger', () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }));
 
@@ -200,10 +200,11 @@ describe('matterInboundRead', () => {
   it.each([
     ['goal_reached', { intent: 'goal_reached', reason: 'none' }, { kind: 'goal_reached', reason: null }],
     ['money', { intent: 'outside_mandate', reason: 'money' }, { kind: 'outside_mandate', reason: 'money' }],
-    ['a time proposal', { intent: 'outside_mandate', reason: 'time_proposal' }, { kind: 'time_proposal', reason: null }],
+    // A3: the mandate has a meeting, so code reads the time itself; "Here it is." has none
+    ['a time proposal', { intent: 'outside_mandate', reason: 'time_proposal' }, { kind: 'time_proposal', reason: 'unclear_time' }],
     ['unclear', { intent: 'unclear', reason: 'none' }, { kind: 'unclear', reason: null }],
   ])('turns %s into a card with the contact\'s sentence', async (_label, answer, expected) => {
-    const ctx = await activeMatter();
+    const ctx = await activeMatter({ meetings: new FakeCalendar() });
     const { messageId } = await reply(ctx);
     await read(ctx, messageId, assess({ ...answer, reply: null }));
     expect(cards(ctx)).toEqual([expect.objectContaining({ ...expected, status: 'pending', quote: 'Here it is.', from: 'Carlos Ruiz <carlos@example.com>' })]);

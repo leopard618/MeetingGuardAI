@@ -38,6 +38,7 @@ import {
   type MatterUnknownCause,
 } from '../shared/aiContract';
 import { UpstreamError } from '../assistant/errors';
+import type { MeetingReader } from '../assistant/context';
 import type { GlobalBudget } from '../assistant/globalBudget';
 import { safetyIdentifierFor, type LlmClient } from '../assistant/llm';
 import { isValidTimeZone } from '../assistant/time';
@@ -46,12 +47,14 @@ import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, bareAddress, composeFirs
 import { matchInbound, parseInbound, toMatterMessage } from './inbound';
 import type { SenderCheck } from './mailCheck';
 import {
+  EMPTY_USAGE,
   MATTER_LIMITS,
   SENDING_WINDOW_MS,
   draftHash,
   isOwnDomain,
   matterDocSchema,
   newReplyToken,
+  withModelCall,
   type MatterDoc,
   type MatterEvent,
   type MatterMessage,
@@ -94,6 +97,16 @@ export interface MatterDeps {
   globalBudget?: GlobalBudget;
   /** Admin stats: one model call's tokens (adminStats/ai/days/{day}); failures never fail the call. */
   recordAiUsage?: (dayKey: string, tokens: { inputTokens: number; outputTokens: number }) => Promise<void>;
+  // ---- A3 ----
+  /** MATTERS_AUTO_SCHEDULE: new drafts book automatically (scheduling 'auto'), and the kill switch for it. */
+  autoSchedule?: boolean;
+  /** The owner's meetings (the assistant's bounded reader), for free times; absent = no calendar. */
+  meetings?: MeetingReader;
+  /** OPENAI_PRICE_IN_PER_M / OPENAI_PRICE_OUT_PER_M (USD per million tokens; 0 = unknown). */
+  prices?: { inPerM: number; outPerM: number };
+  /** MATTERS_NATURAL_VOICE (demo only) and the speech call behind it (MP3 bytes). */
+  naturalVoice?: boolean;
+  speech?: (text: string, language: Language) => Promise<Buffer>;
 }
 
 /** The project-wide model budget is spent for today: the call never reaches OpenAI. */
@@ -179,11 +192,16 @@ async function consumeDaily(uid: string, deps: MatterDeps): Promise<void> {
   if (!(await deps.store.consumeDaily(uid, usageDayKey(now), deps.dailyLimit, now.toISOString()))) throw matterError('rate_limited');
 }
 
-async function runDraft(deps: MatterDeps, uid: string, ctx: Parameters<typeof draftMatter>[1]): Promise<DraftResult> {
+export type Tokens = { promptTokens: number; completionTokens: number } | null;
+
+export async function runDraft(deps: MatterDeps, uid: string, ctx: Parameters<typeof draftMatter>[1], onTokens?: (tokens: Tokens) => void): Promise<DraftResult> {
   try {
     // the matter model calls count against the project-wide budget and the admin stats (A2)
     await acquireGlobalBudget(deps, ctx.request.length + 4000, BUDGET_CHARS_PER_UNIT);
-    return await draftMatter(deps.llm(), ctx, safetyIdentifierFor(uid), (usage) => recordUsage(deps, usage, uid));
+    return await draftMatter(deps.llm(), ctx, safetyIdentifierFor(uid), (usage) => {
+      onTokens?.(usage);
+      return recordUsage(deps, usage, uid);
+    });
   } catch (error) {
     if (error instanceof GlobalBudgetExhaustedError) {
       logger.error('matters.global_budget_exhausted', { uid });
@@ -212,17 +230,37 @@ export function draftView(matterId: string, doc: MatterDoc, deps: Pick<MatterDep
     readBack: doc.readBack,
     questions: doc.questions,
     firstEmail: email ? { from: email.from, to: email.to, cc: email.cc, subject: email.subject, text: email.text } : null,
-    draftHash: complete && doc.status === 'draft' ? draftHash(doc.mandate!, doc.firstEmail!) : null,
+    draftHash: complete && doc.status === 'draft' ? draftHash(doc.mandate!, doc.firstEmail!, doc.scheduling) : null,
   };
 }
 
-function draftFields(result: DraftResult, ownerEmail: string | null, language: Language) {
+/** A3: a drafted change of a running matter as the app shows it (matterChange). */
+export function changeView(matterId: string, doc: MatterDoc): MatterDraftResponse {
+  const change = doc.pendingChange;
+  return {
+    matterId,
+    status: doc.status,
+    title: doc.title,
+    readBack: change?.readBack ?? doc.readBack,
+    questions: change?.questions ?? [],
+    firstEmail: null,
+    draftHash: change?.hash ?? null,
+  };
+}
+
+/** A3: whether a new draft books automatically (MATTERS_AUTO_SCHEDULE, and only with a meeting). */
+export function schedulingFor(mandate: MatterDoc['mandate'], deps: Pick<MatterDeps, 'autoSchedule'>): MatterDoc['scheduling'] {
+  return deps.autoSchedule === true && mandate?.meeting ? 'auto' : 'ask';
+}
+
+function draftFields(result: DraftResult, ownerEmail: string | null, language: Language, scheduling: MatterDoc['scheduling']) {
   return {
     title: result.title,
     mandate: result.mandate,
     firstEmail: result.firstEmail,
     questions: result.questions,
-    readBack: result.mandate ? readBack(result.mandate, ownerEmail, language) : '',
+    readBack: result.mandate ? readBack(result.mandate, ownerEmail, language, scheduling) : '',
+    scheduling,
   };
 }
 
@@ -239,15 +277,23 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
   const ownerEmail = verifiedEmail(caller);
   const ownerName = ownerDisplayName(caller.name, deps.domain);
   const now = deps.now();
-  const result = await runDraft(deps, caller.uid, {
-    request: request.text,
-    language: request.language,
-    timeZone: request.timeZone,
-    ownerName,
-    ownerEmail,
-    now,
-    domain: deps.domain,
-  });
+  let tokens: Tokens = null;
+  const result = await runDraft(
+    deps,
+    caller.uid,
+    {
+      request: request.text,
+      language: request.language,
+      timeZone: request.timeZone,
+      ownerName,
+      ownerEmail,
+      now,
+      domain: deps.domain,
+    },
+    (t) => {
+      tokens = t;
+    },
+  );
   const nowIso = now.toISOString();
   const doc: MatterDoc = matterDocSchema.parse({
     status: 'draft',
@@ -257,7 +303,8 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
     source: request.source,
     ownerName,
     ownerEmail,
-    ...draftFields(result, ownerEmail, request.language),
+    ...draftFields(result, ownerEmail, request.language, schedulingFor(result.mandate, deps)),
+    usage: withModelCall(EMPTY_USAGE, tokens),
     mandateVersion: 1,
     confirmedHash: null,
     confirmedAt: null,
@@ -293,15 +340,23 @@ async function reviseMatter(callerIn: MatterCaller | null, data: unknown, deps: 
   if (request.length > MATTER_LIMITS.requestChars) throw matterError('invalid_request', 'This matter has too many changes. Start a new one.');
   await consumeDaily(caller.uid, deps);
   const now = deps.now();
-  const result = await runDraft(deps, caller.uid, {
-    request,
-    language: current.language,
-    timeZone: current.timeZone,
-    ownerName: current.ownerName,
-    ownerEmail: current.ownerEmail,
-    now,
-    domain: deps.domain,
-  });
+  let tokens: Tokens = null;
+  const result = await runDraft(
+    deps,
+    caller.uid,
+    {
+      request,
+      language: current.language,
+      timeZone: current.timeZone,
+      ownerName: current.ownerName,
+      ownerEmail: current.ownerEmail,
+      now,
+      domain: deps.domain,
+    },
+    (t) => {
+      tokens = t;
+    },
+  );
   const nowIso = now.toISOString();
   const updated = await deps.store.updateMatter<MatterDoc | 'not_found' | 'not_draft' | 'stale'>(caller.uid, matterId, (doc) => {
     if (!doc) return { result: 'not_found' };
@@ -312,7 +367,8 @@ async function reviseMatter(callerIn: MatterCaller | null, data: unknown, deps: 
     const next: MatterDoc = matterDocSchema.parse({
       ...doc,
       request,
-      ...draftFields(result, doc.ownerEmail, doc.language),
+      ...draftFields(result, doc.ownerEmail, doc.language, schedulingFor(result.mandate, deps)),
+      usage: withModelCall(doc.usage, tokens),
       mandateVersion: doc.mandateVersion + 1,
       updatedAt: nowIso,
     });
@@ -389,7 +445,7 @@ async function confirmMatter(callerIn: MatterCaller | null, data: unknown, deps:
       if (settled) return { result: settled };
     } else {
       if (doc.status !== 'draft' || !doc.mandate || !doc.firstEmail) return { result: { kind: 'stale' } };
-      if (draftHash(doc.mandate, doc.firstEmail) !== hash) return { result: { kind: 'stale' } };
+      if (draftHash(doc.mandate, doc.firstEmail, doc.scheduling) !== hash) return { result: { kind: 'stale' } };
       if (Date.parse(doc.mandate.endsAt) <= now.getTime()) return { result: { kind: 'ended' } };
     }
     const claim = { firstSendState: 'sending' as const, firstSendClaimedAt: nowIso, firstSendUnknownCause: null, updatedAt: nowIso };
@@ -597,6 +653,8 @@ export async function recordUndeliverable(
             createdAt: nowIso,
             updatedAt: nowIso,
             decidedAt: null,
+            slot: null,
+            offers: [],
           },
         },
       ],

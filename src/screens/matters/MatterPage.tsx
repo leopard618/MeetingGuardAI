@@ -1,12 +1,17 @@
 /**
- * One open matter (A2, test build only; docs/v1/ARCHITECTURE.md section 36): the cards waiting for
- * the owner and the commitments the assistant proposed. The full timeline and settings come in
- * A3 and A5; notifications in A8 (in A2 the owner sees the cards when opening the app).
+ * One open matter (A2 and A3, test build only; docs/v1/ARCHITECTURE.md section 36): the cards
+ * waiting for the owner, the commitments the assistant proposed, and (A3) the booked meeting, the
+ * timeline, the cost so far, pause and resume, and questions or changes by voice or text
+ * (AskPanel.tsx). Settings come in A5; notifications in A8.
  *
  * - A reply_draft card shows the whole email exactly as it would be sent; "Send this reply"
  *   sends its hash back (matterDecide), so only the version on screen can go out.
  * - Other cards are information or a decision for the owner (goal_reached: mark the matter done).
  * - A proposed commitment becomes an ordinary task on "Add to my tasks" (with the device zone).
+ * - A3: a time_proposal card shows the time; "Book this time" books it (the server re-checks the
+ *   calendar first and answers not_allowed when it is no longer free).
+ * - A3 feedback: on a running matter, "Move the meeting" and "Write to them" (ContactActions.tsx); the
+ *   emails they prepare are reply_draft cards named "Email ready to send", sent like any reply.
  * Every string lives in the "matters" namespace (EN + ES). Nothing is logged.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
@@ -18,11 +23,24 @@ import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
 import type { MatterDecideResponse } from '../../core/aiContract';
 import { toAppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
-import { useT } from '../../i18n';
+import { toBaseLanguage } from '../../core/types';
+import { useLanguage, useT } from '../../i18n';
 import { matterService, type MatterPage as MatterPageData } from '../../services/matters';
 import { spacing, useAppTheme } from '../../theme';
 import { Section } from '../shared/Section';
+import { AskPanel } from './AskPanel';
+import { ContactActions } from './ContactActions';
 import { matterErrorKey } from './matterErrors';
+import { formatCost, formatWhen, timelineDetail, timelineKey } from './matterFormat';
+
+/** time_proposal reasons whose approval books the time (as the server's BOOKABLE_ON_APPROVE). */
+const BOOKABLE = new Set<string | null>(['ask_before_booking', 'unverified_sender', 'outside_windows', 'after_end', null]);
+
+/** A3 feedback: reply_draft cards the owner asked for (write to them, the meeting moved). */
+const OWNER_EMAIL_REASONS = new Set<string | null>(['owner_message', 'meeting_moved']);
+
+/** Information cards about a contact's email that got no reply: the owner may want to answer. */
+const NO_REPLY_KINDS = new Set<string>(['new_person', 'outside_mandate', 'unclear', 'time_proposal', 'many_replies']);
 
 export interface MatterPageProps {
   matterId: string;
@@ -38,6 +56,8 @@ const RESULT_KEYS: Readonly<Record<string, string>> = {
 
 export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement {
   const t = useT();
+  const { language: appLanguage } = useLanguage();
+  const language = toBaseLanguage(appLanguage);
   const { colors } = useAppTheme();
   const [page, setPage] = useState<MatterPageData | null | 'missing' | 'error'>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -97,6 +117,12 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
       onBack();
     });
 
+  const setStatus = (action: 'pause' | 'resume'): Promise<void> =>
+    act(action, async () => {
+      await matterService.setStatus(matterId, action);
+      Toast.show({ type: 'success', text1: t(`matters:ask.done.${action}`) });
+    });
+
   const back = (
     <MGButton variant="tonal" style={styles.action} onPress={onBack} disabled={busy !== null} testID="matters-back">
       {t('matters:page.back')}
@@ -134,6 +160,9 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
       <Text variant="bodySmall" style={[styles.line, muted]}>
         {t(`matters:open.status.${page.matter.status}`)}
       </Text>
+      {page.matter.meeting ? (
+        <Banner tone="info" icon="calendar-check" text={t('matters:page.meetingBooked', { value: formatWhen(page.matter.meeting.start, language) })} testID="matters-page-meeting" />
+      ) : null}
 
       <Section title={t('matters:page.cardsTitle')} testID="matters-cards">
         {page.approvals.length === 0 ? (
@@ -142,10 +171,14 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
           </Text>
         ) : null}
         {page.approvals.map((card) => {
-          const verb = card.kind === 'reply_draft' || card.kind === 'goal_reached' ? card.kind : 'default';
+          const book = card.kind === 'time_proposal' && card.slot && BOOKABLE.has(card.reason ?? null);
+          const ownerEmail = card.kind === 'reply_draft' && OWNER_EMAIL_REASONS.has(card.reason ?? null);
+          const verb = book ? 'book' : ownerEmail ? 'owner_email' : card.kind === 'reply_draft' || card.kind === 'goal_reached' ? card.kind : 'default';
+          // information only: one button that marks it as read (nothing is sent or booked)
+          const info = verb === 'default';
           return (
             <View key={card.id} style={styles.card} testID={`matters-card-${card.id}`}>
-              <Text variant="titleSmall">{t(`matters:card.kind.${card.kind}`)}</Text>
+              <Text variant="titleSmall">{t(ownerEmail ? 'matters:card.kind.owner_email' : `matters:card.kind.${card.kind}`)}</Text>
               {card.reason ? (
                 <Text variant="bodySmall" style={[styles.line, muted]}>
                   {t(`matters:card.reason.${card.reason}`)}
@@ -154,6 +187,11 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
               {card.from ? (
                 <Text variant="bodySmall" style={muted}>
                   {t(card.kind === 'bounce' ? 'matters:card.address' : 'matters:card.from', { value: card.from })}
+                </Text>
+              ) : null}
+              {card.slot ? (
+                <Text variant="bodyMedium" style={styles.line} testID={`matters-card-slot-${card.id}`}>
+                  {t('matters:card.slot', { value: formatWhen(card.slot.start, language) })}
                 </Text>
               ) : null}
               {card.quote ? (
@@ -186,6 +224,11 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
                   </Text>
                 </View>
               ) : null}
+              {info && NO_REPLY_KINDS.has(card.kind) ? (
+                <Text variant="bodySmall" style={[styles.line, muted]} testID={`matters-card-noreply-${card.id}`}>
+                  {t('matters:card.noReply')}
+                </Text>
+              ) : null}
               <View style={styles.row}>
                 <MGButton
                   style={styles.rowButton}
@@ -194,18 +237,20 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
                   disabled={busy !== null}
                   testID={`matters-card-approve-${card.id}`}
                 >
-                  {t(`matters:card.approve.${verb}`)}
+                  {t(info ? 'matters:card.markRead' : `matters:card.approve.${verb}`)}
                 </MGButton>
-                <MGButton
-                  variant="tonal"
-                  style={styles.rowButton}
-                  onPress={() => void decideCard(card, 'decline')}
-                  loading={busy === `decline-${card.id}`}
-                  disabled={busy !== null}
-                  testID={`matters-card-decline-${card.id}`}
-                >
-                  {t(`matters:card.decline.${verb}`)}
-                </MGButton>
+                {info ? null : (
+                  <MGButton
+                    variant="tonal"
+                    style={styles.rowButton}
+                    onPress={() => void decideCard(card, 'decline')}
+                    loading={busy === `decline-${card.id}`}
+                    disabled={busy !== null}
+                    testID={`matters-card-decline-${card.id}`}
+                  >
+                    {t(`matters:card.decline.${verb}`)}
+                  </MGButton>
+                )}
               </View>
             </View>
           );
@@ -251,7 +296,49 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
         </Section>
       ) : null}
 
+      {page.matter.status === 'active' ? (
+        <ContactActions matterId={matterId} contacts={page.matter.contacts ?? []} meeting={page.matter.meeting ?? null} onChanged={() => void load()} />
+      ) : null}
+
+      <Section title={t('matters:ask.titleMatter')} testID="matters-page-ask">
+        <AskPanel matterId={matterId} contactName={page.matter.contacts?.[0]} onChanged={() => void load()} testID="matters-page-ask-panel" />
+      </Section>
+
+      {page.events && page.events.length ? (
+        <Section title={t('matters:timeline.title')} testID="matters-timeline">
+          {page.events.map((item, index) => {
+            const detail = timelineDetail(item);
+            return (
+              <View key={`${item.at}-${index}`} style={styles.event}>
+                <Text variant="bodySmall" style={muted}>
+                  {formatWhen(item.at, language)}
+                </Text>
+                <Text variant="bodyMedium">{detail ? `${t(timelineKey(item))}: ${detail}` : t(timelineKey(item))}</Text>
+              </View>
+            );
+          })}
+        </Section>
+      ) : null}
+
+      {page.usage ? (
+        <Text variant="bodySmall" style={[styles.line, muted]} testID="matters-usage">
+          {page.usage.costUsd !== null
+            ? t('matters:page.cost', { value: formatCost(page.usage.costUsd), calls: page.usage.modelCalls, emails: page.usage.emails })
+            : t('matters:page.usage', { calls: page.usage.modelCalls, emails: page.usage.emails })}
+        </Text>
+      ) : null}
+
       <ListGroup>
+        {page.matter.status === 'active' || page.matter.status === 'paused' ? (
+          <ListRow
+            icon={page.matter.status === 'active' ? 'pause-circle-outline' : 'play-circle-outline'}
+            title={t(page.matter.status === 'active' ? 'matters:page.pause' : 'matters:page.resume')}
+            onPress={() => void setStatus(page.matter.status === 'active' ? 'pause' : 'resume')}
+            disabled={busy !== null}
+            accessibilityRole="button"
+            testID="matters-page-status"
+          />
+        ) : null}
         <ListRow
           icon="close-circle-outline"
           title={t('matters:cancel')}
@@ -275,4 +362,5 @@ const styles = StyleSheet.create({
   draft: { marginTop: spacing.sm },
   row: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.sm },
   rowButton: { marginRight: spacing.sm, marginBottom: spacing.sm },
+  event: { marginBottom: spacing.sm },
 });

@@ -123,6 +123,14 @@ export const CALLABLES = {
   matterCancel: 'matterCancel',
   matterDecide: 'matterDecide',
   matterView: 'matterView',
+  // A3
+  matterSetStatus: 'matterSetStatus',
+  matterChange: 'matterChange',
+  matterAsk: 'matterAsk',
+  matterSpeak: 'matterSpeak',
+  // A3 feedback: write to the contact now, move the booked meeting
+  matterMessage: 'matterMessage',
+  matterMove: 'matterMove',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -2057,6 +2065,11 @@ export const matterDraftResponseSchema = z.object({
     .nullable(),
   /** Present only when the draft is complete; matterConfirm sends it back. */
   draftHash: z.string().regex(DRAFT_HASH_PATTERN).nullable(),
+  /**
+   * A3 feedback, an applied change (matterChange with draftHash): the change touches what the contact was
+   * told (the goal, what is asked, the end date or the meeting), so the app offers to let them know.
+   */
+  letThemKnow: z.boolean().optional(),
 });
 export type MatterDraftResponse = z.infer<typeof matterDraftResponseSchema>;
 
@@ -2144,8 +2157,32 @@ export const MATTER_APPROVAL_REASONS = [
   'read_failed',
   'loop',
   'other',
+  // A3: scheduling (time_proposal cards)
+  /** The contact asked for times, but the calendar has no free time inside the mandate. */
+  'no_free_time',
+  /** The time the contact picked is no longer free in the calendar. */
+  'slot_busy',
+  /** The time is outside the mandate's windows or working hours, or too soon. */
+  'outside_windows',
+  /** The time is after the matter's end date. */
+  'after_end',
+  /** The assistant could not read one exact time from the reply. */
+  'unclear_time',
+  /** The time fits, and the owner books it with one tap (automatic booking is off or not allowed). */
+  'ask_before_booking',
+  /** The mandate has no meeting. */
+  'no_meeting',
+  // A3 feedback: reply_draft cards the owner asked for (never sent on their own)
+  /** The owner asked the assistant to write to the contact now (matterMessage). */
+  'owner_message',
+  /** The owner moved the booked meeting (matterMove): the email that tells the contact. */
+  'meeting_moved',
 ] as const;
 export type MatterApprovalReason = (typeof MATTER_APPROVAL_REASONS)[number];
+
+/** A3: a meeting time (UTC ISO instants). */
+export const matterSlotSchema = z.object({ start: z.string(), end: z.string() });
+export type MatterSlot = z.infer<typeof matterSlotSchema>;
 
 /** What the content guard found in a reply draft (it then never goes out automatically). */
 export const MATTER_GUARD_FLAGS = ['money', 'contract', 'link', 'address', 'length'] as const;
@@ -2188,6 +2225,8 @@ export const matterApprovalViewSchema = z.object({
   /** Sent automatically (MATTERS_AUTO_REPLY), not by the owner. */
   auto: z.boolean(),
   createdAt: z.string(),
+  /** A3, time_proposal: the time the contact proposed (approving books it, when it can be booked). */
+  slot: matterSlotSchema.nullable().optional().catch(null),
 });
 export type MatterApprovalView = z.infer<typeof matterApprovalViewSchema> & { id: string };
 
@@ -2215,6 +2254,10 @@ export const matterListItemSchema = z.object({
   stopReason: z.string().nullable().optional(),
   /** Approval cards waiting for the owner. */
   pendingApprovals: z.number().int().min(0).optional(),
+  /** A3: the meeting the assistant booked. */
+  meeting: matterSlotSchema.nullable().optional().catch(null),
+  /** A3: the contacts' names (voice questions name them). */
+  contacts: z.array(z.string()).optional().catch([]),
 });
 export type MatterListItem = z.infer<typeof matterListItemSchema> & { matterId: string };
 
@@ -2259,6 +2302,22 @@ export const matterViewRequestSchema = z.object({ matterId: matterIdSchema.optio
 export type MatterViewRequest = z.infer<typeof matterViewRequestSchema>;
 
 export const matterViewItemSchema = matterListItemSchema.extend({ matterId: matterIdSchema });
+
+/** A3: one line of a matter's timeline (type is a server event type; the app names the known ones). */
+export const matterEventViewSchema = z.object({ type: z.string(), at: z.string(), detail: z.string().catch('') });
+export type MatterEventView = z.infer<typeof matterEventViewSchema>;
+
+/** A3: what a matter has used so far, and its estimated cost (null when no price is configured). */
+export const matterUsageViewSchema = z.object({
+  modelCalls: z.number().int().min(0),
+  inputTokens: z.number().int().min(0),
+  outputTokens: z.number().int().min(0),
+  emails: z.number().int().min(0),
+  speechChars: z.number().int().min(0),
+  costUsd: z.number().min(0).nullable(),
+});
+export type MatterUsageView = z.infer<typeof matterUsageViewSchema>;
+
 export const matterViewResponseSchema = z.object({
   matters: z.array(matterViewItemSchema).nullable(),
   page: z
@@ -2266,10 +2325,133 @@ export const matterViewResponseSchema = z.object({
       matter: matterViewItemSchema,
       approvals: z.array(matterApprovalViewSchema.extend({ id: matterDocIdSchema })),
       proposals: z.array(matterProposalViewSchema.extend({ id: matterDocIdSchema })),
+      /** A3: the timeline, newest first. */
+      events: z.array(matterEventViewSchema).optional().catch([]),
+      /** A3: usage and estimated cost. */
+      usage: matterUsageViewSchema.nullable().optional().catch(null),
     })
     .nullable(),
 });
 export type MatterViewResponse = z.infer<typeof matterViewResponseSchema>;
+
+// A3: pause, resume and change a running matter; questions by voice or text; the natural voice.
+
+export const MATTER_STATUS_ACTIONS = ['pause', 'resume'] as const;
+export type MatterStatusAction = (typeof MATTER_STATUS_ACTIONS)[number];
+
+export const matterSetStatusRequestSchema = z.object({ matterId: matterIdSchema, action: z.enum(MATTER_STATUS_ACTIONS) }).strict();
+export type MatterSetStatusRequest = z.infer<typeof matterSetStatusRequestSchema>;
+export const matterSetStatusResponseSchema = z.object({ matterId: matterIdSchema, status: z.enum(MATTER_STATUSES_CONTRACT) });
+export type MatterSetStatusResponse = z.infer<typeof matterSetStatusResponseSchema>;
+
+/**
+ * matterChange: the owner's words for a change of an active or paused matter ("move the deadline
+ * to Monday"), or an answer to the change's questions. Answers with matterDraftResponseSchema: the
+ * CHANGED mandate in plain words, any questions, firstEmail null and, when complete, the change's
+ * draftHash. matterChange with that draftHash (and no text) applies the change and answers with
+ * the mandate now in force (draftHash null); until then the confirmed mandate stays in force.
+ */
+export const matterChangeRequestSchema = z
+  .object({
+    matterId: matterIdSchema,
+    text: z.string().trim().min(1).max(MATTER_LIMITS_CONTRACT.answerChars).optional(),
+    draftHash: z.string().regex(DRAFT_HASH_PATTERN).optional(),
+  })
+  .strict()
+  .refine((request) => (request.text === undefined) !== (request.draftHash === undefined), { message: 'text or draftHash' });
+export type MatterChangeRequest = z.infer<typeof matterChangeRequestSchema>;
+
+/**
+ * matterAsk: a question or instruction about the open matters, typed or spoken ("what is
+ * happening with Carlos?", "pause the Carlos matter"). The server answers status questions from
+ * the matter's own records; for an action it only names it (the app confirms it, then calls
+ * matterSetStatus, matterCancel or matterChange). new_matter: the words are a new delegation
+ * (the app calls matterDraft). A3 feedback: move_meeting (the app calls matterMove with the words) and
+ * message (the app calls matterMessage with the words).
+ */
+export const MATTER_ASK_INTENTS = ['status', 'pause', 'resume', 'cancel', 'change', 'new_matter', 'unclear', 'move_meeting', 'message'] as const;
+export type MatterAskIntent = (typeof MATTER_ASK_INTENTS)[number];
+
+export const matterAskRequestSchema = z
+  .object({
+    text: z.string().trim().min(1).max(MATTER_LIMITS_CONTRACT.requestChars),
+    language: languageSchema,
+    /** The matter page the question was asked on, if any. */
+    matterId: matterIdSchema.optional(),
+  })
+  .strict();
+export type MatterAskRequest = z.infer<typeof matterAskRequestSchema>;
+
+export const matterAskResponseSchema = z.object({
+  intent: z.enum(MATTER_ASK_INTENTS),
+  matterId: matterIdSchema.nullable(),
+  title: z.string().nullable(),
+  /** What to show and say: the answer, or the confirmation question for an action. */
+  answer: z.string(),
+});
+export type MatterAskResponse = z.infer<typeof matterAskResponseSchema>;
+
+// A3 feedback: write to the contact now, and move the booked meeting. Neither sends
+// anything by itself: each makes a reply_draft card (reason owner_message or meeting_moved) that the
+// owner sends with matterDecide, exactly as shown.
+
+/** matterMessage: the owner's words for an email to the contact ("tell him I am running late"). */
+export const matterMessageRequestSchema = z
+  .object({ matterId: matterIdSchema, text: z.string().trim().min(1).max(MATTER_LIMITS_CONTRACT.answerChars) })
+  .strict();
+export type MatterMessageRequest = z.infer<typeof matterMessageRequestSchema>;
+export const matterMessageResponseSchema = z.object({
+  matterId: matterIdSchema,
+  /** The new reply_draft card (reason owner_message): the matter page shows it with Send and Do not send. */
+  id: matterDocIdSchema.nullable(),
+  /** No card: what the assistant needs to know first ("What should I tell them?"). */
+  question: z.string().nullable(),
+});
+export type MatterMessageResponse = z.infer<typeof matterMessageResponseSchema>;
+
+/**
+ * matterMove: moves the meeting the assistant booked. With text ("move it to Friday at 4 pm"):
+ * reads the new time and answers it, nothing changes (moved false). With start (the time the
+ * owner saw and confirmed): moves the meeting in the calendar, the same length, and makes the
+ * meeting_moved card (moved true, id) that tells the contact once the owner sends it.
+ */
+export const matterMoveRequestSchema = z
+  .object({
+    matterId: matterIdSchema,
+    text: z.string().trim().min(1).max(MATTER_LIMITS_CONTRACT.answerChars).optional(),
+    start: isoDateTimeSchema.optional(),
+  })
+  .strict()
+  .refine((request) => (request.text === undefined) !== (request.start === undefined), { message: 'text or start' });
+export type MatterMoveRequest = z.infer<typeof matterMoveRequestSchema>;
+export const matterMoveResponseSchema = z.object({
+  matterId: matterIdSchema,
+  /** The new time (UTC ISO instants); null when the words gave no single time (question says why). */
+  slot: matterSlotSchema.nullable(),
+  /** Whether the new time is free in the calendar (the booked meeting itself left out). */
+  free: z.boolean(),
+  moved: z.boolean(),
+  /** moved: the meeting_moved card. */
+  id: matterDocIdSchema.nullable(),
+  /** When there is no slot: what to say instead ("Which day and time?"). */
+  question: z.string().nullable(),
+});
+export type MatterMoveResponse = z.infer<typeof matterMoveResponseSchema>;
+
+/** matterSpeak (demo only, MATTERS_NATURAL_VOICE): a spoken answer in a natural voice, and its measured size. */
+export const MATTER_SPEAK_MAX_CHARS = 1200;
+export const matterSpeakRequestSchema = z
+  .object({ text: z.string().trim().min(1).max(MATTER_SPEAK_MAX_CHARS), language: languageSchema, matterId: matterIdSchema.optional() })
+  .strict();
+export type MatterSpeakRequest = z.infer<typeof matterSpeakRequestSchema>;
+export const matterSpeakResponseSchema = z.object({
+  /** MP3, base64. */
+  audioBase64: z.string(),
+  chars: z.number().int().min(0),
+  /** Estimated cost of this answer in USD (null when no price is configured). */
+  estCostUsd: z.number().min(0).nullable(),
+});
+export type MatterSpeakResponse = z.infer<typeof matterSpeakResponseSchema>;
 
 /** Error taxonomy of the matter* callables (details.reason). */
 export const MATTER_ERROR_CODES = [
