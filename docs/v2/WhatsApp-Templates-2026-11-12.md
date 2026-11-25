@@ -29,7 +29,7 @@ tasks, follow-ups included (docs/v2/M11-DESIGN.md:630-635, 1131-1140).
 | 3.3 | `mg_meeting_confirmation_v1` | Utility | Meeting Guard AI adds or moves a meeting on the server, outside this chat and the app | Meeting confirmations | 12 hours |
 | 3.4 | `mg_commitments_ready_v1` | Utility | A notetaker summary is filed with commitments | Commitments to review (pilot) | 12 hours |
 | 3.5 | `mg_task_reminder_v1` | Utility | At the reminder time of a task accepted from a summary | Task reminders | 1 hour |
-| 3.6 | `mg_followup_reminder_v1` | Utility | At the reminder time of someone else's commitment | Task reminders | 1 hour |
+| 3.6 | `mg_followup_reminder_v2` | Utility | At the reminder time of someone else's commitment | Task reminders | 1 hour |
 | 3.7 | `mg_optin_welcome_v1` | Utility | Once, when the user first turns messages on | (the opt-in itself) | 12 hours |
 
 Each name holds two languages, English and Spanish. Meta reviews each language separately, each
@@ -423,7 +423,9 @@ minutes later and confirms. That second reminder is another template message.
 
 M13 builds: the schedule, the done write and both payload routes.
 
-### 3.6 Follow-up reminder: `mg_followup_reminder_v1`
+### 3.6 Follow-up reminder: `mg_followup_reminder_v2`
+
+Nov 25 2026: Meta approved the English `mg_followup_reminder_v1` as Marketing (the gate sends Utility only), so v2 replaced it with the wording below, closer to the task reminder that passed as Utility.
 
 Purpose: the same reminder for a commitment someone else made, with that person's name in view,
 so the user remembers to check with them.
@@ -438,7 +440,7 @@ section 11). Any other task gets 3.5.
 
 | Part | English (`en`) | Spanish (`es`) |
 |---|---|---|
-| Header | `Follow-up reminder` | `Recordatorio de seguimiento` |
+| Header | `Follow-up task reminder` | `Recordatorio de seguimiento` |
 | Footer | `Reply STOP to turn off these messages.` | `Responde STOP para desactivar estos mensajes.` |
 | Button 1 (quick reply) | `Mark as done` | `Marcar como hecha` |
 | Button 2 (quick reply) | `Remind me in 1 hour` | `Recuérdamelo en 1 hora` |
@@ -446,17 +448,17 @@ section 11). Any other task gets 3.5.
 Body (en):
 
 ```text
-Reminder from Meeting Guard AI: check with {{1}} on "{{2}}", due {{3}}.
+Reminder from Meeting Guard AI: your follow-up task with {{1}}, "{{2}}", due {{3}}.
 
-Tap "Mark as done" when it is settled, or "Remind me in 1 hour".
+Tap "Mark as done" when it is finished, or "Remind me in 1 hour".
 ```
 
 Body (es):
 
 ```text
-Recordatorio de Meeting Guard AI: pregúntale a {{1}} por "{{2}}", previsto para {{3}}.
+Recordatorio de Meeting Guard AI: tu tarea de seguimiento con {{1}}, "{{2}}", para {{3}}.
 
-Toca "Marcar como hecha" cuando la tarea quede resuelta, o "Recuérdamelo en 1 hora".
+Toca "Marcar como hecha" cuando la termines, o "Recuérdamelo en 1 hora".
 ```
 
 | Var | Content | Source in code | Sample (en) | Sample (es) |
