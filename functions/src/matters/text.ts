@@ -72,12 +72,16 @@ function list(items: readonly string[], language: Language): string {
 }
 
 /** The mandate in plain words, in the user's language. */
-export function readBack(mandate: Mandate, ownerEmail: string | null, language: Language, scheduling: SchedulingMode = 'ask'): string {
+export function readBack(mandate: Mandate, ownerEmail: string | null, language: Language, scheduling: SchedulingMode = 'ask', mailbox: string | null = null): string {
   const z = mandate.timeZone;
   const who = list(mandate.contacts.map((c) => `${c.name} (${c.email})`), language);
   const lines: string[] = [];
   if (language === 'es') {
-    lines.push(`Voy a escribir a ${who} desde mi propia dirección, como tu asistente de IA.`);
+    lines.push(
+      mailbox
+        ? `Voy a escribir a ${who} desde tu buzón ${mailbox}, como tu asistente de IA. Sus respuestas me llegan a mí y las ves aquí.`
+        : `Voy a escribir a ${who} desde mi propia dirección, como tu asistente de IA.`,
+    );
     lines.push(`Objetivo: ${mandate.goal}`);
     if (mandate.mayAsk.length) lines.push(`Puedo pedir: ${mandate.mayAsk.join('; ')}.`);
     if (mandate.meeting) {
@@ -105,7 +109,11 @@ export function readBack(mandate: Mandate, ownerEmail: string | null, language: 
     lines.push('Nunca pago ni negocio dinero, no acepto nada contractual y no escribo a nadie más. Si algo queda fuera de esto, te pregunto primero.');
     lines.push('No se envía nada hasta que lo confirmes.');
   } else {
-    lines.push(`I will email ${who} from my own address, as your AI assistant.`);
+    lines.push(
+      mailbox
+        ? `I will email ${who} from your mailbox ${mailbox}, as your AI assistant. Their replies come to me, and you see them here.`
+        : `I will email ${who} from my own address, as your AI assistant.`,
+    );
     lines.push(`Goal: ${mandate.goal}`);
     if (mandate.mayAsk.length) lines.push(`I may ask for: ${mandate.mayAsk.join('; ')}.`);
     if (mandate.meeting) {

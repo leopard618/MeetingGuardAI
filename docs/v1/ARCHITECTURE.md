@@ -2106,7 +2106,8 @@ A3 (scheduling, voice, history) build on it.
   event), even while switched off. matterDelete (owner only, any switch state) cancels a running
   matter in a transaction, then removes it recursively with its lookups. Switch (`switch.ts`):
   `matterSettings/global.enabled === false` turns `deps.enabled` off for every handler
-  (`liveDeps`, cached 30 s per instance; a failed read keeps the last value); off, the callables
+  (`liveDeps`, cached 30 s per instance; a failed read keeps the last value, and with none yet
+  counts as off without caching: fail closed); off, the callables
   answer not_configured (cancel and delete still work), handleInboundRead leaves the reply unread
   with a read queue entry, and matterTick only purges. matterAdminSwitch (admin writes, viewer
   reads) and matterAdminUsage (viewer: each user's cost over up to 31 days, from `matterSpend`)
@@ -2114,6 +2115,25 @@ A3 (scheduling, voice, history) build on it.
   `matterRetention`, `matterSpend`, `matterSettings`, and usage/{uid}/months; none needs a rule
   (unmatched paths are denied) or a composite index (single-field queries), and deleteAccount
   removes them.
+- **A4 part 2: the owner's Microsoft mailbox** (threat model T9). Sending only: replies come to
+  the matter address through Reply-To, so nothing in the mailbox is read. `mailbox.ts`:
+  matterMailbox `connect` writes `matterMailboxStates/{state}` (uid, the PKCE verifier sealed,
+  10 minutes) and answers the authorize link (`graph.ts`: Mail.Send, User.Read, offline_access,
+  S256, form_post); Microsoft posts the code to matterMailboxCallback, which takes the state once,
+  redeems the code with MATTERS_MS_CLIENT_SECRET and the verifier, reads `/me` for the address and
+  stores `matterMailboxes/{uid}` (the refresh token sealed with AES-256-GCM, `mailboxCrypto.ts`,
+  associated data uid and address, key id first; MATTERS_MAILBOX_KEY may list keys to rotate),
+  then shows a page that returns to `meetingguardai://matters/mailbox`. A new draft takes
+  `sendFrom: 'mailbox'` and `mailboxAddress` when one is connected (matterMailbox `sendFrom`
+  switches a draft); `draftHash` adds the mailbox only then, so earlier matters keep their hash,
+  and the read-back says it. The three send sites call `senderFor`: a mailbox matter goes through
+  `createMailboxSender` (the stored record must still be that address; a fresh access token per
+  send, a rotated refresh token stored; Graph sendMail with our Reply-To and saveToSentItems),
+  never through Postmark. `MailboxSendError` (kind 'mailbox') is a clear refusal: confirm and
+  approved replies end 'failed', follow-ups retry later, and the timeline shows
+  `email_failed` with detail 'mailbox'. `invalid_grant` or a 401/403 on sending deletes the
+  record. Disconnect deletes it (owner only, any switch state); deleteAccount removes both
+  collections.
 - **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel` (A2:
   `matterDecide` and `matterView`, with the lenient view schemas `matterApprovalViewSchema`,
   `matterProposalViewSchema`, `matterListItemSchema`), their
@@ -2155,4 +2175,8 @@ A3 (scheduling, voice, history) build on it.
   limit, limit details, retention and its purge, matterDelete, the runtime switch and what stops
   while off, the admin views and claims, the wider guard and promise); app `MattersA4.test.tsx`
   (Delete this matter with its question, the usage meter in EN and ES, the limit messages, the
-  service calls).
+  service calls). A4 part 2: `mattersMailbox.test.ts` (T9.1 to T9.10: scopes and no read call,
+  the sign-in and its state, encryption and rotation, no token in records, responses or logs,
+  sending through Graph with Reply-To, sendFrom, pause, disconnect, Microsoft refusing the
+  access, the switch); app `MattersMailbox.test.tsx` (Connect your mailbox, Disconnect with its
+  question, Send from my mailbox on a draft, the timeline entry, the service calls).

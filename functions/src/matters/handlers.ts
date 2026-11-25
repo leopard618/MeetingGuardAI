@@ -51,7 +51,8 @@ import { safetyIdentifierFor, type LlmClient } from '../assistant/llm';
 import { isValidTimeZone } from '../assistant/time';
 import { addModelSpend, checkSpend, SpendCapReachedError } from './cost';
 import { draftMatter, type DraftResult } from './draft';
-import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, bareAddress, composeFirstEmail, EmailSendError, type EmailSender, type OutboundEmail } from './email';
+import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, bareAddress, composeFirstEmail, EmailSendError, senderFor, type EmailSender, type OutboundEmail } from './email';
+import type { MailboxDeps } from './mailbox';
 import { matchInbound, parseInbound, toMatterMessage } from './inbound';
 import type { SenderCheck } from './mailCheck';
 import {
@@ -60,6 +61,7 @@ import {
   SENDING_WINDOW_MS,
   draftHash,
   isOwnDomain,
+  mailboxOf,
   matterDocSchema,
   monthKeyOf,
   newReplyToken,
@@ -123,6 +125,11 @@ export interface MatterDeps {
   monthly?: { matters: number; emails: number; voiceMinutes: number };
   /** MATTERS_RETENTION_DAYS: closed matters keep their emails this long. */
   retentionDays?: number;
+  // ---- A4 part 2 ----
+  /** The owner's Microsoft mailbox (mailbox.ts); absent = not set up. */
+  mailbox?: MailboxDeps;
+  /** Sends a mailbox matter's email through Graph (mailbox.ts createMailboxSender); used by senderFor. */
+  mailboxSender?: (uid: string, address: string) => EmailSender;
 }
 
 /** The project-wide model budget is spent for today: the call never reaches OpenAI. */
@@ -294,7 +301,8 @@ export function draftView(matterId: string, doc: MatterDoc, deps: Pick<MatterDep
     readBack: doc.readBack,
     questions: doc.questions,
     firstEmail: email ? { from: email.from, to: email.to, cc: email.cc, subject: email.subject, text: email.text } : null,
-    draftHash: complete && doc.status === 'draft' ? draftHash(doc.mandate!, doc.firstEmail!, doc.scheduling) : null,
+    draftHash: complete && doc.status === 'draft' ? draftHash(doc.mandate!, doc.firstEmail!, doc.scheduling, mailboxOf(doc)) : null,
+    sendFrom: doc.sendFrom,
   };
 }
 
@@ -317,15 +325,29 @@ export function schedulingFor(mandate: MatterDoc['mandate'], deps: Pick<MatterDe
   return deps.autoSchedule === true && mandate?.meeting ? 'auto' : 'ask';
 }
 
-function draftFields(result: DraftResult, ownerEmail: string | null, language: Language, scheduling: MatterDoc['scheduling']) {
+function draftFields(result: DraftResult, ownerEmail: string | null, language: Language, scheduling: MatterDoc['scheduling'], mailbox: string | null = null) {
   return {
     title: result.title,
     mandate: result.mandate,
     firstEmail: result.firstEmail,
     questions: result.questions,
-    readBack: result.mandate ? readBack(result.mandate, ownerEmail, language, scheduling) : '',
+    readBack: result.mandate ? readBack(result.mandate, ownerEmail, language, scheduling, mailbox) : '',
     scheduling,
+    // A4 part 2: where the emails go out from (fixed with the draft; part of its hash)
+    sendFrom: mailbox ? ('mailbox' as const) : ('assistant' as const),
+    mailboxAddress: mailbox,
   };
+}
+
+/** A4 part 2: a new draft sends from the owner's connected mailbox, when there is one. */
+async function defaultMailbox(uid: string, deps: MatterDeps): Promise<string | null> {
+  if (!deps.mailbox?.available) return null;
+  try {
+    return (await deps.mailbox.store.get(uid))?.address ?? null;
+  } catch (error) {
+    logger.warn('matters.mailbox_read_failed', { uid, errorName: error instanceof Error ? error.name : 'unknown' });
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -341,6 +363,7 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
   await consumeDaily(caller.uid, deps);
   const ownerEmail = verifiedEmail(caller);
   const ownerName = ownerDisplayName(caller.name, deps.domain);
+  const mailbox = await defaultMailbox(caller.uid, deps);
   const now = deps.now();
   let tokens: Tokens = null;
   const result = await runDraft(
@@ -368,7 +391,7 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
     source: request.source,
     ownerName,
     ownerEmail,
-    ...draftFields(result, ownerEmail, request.language, schedulingFor(result.mandate, deps)),
+    ...draftFields(result, ownerEmail, request.language, schedulingFor(result.mandate, deps), mailbox),
     usage: withModelCall(EMPTY_USAGE, tokens),
     mandateVersion: 1,
     confirmedHash: null,
@@ -432,7 +455,7 @@ async function reviseMatter(callerIn: MatterCaller | null, data: unknown, deps: 
     const next: MatterDoc = matterDocSchema.parse({
       ...doc,
       request,
-      ...draftFields(result, doc.ownerEmail, doc.language, schedulingFor(result.mandate, deps)),
+      ...draftFields(result, doc.ownerEmail, doc.language, schedulingFor(result.mandate, deps), mailboxOf(doc)),
       usage: withModelCall(doc.usage, tokens),
       mandateVersion: doc.mandateVersion + 1,
       updatedAt: nowIso,
@@ -522,7 +545,7 @@ async function confirmMatter(callerIn: MatterCaller | null, data: unknown, deps:
       if (settled) return { result: settled };
     } else {
       if (doc.status !== 'draft' || !doc.mandate || !doc.firstEmail) return { result: { kind: 'stale' } };
-      if (draftHash(doc.mandate, doc.firstEmail, doc.scheduling) !== hash) return { result: { kind: 'stale' } };
+      if (draftHash(doc.mandate, doc.firstEmail, doc.scheduling, mailboxOf(doc)) !== hash) return { result: { kind: 'stale' } };
       if (Date.parse(doc.mandate.endsAt) <= now.getTime()) return { result: { kind: 'ended' } };
     }
     const claim = { firstSendState: 'sending' as const, firstSendClaimedAt: nowIso, firstSendUnknownCause: null, updatedAt: nowIso };
@@ -586,7 +609,8 @@ async function sendFirstEmail(
   });
   let result: { providerId: string; test?: boolean };
   try {
-    result = await deps.sender().send(email);
+    // A4 part 2: a mailbox matter goes out through the owner's mailbox, never another address
+    result = await senderFor(deps, uid, doc).send(email);
   } catch (error) {
     if (!(error instanceof EmailSendError)) throw error; // the claim stays 'sending': never resent
     (error.kind === 'configuration' ? logger.error : logger.warn)('matters.send_failed', { uid, matterId, kind: error.kind, code: error.code });

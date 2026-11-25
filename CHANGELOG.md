@@ -180,6 +180,20 @@ to users: the assistant stays switched off in every release until its beta (A10)
     crypto, quotations, taxes; e-signatures, liability, licences, purchase orders) and flags
     promises made for the owner;
   - the Gmail application prepared for the later phase (docs/v2/A4-GMAIL-APPLICATION.md).
+- **A4 part 2, the owner's Microsoft mailbox** (sending; "Watch this thread" follows), switched
+  off like the rest:
+  - "Connect your mailbox" on the matters screen: the server runs the Microsoft sign-in as a
+    confidential client (its own app registration, Mail.Send, User.Read and offline_access only,
+    PKCE, a single-use state, the answer as a form POST) and keeps the refresh token encrypted
+    with AES-256-GCM (MATTERS_MAILBOX_KEY); "Disconnect" deletes it at once;
+  - a new draft sends from the connected mailbox ("Send from my mailbox" on the draft; the
+    read-back says so and the mailbox is part of the confirmed hash); the emails go out through
+    Graph with Reply-To the matter address, so replies still come to the assistant with the same
+    sender check; nothing in the mailbox is ever read;
+  - a mailbox that is disconnected, or whose access Microsoft refuses, stops every send from it:
+    the timeline says so, the access is deleted, and nothing goes out from another address;
+  - new callable matterMailbox and the sign-in callback matterMailboxCallback; account deletion
+    removes the mailbox access too; the threat model's T9 lists each control with its test.
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 

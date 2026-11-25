@@ -143,6 +143,8 @@ export const CALLABLES = {
   // A4: delete a matter, the usage meter
   matterDelete: 'matterDelete',
   matterUsage: 'matterUsage',
+  // A4 part 2: the owner's Microsoft mailbox (status, connect, disconnect, send a draft from it)
+  matterMailbox: 'matterMailbox',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -2226,6 +2228,11 @@ export const matterDraftResponseSchema = z.object({
    * told (the goal, what is asked, the end date or the meeting), so the app offers to let them know.
    */
   letThemKnow: z.boolean().optional(),
+  /**
+   * A4 part 2: where this draft's emails go out from: the assistant's own address, or the owner's
+   * connected Microsoft mailbox (firstEmail.from shows which). Part of what the owner confirms.
+   */
+  sendFrom: z.enum(['assistant', 'mailbox']).optional(),
 });
 export type MatterDraftResponse = z.infer<typeof matterDraftResponseSchema>;
 
@@ -2656,6 +2663,34 @@ export const matterUsageResponseSchema = z.object({
   }),
 });
 export type MatterUsageResponse = z.infer<typeof matterUsageResponseSchema>;
+
+/**
+ * A4 part 2, matterMailbox: the owner's Microsoft mailbox (docs/v2/A4-THREAT-MODEL.md T9). The
+ * assistant only SENDS from it (Mail.Send); replies come to the matter address (Reply-To).
+ * - status: whether a mailbox is connected, and its address;
+ * - connect: a Microsoft sign-in link (authUrl) for the system browser; the server finishes the
+ *   sign-in (matterMailboxCallback) and sends the browser back to MATTER_MAILBOX_RETURN_URL;
+ * - disconnect: deletes the stored access at once (always allowed for the signed-in owner);
+ * - sendFrom: a draft sends from the mailbox (true) or from the assistant's address (false); the
+ *   answer carries the redrafted read-back and first email with a new draftHash.
+ * available is false when the mailbox is not set up on the server (no client id).
+ */
+export const MATTER_MAILBOX_RETURN_URL = 'meetingguardai://matters/mailbox';
+export const matterMailboxRequestSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('status') }).strict(),
+  z.object({ action: z.literal('connect'), language: z.enum(['en', 'es']).optional() }).strict(),
+  z.object({ action: z.literal('disconnect') }).strict(),
+  z.object({ action: z.literal('sendFrom'), matterId: matterIdSchema, mailbox: z.boolean() }).strict(),
+]);
+export type MatterMailboxRequest = z.infer<typeof matterMailboxRequestSchema>;
+export const matterMailboxResponseSchema = z.object({
+  available: z.boolean(),
+  connected: z.boolean(),
+  address: z.string().nullable(),
+  authUrl: z.string().url().optional(),
+  draft: matterDraftResponseSchema.optional(),
+});
+export type MatterMailboxResponse = z.infer<typeof matterMailboxResponseSchema>;
 
 /** matterSpeak (demo only, MATTERS_NATURAL_VOICE): a spoken answer in a natural voice, and its measured size. */
 export const MATTER_SPEAK_MAX_CHARS = 1200;

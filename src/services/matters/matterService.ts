@@ -19,6 +19,9 @@
  *   owner sends the card with decide.
  * - A4: matterDelete (the owner removes a matter with its emails and history) and matterUsage (the
  *   usage meter). A rate_limited error keeps the limit it names in details.limit.
+ * - A4 part 2: matterMailbox (the owner's Microsoft mailbox: status, connect, disconnect, and a
+ *   draft sends from it or not). connectMailbox opens the server's sign-in link in the system
+ *   browser (expo-web-browser, loaded lazily) and resolves once the browser comes back.
  */
 import { httpsCallable } from 'firebase/functions';
 
@@ -45,6 +48,9 @@ import {
   matterDeleteRequestSchema,
   matterDeleteResponseSchema,
   matterUsageResponseSchema,
+  matterMailboxRequestSchema,
+  matterMailboxResponseSchema,
+  MATTER_MAILBOX_RETURN_URL,
   matterConfirmRequestSchema,
   matterConfirmResponseSchema,
   matterDraftRequestSchema,
@@ -64,6 +70,7 @@ import {
   type MatterMoveResponse,
   type MatterDeleteResponse,
   type MatterUsageResponse,
+  type MatterMailboxResponse,
   type MatterSetStatusResponse,
   type MatterSpeakResponse,
   type MatterStatusAction,
@@ -89,7 +96,8 @@ export type MatterCallableName =
   | typeof CALLABLES.matterMessage
   | typeof CALLABLES.matterMove
   | typeof CALLABLES.matterDelete
-  | typeof CALLABLES.matterUsage;
+  | typeof CALLABLES.matterUsage
+  | typeof CALLABLES.matterMailbox;
 
 export interface MatterTransport {
   call(name: MatterCallableName, request: unknown, options: { timeoutMs: number }): Promise<unknown>;
@@ -128,6 +136,14 @@ export interface MatterService {
   remove(matterId: string): Promise<MatterDeleteResponse>;
   /** A4: the usage meter (this month's allowance and today's limits). */
   usage(): Promise<MatterUsageResponse>;
+  /** A4 part 2: whether a Microsoft mailbox is connected (and whether the server offers it). */
+  mailboxStatus(): Promise<MatterMailboxResponse>;
+  /** A4 part 2: the Microsoft sign-in link for "Connect your mailbox". */
+  mailboxConnectLink(language: Language): Promise<MatterMailboxResponse>;
+  /** A4 part 2: removes the stored mailbox access at once. */
+  mailboxDisconnect(): Promise<MatterMailboxResponse>;
+  /** A4 part 2: a draft sends from the connected mailbox (true) or from the assistant's address. */
+  sendFrom(matterId: string, mailbox: boolean): Promise<MatterMailboxResponse>;
 }
 
 export type MatterOpenItem = NonNullable<MatterViewResponse['matters']>[number];
@@ -229,7 +245,43 @@ export function createMatterService(deps: MatterServiceDeps): MatterService {
       call(CALLABLES.matterMove, validated(matterMoveRequestSchema, { matterId, start }), (raw) => matterMoveResponseSchema.safeParse(raw)),
     remove: async (matterId) => call(CALLABLES.matterDelete, validated(matterDeleteRequestSchema, { matterId }), (raw) => matterDeleteResponseSchema.safeParse(raw)),
     usage: async () => call(CALLABLES.matterUsage, {}, (raw) => matterUsageResponseSchema.safeParse(raw)),
+    mailboxStatus: async () => call(CALLABLES.matterMailbox, { action: 'status' }, (raw) => matterMailboxResponseSchema.safeParse(raw)),
+    mailboxConnectLink: async (language) =>
+      call(CALLABLES.matterMailbox, validated(matterMailboxRequestSchema, { action: 'connect', language }), (raw) => matterMailboxResponseSchema.safeParse(raw)),
+    mailboxDisconnect: async () => call(CALLABLES.matterMailbox, { action: 'disconnect' }, (raw) => matterMailboxResponseSchema.safeParse(raw)),
+    sendFrom: async (matterId, mailbox) =>
+      call(CALLABLES.matterMailbox, validated(matterMailboxRequestSchema, { action: 'sendFrom', matterId, mailbox }), (raw) => matterMailboxResponseSchema.safeParse(raw)),
   };
+}
+
+interface WebBrowserLike {
+  openAuthSessionAsync?: (url: string, redirectUrl: string) => Promise<{ type: string }>;
+  openBrowserAsync?: (url: string) => Promise<unknown>;
+}
+
+/**
+ * A4 part 2: opens the server's Microsoft sign-in link and resolves when the browser is back
+ * (the server's page sends it to MATTER_MAILBOX_RETURN_URL). The screen then asks for the status:
+ * only the server knows whether the mailbox got connected. Never logs the link.
+ */
+export async function openMailboxSignIn(authUrl: string): Promise<void> {
+  let browser: WebBrowserLike | null = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- optional native dependency, loaded lazily
+    browser = require('expo-web-browser') as WebBrowserLike;
+  } catch {
+    browser = null;
+  }
+  if (browser?.openAuthSessionAsync) {
+    await browser.openAuthSessionAsync(authUrl, MATTER_MAILBOX_RETURN_URL);
+    return;
+  }
+  if (browser?.openBrowserAsync) {
+    await browser.openBrowserAsync(authUrl);
+    return;
+  }
+  log.warn('expo-web-browser is not available; the mailbox sign-in cannot open');
+  throw new AppError('unsupported', 'The browser could not be opened.');
 }
 
 /** The real transport: httpsCallable on the shared Functions instance. */
