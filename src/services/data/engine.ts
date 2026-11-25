@@ -33,7 +33,7 @@ import { appEvents, type AppEventMap, type EventBus, type Unsubscribe, type Writ
 import { ALERT_HORIZON_DAYS, firestorePaths, LEGACY_DATA_KEY, PREFERENCES_DOC_ID } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
 import { awaitsZoomLink } from '../../core/pushHold';
-import { addMinutesIso, getDeviceTimeZone, toDate } from '../../core/time';
+import { addMinutesIso, getDeviceTimeZone, isValidTimeZone, toDate } from '../../core/time';
 import {
   applyMeetingPatch,
   applyNotePatch,
@@ -238,6 +238,8 @@ interface Session {
   retryTimer: ReturnType<typeof setTimeout> | null;
   flushing: Promise<OutboxFlushResult> | null;
   bootstrappingPreferences: boolean;
+  /** preferences.timezone compared with the device zone since the last start or foreground. */
+  timezoneChecked: boolean;
   /**
    * Remote side paused (account deletion in progress): no Firestore listeners, no outbox sends.
    * Local reads keep working. See suspendRemote() / resumeRemote().
@@ -873,6 +875,7 @@ export class DataEngine {
       retryTimer: null,
       flushing: null,
       bootstrappingPreferences: false,
+      timezoneChecked: false,
       remoteSuspended: false,
       legacyProfilePreferences: null,
       migration: null,
@@ -1138,6 +1141,25 @@ export class DataEngine {
     if (!this.isCurrent(s)) return;
     this.attachListeners(s);
     this.scheduleFlush(s, 0);
+    s.timezoneChecked = false;
+    this.syncPreferenceTimeZone(s);
+  }
+
+  /**
+   * The server (the WhatsApp bot, the server reminders) reads preferences.timezone, which the app
+   * wrote only when the document was created, so it could stay 'UTC' or an old zone and the bot
+   * then placed "1 pm" in that zone (1.7.0 test, Nov 25 2026). Keep it equal to the device zone,
+   * checked once per start and per return to the foreground, never on a remote snapshot: two
+   * phones in different zones would otherwise rewrite it back and forth.
+   */
+  private syncPreferenceTimeZone(s: Session): void {
+    if (s.timezoneChecked || s.mode !== 'foreground' || s.remoteSuspended || !s.preferencesServerSeen || !this.isCurrent(s)) return;
+    s.timezoneChecked = true;
+    const zone = this.timeZone();
+    if (!isValidTimeZone(zone) || zone === s.preferences.timezone) return;
+    void this.updatePreferences({ timezone: zone }, 'system').catch((error: unknown) => {
+      log.warn(`could not store the device time zone (${toAppError(error).code})`);
+    });
   }
 
   // ---- Firestore listeners ---------------------------------------------------------------------
@@ -1504,6 +1526,7 @@ export class DataEngine {
       this.events.emit('preferences:changed', { uid: s.uid, preferences: next, changedKeys, origin: 'remote' });
     }
     this.notify();
+    this.syncPreferenceTimeZone(s);
   }
 
   private onPreferencesSnapshot(s: Session, snapshot: RemoteDocSnapshot): void {

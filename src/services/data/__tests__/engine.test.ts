@@ -516,6 +516,26 @@ describe('preferences', () => {
     expect(h.engine.getSnapshot().preferences).toMatchObject({ language: 'es', onboardingCompleted: true });
   });
 
+  it('stores the device zone when the saved preferences.timezone is stale (the WhatsApp bot reads it)', async () => {
+    const h = harness();
+    h.remote.docs.set(firestorePaths.preferences(UID), { language: 'en', timezone: 'UTC', updatedAt: T0 });
+    await h.engine.startSession(UID, { mode: 'foreground' });
+    await settle(10);
+
+    expect((await h.engine.getPreferences()).timezone).toBe('Europe/Madrid');
+    expect(h.remote.docs.get(firestorePaths.preferences(UID))).toMatchObject({ timezone: 'Europe/Madrid' });
+
+    // Another phone in another zone writes its zone: this session does not write it back.
+    h.remote.docs.set(firestorePaths.preferences(UID), {
+      ...(h.remote.docs.get(firestorePaths.preferences(UID)) ?? {}),
+      timezone: 'America/New_York',
+      updatedAt: '2026-10-01T11:00:00.000Z',
+    });
+    h.remote.notifyListeners();
+    await settle(10);
+    expect(h.remote.docs.get(firestorePaths.preferences(UID))).toMatchObject({ timezone: 'America/New_York' });
+  });
+
   it('bootstraps the document from the pre-rebuild users/{uid}.preferences once', async () => {
     const h = harness();
     h.remote.docs.set(firestorePaths.user(UID), { plan: 'free', preferences: { alert_enabled: false, alert_intensity: 'medium' } });
