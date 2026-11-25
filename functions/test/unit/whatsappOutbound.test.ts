@@ -71,7 +71,7 @@ function task(id: string, extra: Partial<TaskView> = {}): TaskView {
 describe('templates (the batch submitted to Meta)', () => {
   it('every template keeps Meta limits and the product text rule', () => {
     for (const template of Object.values(TEMPLATES)) {
-      expect(template.name).toMatch(/^mg_[a-z_]+_v1$/);
+      expect(template.name).toMatch(/^mg_[a-z_]+_v[1-9]$/);
       for (const texts of Object.values(template.texts)) {
         expect(texts.body.length).toBeLessThanOrEqual(1024);
         expect(texts.header.length).toBeLessThanOrEqual(60);

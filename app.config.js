@@ -126,8 +126,8 @@ module.exports = {
     // 1.7.0 (M12 languages): expo-localization supportedLocales gains pt, fr and de, and `locales`
     // adds an InfoPlist.strings per language (CFBundleLocalizations, locales_config.xml and
     // resourceConfigurations change). Native config: store/APK build only, never an OTA update
-    // onto 1.6.x. `version` moves to 1.7.0 at the 1.7.0 freeze (docs/v2/RELEASE-1.7.0-LANGUAGES.md).
-    version: '1.6.0',
+    // onto 1.6.x. Frozen 2026-11-25 with M13 and M14 (docs/v2/RELEASE-1.7.0.md section 0).
+    version: '1.7.0',
     // iOS permission prompts per language (M12): each file becomes <lang>.lproj/InfoPlist.strings.
     // Expo writes the values unescaped, so no double quotes, backslashes or line breaks in them
     // (src/i18n/__tests__/nativeStrings.test.ts). The English constants above stay the base

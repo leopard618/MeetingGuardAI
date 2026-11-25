@@ -155,21 +155,22 @@ export const TEMPLATES: Readonly<Record<OutboundKind, TemplateDefinition>> = {
     },
   },
   followup: {
-    name: 'mg_followup_reminder_v1',
+    // v2 (Nov 25 2026): Meta approved the English v1 as Marketing, which the gate never sends.
+    name: 'mg_followup_reminder_v2',
     kind: 'followup',
     params: 3,
     ttlSeconds: 1 * HOUR,
     taps: ['done', 'later'],
     texts: {
       en: {
-        header: 'Follow-up reminder',
-        body: 'Reminder from Meeting Guard AI: check with {{1}} on "{{2}}", due {{3}}.\n\nTap "Mark as done" when it is settled, or "Remind me in 1 hour".',
+        header: 'Follow-up task reminder',
+        body: 'Reminder from Meeting Guard AI: your follow-up task with {{1}}, "{{2}}", due {{3}}.\n\nTap "Mark as done" when it is finished, or "Remind me in 1 hour".',
         footer: FOOTER.en,
         buttons: ['Mark as done', 'Remind me in 1 hour'],
       },
       es: {
         header: 'Recordatorio de seguimiento',
-        body: 'Recordatorio de Meeting Guard AI: pregúntale a {{1}} por "{{2}}", previsto para {{3}}.\n\nToca "Marcar como hecha" cuando la tarea quede resuelta, o "Recuérdamelo en 1 hora".',
+        body: 'Recordatorio de Meeting Guard AI: tu tarea de seguimiento con {{1}}, "{{2}}", para {{3}}.\n\nToca "Marcar como hecha" cuando la termines, o "Recuérdamelo en 1 hora".',
         footer: FOOTER.es,
         buttons: ['Marcar como hecha', 'Recuérdamelo en 1 hora'],
       },
