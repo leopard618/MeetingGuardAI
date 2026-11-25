@@ -1236,6 +1236,11 @@ MATTERS_AUTO_REPLY=false
 MATTERS_USER_DAILY_SENDS=30
 MATTERS_AUTO_SCHEDULE=false
 MATTERS_NATURAL_VOICE=false
+MATTERS_USER_DAILY_SPEND_CENTS=100
+MATTERS_RETENTION_DAYS=90
+MATTERS_MONTHLY_MATTERS=10
+MATTERS_MONTHLY_EMAILS=100
+MATTERS_MONTHLY_VOICE_MINUTES=30
 ```
 
 `MATTERS_SERVICE_ACCOUNT` is the runtime account of the matter functions (`name@` is expanded with
@@ -1257,6 +1262,13 @@ is also the kill switch (false: every time is a card the owner books). Set it on
 the tester list. `MATTERS_NATURAL_VOICE=true` enables matterSpeak (OpenAI text-to-speech) to
 measure the cost of a natural voice for the demo; keep it false otherwise.
 
+A4: `MATTERS_USER_DAILY_SPEND_CENTS` is each user's spending cap per UTC day (model calls and the
+natural voice), `MATTERS_MONTHLY_*` the plan's monthly allowance, and `MATTERS_RETENTION_DAYS` how
+long a closed matter keeps its emails. Set `OPENAI_PRICE_IN_PER_M` and `OPENAI_PRICE_OUT_PER_M` to
+the model's real prices; while they are 0 the cap uses high fallback prices. The switch that turns
+the assistant off without a deploy is `matterSettings/global` (`{ "enabled": false }`), set from
+the admin dashboard with matterAdminSwitch or in the Firestore console.
+
 A full or by-name deploy also needs every declared param of the codebase in the deployer's
 `.env.<projectId>`, the summaries ones included (`SUMMARIES_ENABLED=false` and empty
 `SUMMARIES_PILOT_UIDS`, `SUMMARIES_ADDRESS_TEMPLATE` and `SUMMARIES_SENDERS` when you do not
@@ -1265,7 +1277,7 @@ run summaries); a non-interactive deploy stops on a missing one before deploying
 Deploy only the matter functions by name (CONTRIBUTING, "Deploying"):
 
 ```bash
-npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents,functions:matterSetStatus,functions:matterChange,functions:matterAsk,functions:matterSpeak,functions:matterMessage,functions:matterMove
+npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents,functions:matterSetStatus,functions:matterChange,functions:matterAsk,functions:matterSpeak,functions:matterMessage,functions:matterMove,functions:matterDelete,functions:matterUsage,functions:matterAdminSwitch,functions:matterAdminUsage
 ```
 
 No Firestore index is needed: the A2 queues (`matterSchedule`, `matterReadQueue`) are top-level

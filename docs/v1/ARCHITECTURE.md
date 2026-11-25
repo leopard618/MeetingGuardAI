@@ -2086,6 +2086,34 @@ A3 (scheduling, voice, history) build on it.
   out; the app then asks "Let them know?" and, on yes, calls matterMessage with the change's words.
   matterAsk names `move_meeting` and `message` like the other actions. None of this sends: those
   cards ("Email ready to send") go out only through matterDecide, like every reply.
+- **A4: limits, metering, retention and the switch** (docs/v2/A4-THREAT-MODEL.md is the threat
+  model; this is the mechanism). Spending cap (`cost.ts`): every model call first checks the
+  user's spend of the UTC day (`matterSpend/{day}_{uid}.micros`) against
+  MATTERS_USER_DAILY_SPEND_CENTS inside `acquireGlobalBudget(..., uid)`, and `recordUsage` adds
+  the call's tokens priced with OPENAI_PRICE_* (or FALLBACK_PRICES, on the high side); matterSpeak
+  adds its characters. At the cap a callable answers rate_limited with `limit: 'spend'`, matterAsk
+  still answers a single matter from code, and the read of a reply takes the existing cap branch
+  (one `many_replies` card, the reply kept unread). Monthly allowance (`allowance.ts`,
+  usage/{uid}/months/{yyyy-mm}): the first confirm of a matter is checked against the month's
+  matters and emails before the transaction and counted once active; every other send claims the
+  day's send cap and the month's emails in one transaction (`store.consumeSend`, `claimSend`);
+  matterSpeak claims seconds. matterDraft and matterConfirm refuse past
+  MATTER_LIMITS.maxOpenMatters running matters. Every rate_limited error carries `details.limit`
+  (MATTER_LIMIT_KINDS); the app words each one. Retention (`retention.ts`): a patch with endedAt
+  writes `matterRetention/{matterId}` in the same transaction or batch (`store.markEnded`);
+  matterTick purges matters closed more than MATTERS_RETENTION_DAYS ago (messages and proposals
+  deleted, card text cleared, firstEmail null, lookups removed, `purgedAt`, an `emails_deleted`
+  event), even while switched off. matterDelete (owner only, any switch state) cancels a running
+  matter in a transaction, then removes it recursively with its lookups. Switch (`switch.ts`):
+  `matterSettings/global.enabled === false` turns `deps.enabled` off for every handler
+  (`liveDeps`, cached 30 s per instance; a failed read keeps the last value); off, the callables
+  answer not_configured (cancel and delete still work), handleInboundRead leaves the reply unread
+  with a read queue entry, and matterTick only purges. matterAdminSwitch (admin writes, viewer
+  reads) and matterAdminUsage (viewer: each user's cost over up to 31 days, from `matterSpend`)
+  use the dashboard's claims. matterUsage answers the meter. New server-only collections:
+  `matterRetention`, `matterSpend`, `matterSettings`, and usage/{uid}/months; none needs a rule
+  (unmatched paths are denied) or a composite index (single-field queries), and deleteAccount
+  removes them.
 - **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel` (A2:
   `matterDecide` and `matterView`, with the lenient view schemas `matterApprovalViewSchema`,
   `matterProposalViewSchema`, `matterListItemSchema`), their
@@ -2122,3 +2150,9 @@ A3 (scheduling, voice, history) build on it.
   meeting itself left out, the code fallback, the move in one transaction, an older card expired,
   Spanish; letThemKnow; the new ask intents); app `MattersA3Feedback.test.tsx` (the email cards, Move the
   meeting, Write to them, the ask intents, Let them know, the microphone off while speaking).
+  A4: `mattersA4.test.ts` (prices, the spending cap on drafts, questions, writing and reads, the
+  monthly allowance on confirm, approved replies and the voice, the meter, the running-matters
+  limit, limit details, retention and its purge, matterDelete, the runtime switch and what stops
+  while off, the admin views and claims, the wider guard and promise); app `MattersA4.test.tsx`
+  (Delete this matter with its question, the usage meter in EN and ES, the limit messages, the
+  service calls).

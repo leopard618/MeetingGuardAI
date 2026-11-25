@@ -92,14 +92,18 @@ export { fathomConnect, fathomOAuth, fathomWebhook } from './summaries';
 // A2 adds matterDecide, matterView, matterInboundRead (a Firestore trigger), matterTick
 // (scheduled) and matterDeliveryEvents (Postmark's bounce webhook), under the same gate. A3 adds
 // matterSetStatus, matterChange, matterAsk and matterSpeak (callables), under the same gate. A3 feedback
-// adds matterMessage and matterMove (callables: each only makes a card the owner sends).
+// adds matterMessage and matterMove (callables: each only makes a card the owner sends). A4 adds
+// matterDelete and matterUsage (callables), matterAdminSwitch and matterAdminUsage (admin dashboard).
 export {
   assistantInboundEmail,
+  matterAdminSwitch,
+  matterAdminUsage,
   matterAsk,
   matterCancel,
   matterChange,
   matterConfirm,
   matterDecide,
+  matterDelete,
   matterDeliveryEvents,
   matterDraft,
   matterInboundRead,
@@ -109,5 +113,6 @@ export {
   matterSetStatus,
   matterSpeak,
   matterTick,
+  matterUsage,
   matterView,
 } from './matters';

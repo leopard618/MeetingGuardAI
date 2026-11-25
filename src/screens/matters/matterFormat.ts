@@ -54,6 +54,8 @@ export const TIMELINE_TYPES = [
   // A3 feedback
   'meeting_moved',
   'message_drafted',
+  // A4
+  'emails_deleted',
 ] as const;
 
 /** Events whose detail is meant for people (names, a time); the others carry internal categories. */

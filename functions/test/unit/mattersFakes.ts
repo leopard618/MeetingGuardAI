@@ -4,8 +4,14 @@ import { aiMeetingContextDocSchema } from '../../src/shared/aiContract';
 import type { EmailSender, OutboundEmail } from '../../src/matters/email';
 import type { MatterDeps } from '../../src/matters/handlers';
 import {
+  EMPTY_MONTHLY,
+  endedAtOf,
   matterMessageReadSchema,
   messageIdKey,
+  type MatterRetention,
+  type MatterSpendDelta,
+  type MonthlyCounts,
+  type MonthlyField,
   type MatterApproval,
   type MatterDoc,
   type MatterEvent,
@@ -17,6 +23,7 @@ import {
   type StoredMessage,
 } from '../../src/matters/model';
 import {
+  overLimit,
   readClaimDecision,
   type AddMessageOptions,
   type BookingUpdate,
@@ -54,6 +61,12 @@ export class FakeMatterStore implements MatterStore {
   readonly meetings = new Map<string, Record<string, unknown>>();
   /** accountDeletions/{uid}: createMatter refuses these uids. */
   readonly deletions = new Set<string>();
+  /** A4: matterRetention, matterSpend (micros and counters), usage/{uid}/months. */
+  readonly retention = new Map<string, MatterRetention>();
+  readonly spend = new Map<string, Record<string, number>>();
+  readonly monthly = new Map<string, MonthlyCounts>();
+  /** A4: matters removed by deleteMatter (their ids), for the tests. */
+  readonly deleted = new Set<string>();
   /** Makes the next addInboundMessage batch fail (nothing written), like a Firestore error. */
   failNextInboundWrite = false;
   private next = 1;
@@ -89,6 +102,7 @@ export class FakeMatterStore implements MatterStore {
     for (const card of outcome.cards ?? []) if (this.cardMap(k).has(card.id)) throw new Error('already exists');
     for (const p of outcome.proposals ?? []) if (this.proposalMap(k).has(p.id)) throw new Error('already exists');
     if (outcome.patch && current) this.matters.set(k, { ...current, ...outcome.patch });
+    if (outcome.patch && current) this.markEnded(uid, matterId, outcome.patch);
     if (outcome.events?.length) this.events.set(k, [...(this.events.get(k) ?? []), ...outcome.events]);
     for (const card of outcome.cards ?? []) this.cardMap(k).set(card.id, structuredClone(card.doc));
     for (const p of outcome.proposals ?? []) this.proposalMap(k).set(p.id, structuredClone(p.doc));
@@ -141,6 +155,7 @@ export class FakeMatterStore implements MatterStore {
     if (options.indexMessageId) this.messageIds.set(indexKey, { uid, matterId });
     const counted = message.direction === 'outbound' ? { usage: { ...current.usage, emails: (current.usage?.emails ?? 0) + 1 } } : {};
     this.matters.set(k, { ...current, ...options.patch, ...counted, updatedAt: message.at });
+    this.markEnded(uid, matterId, options.patch);
     if (options.card) {
       const card = this.cardMap(k).get(options.card.id);
       if (card) this.cardMap(k).set(options.card.id, { ...card, ...options.card.patch, updatedAt: message.at });
@@ -176,6 +191,7 @@ export class FakeMatterStore implements MatterStore {
     this.messages.set(k, [...(this.messages.get(k) ?? []), this.stored(message, id)]);
     this.events.set(k, [...(this.events.get(k) ?? []), { ...event, messageId: id }]);
     this.matters.set(k, { ...current, ...patch, updatedAt: message.at });
+    this.markEnded(uid, matterId, patch);
     this.lastAddedId = id;
     return 'stored' as const;
   }
@@ -256,6 +272,7 @@ export class FakeMatterStore implements MatterStore {
     const outcome = decide(matter ? structuredClone(matter) : null, card ? structuredClone(card) : null);
     if (outcome.card && card) this.cardMap(k).set(cardId, { ...card, ...outcome.card });
     if (outcome.patch && matter) this.matters.set(k, { ...matter, ...outcome.patch });
+    if (outcome.patch && matter) this.markEnded(uid, matterId, outcome.patch);
     if (outcome.events?.length) this.events.set(k, [...(this.events.get(k) ?? []), ...outcome.events]);
     if (outcome.schedule) this.writeSchedule(uid, matterId, outcome.schedule.nextActionAt);
     return outcome.result;
@@ -334,6 +351,7 @@ export class FakeMatterStore implements MatterStore {
       if (task) this.tasks.set(`${uid}/${id}`, { ...task, meetingId: input.meetingId, updatedAt: input.meeting.createdAt });
     }
     if (outcome.patch && current) this.matters.set(k, { ...current, ...outcome.patch });
+    if (outcome.patch && current) this.markEnded(uid, matterId, outcome.patch);
     if (outcome.events?.length) this.events.set(k, [...(this.events.get(k) ?? []), ...outcome.events]);
     for (const card of outcome.cards ?? []) this.cardMap(k).set(card.id, structuredClone(card.doc));
     if (outcome.schedule) this.writeSchedule(uid, matterId, outcome.schedule.nextActionAt);
@@ -349,6 +367,7 @@ export class FakeMatterStore implements MatterStore {
     for (const card of outcome.cards ?? []) if (this.cardMap(k).has(card.id)) throw new Error('already exists');
     if (outcome.meetingPatch && meeting) this.meetings.set(meetingKey, { ...meeting, ...structuredClone(outcome.meetingPatch) });
     if (outcome.patch && current) this.matters.set(k, { ...current, ...outcome.patch });
+    if (outcome.patch && current) this.markEnded(uid, matterId, outcome.patch);
     if (outcome.events?.length) this.events.set(k, [...(this.events.get(k) ?? []), ...outcome.events]);
     for (const card of outcome.cards ?? []) this.cardMap(k).set(card.id, structuredClone(card.doc));
     if (outcome.schedule) this.writeSchedule(uid, matterId, outcome.schedule.nextActionAt);
@@ -362,6 +381,96 @@ export class FakeMatterStore implements MatterStore {
     const usage = { ...current.usage };
     for (const [key, value] of Object.entries(delta)) if (typeof value === 'number') usage[key as keyof MatterUsage] += value;
     this.matters.set(k, { ...current, usage });
+  }
+
+  // ---- A4 ----
+
+  private markEnded(uid: string, matterId: string, patch: object | undefined) {
+    const endedAt = endedAtOf(patch);
+    if (endedAt) this.retention.set(matterId, { uid, matterId, endedAt });
+  }
+
+  async getSpend(uid: string, dayKey: string) {
+    return this.spend.get(`${dayKey}_${uid}`)?.micros ?? 0;
+  }
+
+  async addSpend(uid: string, dayKey: string, delta: MatterSpendDelta) {
+    const k = `${dayKey}_${uid}`;
+    const current = { ...(this.spend.get(k) ?? {}) };
+    for (const [key, value] of Object.entries(delta)) if (typeof value === 'number' && value > 0) current[key] = (current[key] ?? 0) + Math.round(value);
+    this.spend.set(k, current);
+  }
+
+  async getDaily(uid: string, dayKey: string) {
+    return { drafts: this.daily.get(`${uid}/${dayKey}`) ?? 0, sends: this.sends.get(`${uid}/${dayKey}`) ?? 0 };
+  }
+
+  async getMonthly(uid: string, monthKey: string) {
+    return { ...(this.monthly.get(`${uid}/${monthKey}`) ?? EMPTY_MONTHLY) };
+  }
+
+  async consumeMonthly(uid: string, monthKey: string, amounts: Partial<MonthlyCounts>, limits: Partial<MonthlyCounts>): Promise<MonthlyField | null> {
+    const k = `${uid}/${monthKey}`;
+    const used = { ...(this.monthly.get(k) ?? EMPTY_MONTHLY) };
+    const over = overLimit(used, amounts, limits);
+    if (over) return over;
+    for (const [field, amount] of Object.entries(amounts)) used[field as MonthlyField] += amount ?? 0;
+    this.monthly.set(k, used);
+    return null;
+  }
+
+  async consumeSend(uid: string, dayKey: string, dailyLimit: number, monthKey: string, monthlyLimit: number | null) {
+    const dayK = `${uid}/${dayKey}`;
+    const monthK = `${uid}/${monthKey}`;
+    const month = { ...(this.monthly.get(monthK) ?? EMPTY_MONTHLY) };
+    if ((this.sends.get(dayK) ?? 0) >= dailyLimit) return 'daily' as const;
+    if (monthlyLimit !== null && month.emails >= monthlyLimit) return 'monthly' as const;
+    this.sends.set(dayK, (this.sends.get(dayK) ?? 0) + 1);
+    this.monthly.set(monthK, { ...month, emails: month.emails + 1 });
+    return 'ok' as const;
+  }
+
+  async dueRetention(beforeIso: string, limit: number) {
+    return [...this.retention.values()].filter((r) => r.endedAt <= beforeIso).sort((a, b) => a.endedAt.localeCompare(b.endedAt)).slice(0, limit);
+  }
+
+  async purgeMatter(uid: string, matterId: string, nowIso: string) {
+    const k = this.key(uid, matterId);
+    const current = this.matters.get(k);
+    if (!current) {
+      this.retention.delete(matterId);
+      return 'gone' as const;
+    }
+    if (current.status !== 'done' && current.status !== 'cancelled') {
+      this.retention.delete(matterId);
+      return 'not_ended' as const;
+    }
+    this.messages.delete(k);
+    this.proposals.delete(k);
+    for (const [id, card] of this.cardMap(k)) this.cardMap(k).set(id, { ...card, draft: null, quote: null, from: null, threading: null, updatedAt: nowIso });
+    this.dropLookups(uid, matterId, current.replyToken);
+    this.matters.set(k, { ...current, firstEmail: null, purgedAt: nowIso, updatedAt: nowIso });
+    this.events.set(k, [...(this.events.get(k) ?? []), { type: 'emails_deleted', at: nowIso, messageId: null, detail: '' }]);
+    this.retention.delete(matterId);
+    return 'purged' as const;
+  }
+
+  async deleteMatter(uid: string, matterId: string) {
+    const k = this.key(uid, matterId);
+    const current = this.matters.get(k);
+    if (!current) return false;
+    this.dropLookups(uid, matterId, current.replyToken);
+    for (const map of [this.matters, this.events, this.messages, this.cards, this.proposals] as Map<string, unknown>[]) map.delete(k);
+    this.retention.delete(matterId);
+    this.deleted.add(matterId);
+    return true;
+  }
+
+  private dropLookups(uid: string, matterId: string, replyToken: string) {
+    this.schedules.delete(matterId);
+    this.addresses.delete(replyToken);
+    for (const [key, lookup] of this.messageIds) if (lookup.uid === uid && lookup.matterId === matterId) this.messageIds.delete(key);
+    for (const [key, entry] of this.readQueue) if (entry.uid === uid && entry.matterId === matterId) this.readQueue.delete(key);
   }
 
   cardList(uid: string, matterId: string) {

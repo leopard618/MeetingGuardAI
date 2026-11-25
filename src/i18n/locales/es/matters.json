@@ -45,7 +45,16 @@
   "errors": {
     "stale": "El borrador ha cambiado. Revísalo de nuevo antes de confirmar.",
     "notAllowed": "Esto queda fuera de lo que confirmaste, así que no se ha enviado nada.",
-    "unavailable": "El asistente todavía no está disponible para tu cuenta."
+    "unavailable": "El asistente todavía no está disponible para tu cuenta.",
+    "limit": {
+      "drafts": "Has llegado al límite de hoy del asistente. Inténtalo mañana.",
+      "sends": "El asistente ya ha enviado hoy todos los correos que puede. Vuelve a enviar mañana.",
+      "matters": "Ya has empezado todos los asuntos de este mes. Podrás empezar más el mes que viene.",
+      "emails": "El asistente ya ha enviado todos los correos de este mes. Enviará más el mes que viene.",
+      "voice": "Ya has usado los minutos de voz de este mes.",
+      "spend": "Hoy se ha alcanzado el límite del asistente. Inténtalo mañana.",
+      "open_matters": "Tienes demasiados asuntos en marcha. Termina o cancela uno primero."
+    }
   },
   "open": {
     "title": "Asuntos abiertos",
@@ -78,7 +87,13 @@
     "pause": "Poner en pausa este asunto",
     "resume": "Reanudar este asunto",
     "cost": "Coste hasta ahora: unos {{value}} ({{calls}} llamadas de IA, {{emails}} correos)",
-    "usage": "Hasta ahora: {{calls}} llamadas de IA, {{emails}} correos"
+    "usage": "Hasta ahora: {{calls}} llamadas de IA, {{emails}} correos",
+    "delete": "Eliminar este asunto",
+    "deleteTitle": "¿Eliminar este asunto?",
+    "deleteMessage": "Sus correos y su historial se borran para siempre. La reunión y las tareas que añadió siguen en tu agenda.",
+    "deleteConfirm": "Eliminar",
+    "deleteKeep": "Conservarlo",
+    "deleted": "Asunto eliminado."
   },
   "card": {
     "from": "De: {{value}}",
@@ -124,7 +139,8 @@
       "contract": "un contrato o una firma",
       "link": "un enlace",
       "address": "otra dirección de correo",
-      "length": "un texto muy largo"
+      "length": "un texto muy largo",
+      "promise": "una promesa en tu nombre"
     },
     "approve": {
       "reply_draft": "Enviar esta respuesta",
@@ -212,7 +228,8 @@
       "question_answered": "Preguntaste por él",
       "other": "Novedad",
       "meeting_moved": "Reunión movida",
-      "message_drafted": "Correo listo para que lo envíes"
+      "message_drafted": "Correo listo para que lo envíes",
+      "emails_deleted": "Correos eliminados al terminar el plazo de conservación"
     }
   },
   "contact": {
@@ -238,5 +255,9 @@
     "question": "Este cambio afecta a lo que se le dijo a {{name}}. ¿Le aviso? Escribo el correo y te lo enseño antes de enviar nada.",
     "yes": "Escribirle",
     "instruction": "Cuéntale este cambio:"
+  },
+  "usage": {
+    "month": "Este mes: {{matters}} de {{mattersLimit}} asuntos, {{emails}} de {{emailsLimit}} correos.",
+    "capReached": "Hoy se ha alcanzado el límite del asistente. Vuelve a funcionar mañana."
   }
 }

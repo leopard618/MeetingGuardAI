@@ -45,7 +45,16 @@
   "errors": {
     "stale": "The draft changed. Check it again before confirming.",
     "notAllowed": "This is outside what you confirmed, so nothing was sent.",
-    "unavailable": "The assistant is not available for your account yet."
+    "unavailable": "The assistant is not available for your account yet.",
+    "limit": {
+      "drafts": "You reached today's limit for the assistant. Try again tomorrow.",
+      "sends": "The assistant sent as many emails as it may today. It sends again tomorrow.",
+      "matters": "You started all of this month's matters. You can start more next month.",
+      "emails": "The assistant sent all of this month's emails. It sends more next month.",
+      "voice": "This month's voice minutes are used.",
+      "spend": "Today's assistant limit is reached. Try again tomorrow.",
+      "open_matters": "You have too many matters running. Finish or cancel one first."
+    }
   },
   "open": {
     "title": "Open matters",
@@ -78,7 +87,13 @@
     "pause": "Pause this matter",
     "resume": "Resume this matter",
     "cost": "Cost so far: about {{value}} ({{calls}} AI calls, {{emails}} emails)",
-    "usage": "So far: {{calls}} AI calls, {{emails}} emails"
+    "usage": "So far: {{calls}} AI calls, {{emails}} emails",
+    "delete": "Delete this matter",
+    "deleteTitle": "Delete this matter?",
+    "deleteMessage": "Its emails and history are removed for good. The meeting and tasks it added stay in your agenda.",
+    "deleteConfirm": "Delete",
+    "deleteKeep": "Keep it",
+    "deleted": "Matter deleted."
   },
   "card": {
     "from": "From: {{value}}",
@@ -124,7 +139,8 @@
       "contract": "a contract or signature",
       "link": "a link",
       "address": "another email address",
-      "length": "a very long text"
+      "length": "a very long text",
+      "promise": "a promise made for you"
     },
     "approve": {
       "reply_draft": "Send this reply",
@@ -212,7 +228,8 @@
       "question_answered": "You asked about it",
       "other": "Update",
       "meeting_moved": "Meeting moved",
-      "message_drafted": "Email ready for you to send"
+      "message_drafted": "Email ready for you to send",
+      "emails_deleted": "Emails deleted after the retention period"
     }
   },
   "contact": {
@@ -238,5 +255,9 @@
     "question": "This change affects what {{name}} was told. Let them know? I will write the email and show it to you before anything is sent.",
     "yes": "Write to them",
     "instruction": "Tell them about this change:"
+  },
+  "usage": {
+    "month": "This month: {{matters}} of {{mattersLimit}} matters, {{emails}} of {{emailsLimit}} emails.",
+    "capReached": "Today's assistant limit is reached. It works again tomorrow."
   }
 }

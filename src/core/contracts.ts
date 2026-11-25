@@ -1991,6 +1991,9 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   // A3 feedback: write to the contact now, move the booked meeting (each makes a card the owner sends).
   matterMessage: { request: 'matterMessageRequestSchema', response: 'matterMessageResponseSchema' },
   matterMove: { request: 'matterMoveRequestSchema', response: 'matterMoveResponseSchema' },
+  // A4: delete a matter, the usage meter.
+  matterDelete: { request: 'matterDeleteRequestSchema', response: 'matterDeleteResponseSchema' },
+  matterUsage: { request: 'matterUsageRequestSchema', response: 'matterUsageResponseSchema' },
 };
 
 // =============================================================================================

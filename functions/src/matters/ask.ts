@@ -43,6 +43,7 @@ import {
   GlobalBudgetExhaustedError,
   acquireGlobalBudget,
   event,
+  limitError,
   matterError,
   readable,
   recordUsage,
@@ -50,8 +51,9 @@ import {
   type MatterCaller,
   type MatterDeps,
 } from './handlers';
+import { claimVoice } from './allowance';
+import { COST_RATES, SpendCapReachedError, addSpeechSpend, checkSpend, speechSeconds } from './cost';
 import { MATTER_LIMITS, withModelCall, type MatterDoc } from './model';
-import { COST_RATES } from './replies';
 import { ASK_TEXT, MOVE_TEXT, formatInstant } from './text';
 
 export const ASK_TOOL = 'answer_question';
@@ -225,7 +227,7 @@ export function handleMatterAsk(callerIn: MatterCaller | null, data: unknown, de
     let args: ReturnType<typeof askArgs> = null;
     let tokens: { promptTokens: number; completionTokens: number } | null = null;
     try {
-      await acquireGlobalBudget(deps, messages.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : 0), 0), BUDGET_CHARS_PER_UNIT);
+      await acquireGlobalBudget(deps, messages.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : 0), 0), BUDGET_CHARS_PER_UNIT, caller.uid);
       const completion = await deps.llm().complete({ messages, tools: [ANSWER_QUESTION_TOOL], toolChoice: 'required', safetyIdentifier: safetyIdentifierFor(caller.uid) });
       tokens = completion.usage;
       await recordUsage(deps, completion.usage, caller.uid);
@@ -241,7 +243,7 @@ export function handleMatterAsk(callerIn: MatterCaller | null, data: unknown, de
       const kind = error instanceof UpstreamError ? error.kind : error instanceof GlobalBudgetExhaustedError ? 'global_budget' : 'unknown';
       logger.warn('matters.ask_model_failed', { uid: caller.uid, kind });
       // a status question about one known matter is still answered, from code
-      if (!focus) throw matterError('upstream_error');
+      if (!focus) throw error instanceof SpendCapReachedError ? limitError('spend') : matterError('upstream_error');
     }
 
     const byRef = args?.ref ? listed.find((m) => m.ref === args!.ref) : undefined;
@@ -301,6 +303,14 @@ export function handleMatterSpeak(callerIn: MatterCaller | null, data: unknown, 
     const { text, language, matterId } = parsed.data;
     const now = deps.now();
     if (!(await deps.store.consumeDaily(caller.uid, usageDayKey(now), deps.dailyLimit, now.toISOString()))) throw matterError('rate_limited');
+    // A4: the day's spending cap, then the month's voice minutes (counted before speaking)
+    try {
+      await checkSpend(deps, caller.uid);
+    } catch (error) {
+      if (error instanceof SpendCapReachedError) throw limitError('spend');
+      throw error;
+    }
+    if (!(await claimVoice(deps, caller.uid, now, speechSeconds(text.length)))) throw limitError('voice');
     let audio: Buffer;
     try {
       audio = await deps.speech(text, language);
@@ -315,6 +325,9 @@ export function handleMatterSpeak(callerIn: MatterCaller | null, data: unknown, 
         // a matter that is gone does not fail the answer
       }
     }
+    await addSpeechSpend(deps, caller.uid, text.length).catch((error: unknown) => {
+      logger.warn('matters.spend_failed', { uid: caller.uid, errorName: error instanceof Error ? error.name : 'unknown' });
+    });
     logger.info('matters.spoken', { uid: caller.uid, chars: text.length, bytes: audio.length });
     return { audioBase64: audio.toString('base64'), chars: text.length, estCostUsd: speechCostUsd(text.length) };
   });

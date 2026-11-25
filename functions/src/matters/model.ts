@@ -19,6 +19,10 @@
  *   inboundEmails/{providerId}                       inbound dedupe marker, server only
  *   matterSchedule/{matterId}                        next follow-up or end check (A2), server only
  *   matterReadQueue/{matterId_messageId}             a reply read in progress or to retry (A2), server only
+ *   matterRetention/{matterId}                       a closed matter whose emails are deleted later (A4), server only
+ *   matterSpend/{yyyy-mm-dd}_{uid}                   one user's assistant cost that day (A4), server only
+ *   matterSettings/global                            the runtime on/off switch (A4), server only
+ *   usage/{uid}/months/{yyyy-mm}                     the monthly allowance counters (A4), server only
  * Under users/{uid}, so deleteAccount's recursive delete removes the matters with the account;
  * the lookup collections carry the uid and are removed by deleteAccount as well. The two A2
  * queues are top-level collections queried on one field (nextActionAt, claimedAt), so they need no
@@ -63,6 +67,13 @@ export const MATTER_APPROVALS_SUBCOLLECTION = 'approvals';
 export const MATTER_PROPOSALS_SUBCOLLECTION = 'proposals';
 export const MATTER_SCHEDULE_COLLECTION = 'matterSchedule';
 export const MATTER_READ_QUEUE_COLLECTION = 'matterReadQueue';
+// A4
+export const MATTER_RETENTION_COLLECTION = 'matterRetention';
+export const MATTER_SPEND_COLLECTION = 'matterSpend';
+export const MATTER_SETTINGS_COLLECTION = 'matterSettings';
+export const MATTER_SETTINGS_DOC = 'global';
+export const matterSpendId = (dayKey: string, uid: string) => `${dayKey}_${uid}`;
+export const usageMonthPath = (uid: string, monthKey: string) => `usage/${uid}/months/${monthKey}`;
 
 export const matterPath = (uid: string, matterId: string) => `users/${uid}/${MATTERS_SUBCOLLECTION}/${matterId}`;
 export const matterEventPath = (uid: string, matterId: string, eventId: string) =>
@@ -125,6 +136,9 @@ export const MATTER_LIMITS = {
   timeWordsChars: 120,
   /** A matterAsk answer as shown and spoken. */
   answerChars: 600,
+  // ---- A4 ----
+  /** Matters running (active or paused) at the same time, per user. */
+  maxOpenMatters: 20,
 } as const;
 
 // ---------------------------------------------------------------------------------------------
@@ -438,6 +452,9 @@ const matterDocShape = {
     /** A change waiting for the owner's confirmation. */
     pendingChange: pendingChangeSchema.nullable().default(null),
     usage: matterUsageSchema.default(EMPTY_USAGE),
+    // ---- A4 ----
+    /** When the email texts of this closed matter were deleted (MATTERS_RETENTION_DAYS); null until then. */
+    purgedAt: isoDateTimeSchema.nullable().default(null),
 };
 
 /** What the functions WRITE: strict, nothing outside the model. */
@@ -494,6 +511,9 @@ export const MATTER_EVENT_TYPES = [
   'mandate_changed',
   /** The owner asked about the matter (by voice or text). */
   'question_answered',
+  // A4
+  /** The email texts of the closed matter were deleted (MATTERS_RETENTION_DAYS). */
+  'emails_deleted',
   // A3 feedback
   /** The owner moved the booked meeting (detail: the new time). */
   'meeting_moved',
@@ -767,4 +787,45 @@ export function isOwnDomain(address: string, domain: string): boolean {
 export function messageIdKey(rfcMessageId: string): string {
   const bare = rfcMessageId.trim().replace(/^<|>$/g, '').trim();
   return createHash('sha256').update(bare).digest('hex');
+}
+
+// ---------------------------------------------------------------------------------------------
+// A4: retention, spend and the monthly allowance
+// ---------------------------------------------------------------------------------------------
+
+/** matterRetention/{matterId}: written with the patch that closes a matter (endedAt). */
+export const matterRetentionSchema = z
+  .object({ uid: z.string().min(1).max(128), matterId: z.string().min(1).max(128), endedAt: isoDateTimeSchema })
+  .strict();
+export type MatterRetention = z.infer<typeof matterRetentionSchema>;
+
+/** One user's assistant cost on one UTC day, in micro-dollars (matterSpend/{day}_{uid}). */
+export interface MatterSpendDelta {
+  micros: number;
+  modelCalls?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  speechChars?: number;
+}
+
+/** usage/{uid}/months/{yyyy-mm}: the monthly allowance counters. */
+export const MONTHLY_FIELDS = ['matters', 'emails', 'voiceSeconds'] as const;
+export type MonthlyField = (typeof MONTHLY_FIELDS)[number];
+export type MonthlyCounts = Record<MonthlyField, number>;
+export const EMPTY_MONTHLY: Readonly<MonthlyCounts> = Object.freeze({ matters: 0, emails: 0, voiceSeconds: 0 });
+
+/** "YYYY-MM" of a date (UTC): the allowance month. */
+export function monthKeyOf(date: Date): string {
+  return date.toISOString().slice(0, 7);
+}
+
+/** The first instant of the next UTC month. */
+export function nextMonthIso(date: Date): string {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1)).toISOString();
+}
+
+/** A patch that closes a matter carries endedAt: the store then writes its retention entry. */
+export function endedAtOf(patch: object | undefined): string | null {
+  const value = (patch as { endedAt?: unknown } | undefined)?.endedAt;
+  return typeof value === 'string' ? value : null;
 }

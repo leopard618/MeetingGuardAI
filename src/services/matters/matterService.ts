@@ -17,6 +17,8 @@
  * - A3 feedback: matterMessage (the owner's words become an email card to send) and matterMove (read the new
  *   time of the booked meeting, then move it on the time the owner confirmed). Neither sends: the
  *   owner sends the card with decide.
+ * - A4: matterDelete (the owner removes a matter with its emails and history) and matterUsage (the
+ *   usage meter). A rate_limited error keeps the limit it names in details.limit.
  */
 import { httpsCallable } from 'firebase/functions';
 
@@ -40,6 +42,9 @@ import {
   matterMessageResponseSchema,
   matterMoveRequestSchema,
   matterMoveResponseSchema,
+  matterDeleteRequestSchema,
+  matterDeleteResponseSchema,
+  matterUsageResponseSchema,
   matterConfirmRequestSchema,
   matterConfirmResponseSchema,
   matterDraftRequestSchema,
@@ -57,6 +62,8 @@ import {
   type MatterAskResponse,
   type MatterMessageResponse,
   type MatterMoveResponse,
+  type MatterDeleteResponse,
+  type MatterUsageResponse,
   type MatterSetStatusResponse,
   type MatterSpeakResponse,
   type MatterStatusAction,
@@ -80,7 +87,9 @@ export type MatterCallableName =
   | typeof CALLABLES.matterAsk
   | typeof CALLABLES.matterSpeak
   | typeof CALLABLES.matterMessage
-  | typeof CALLABLES.matterMove;
+  | typeof CALLABLES.matterMove
+  | typeof CALLABLES.matterDelete
+  | typeof CALLABLES.matterUsage;
 
 export interface MatterTransport {
   call(name: MatterCallableName, request: unknown, options: { timeoutMs: number }): Promise<unknown>;
@@ -115,6 +124,10 @@ export interface MatterService {
   readNewTime(matterId: string, text: string): Promise<MatterMoveResponse>;
   /** A3 feedback: moves the booked meeting to the time the owner confirmed; the email to the contact is a card. */
   moveMeeting(matterId: string, start: string): Promise<MatterMoveResponse>;
+  /** A4: removes a matter with its emails and history (a running one stops first). */
+  remove(matterId: string): Promise<MatterDeleteResponse>;
+  /** A4: the usage meter (this month's allowance and today's limits). */
+  usage(): Promise<MatterUsageResponse>;
 }
 
 export type MatterOpenItem = NonNullable<MatterViewResponse['matters']>[number];
@@ -145,7 +158,7 @@ export function mapMatterError(error: unknown): AppError {
   if (details.success) {
     return new AppError(REASON_TO_APP_CODE[details.data.reason], `matters ${details.data.reason}`, {
       cause: error,
-      details: { reason: details.data.reason, providerCode },
+      details: { reason: details.data.reason, providerCode, ...(details.data.limit ? { limit: details.data.limit } : {}) },
     });
   }
   if (providerCode === 'functions/deadline-exceeded') {
@@ -214,6 +227,8 @@ export function createMatterService(deps: MatterServiceDeps): MatterService {
       call(CALLABLES.matterMove, validated(matterMoveRequestSchema, { matterId, text: text.trim() }), (raw) => matterMoveResponseSchema.safeParse(raw)),
     moveMeeting: async (matterId, start) =>
       call(CALLABLES.matterMove, validated(matterMoveRequestSchema, { matterId, start }), (raw) => matterMoveResponseSchema.safeParse(raw)),
+    remove: async (matterId) => call(CALLABLES.matterDelete, validated(matterDeleteRequestSchema, { matterId }), (raw) => matterDeleteResponseSchema.safeParse(raw)),
+    usage: async () => call(CALLABLES.matterUsage, {}, (raw) => matterUsageResponseSchema.safeParse(raw)),
   };
 }
 

@@ -10,12 +10,13 @@
  * - A proposed commitment becomes an ordinary task on "Add to my tasks" (with the device zone).
  * - A3: a time_proposal card shows the time; "Book this time" books it (the server re-checks the
  *   calendar first and answers not_allowed when it is no longer free).
+ * - A4: "Delete this matter" asks first, then removes the matter with its emails and history.
  * - A3 feedback: on a running matter, "Move the meeting" and "Write to them" (ContactActions.tsx); the
  *   emails they prepare are reply_draft cards named "Email ready to send", sent like any reply.
  * Every string lives in the "matters" namespace (EN + ES). Nothing is logged.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
@@ -116,6 +117,30 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
       await matterService.cancel(matterId);
       onBack();
     });
+
+  /** A4: asks first; the matter goes with its emails and history (the meeting and tasks stay). */
+  const remove = (): void => {
+    Alert.alert(t('matters:page.deleteTitle'), t('matters:page.deleteMessage'), [
+      { text: t('matters:page.deleteKeep'), style: 'cancel' },
+      {
+        text: t('matters:page.deleteConfirm'),
+        style: 'destructive',
+        onPress: () => {
+          setBusy('delete');
+          matterService.remove(matterId).then(
+            () => {
+              Toast.show({ type: 'success', text1: t('matters:page.deleted') });
+              onBack();
+            },
+            (caught: unknown) => {
+              setBusy(null);
+              Toast.show({ type: 'error', text1: t(matterErrorKey(toAppError(caught))) });
+            },
+          );
+        },
+      },
+    ]);
+  };
 
   const setStatus = (action: 'pause' | 'resume'): Promise<void> =>
     act(action, async () => {
@@ -347,6 +372,15 @@ export function MatterPage({ matterId, onBack }: MatterPageProps): ReactElement 
           disabled={busy !== null}
           accessibilityRole="button"
           testID="matters-page-cancel"
+        />
+        <ListRow
+          icon="delete-outline"
+          title={t('matters:page.delete')}
+          tone="destructive"
+          onPress={remove}
+          disabled={busy !== null}
+          accessibilityRole="button"
+          testID="matters-page-delete"
         />
       </ListGroup>
     </View>
