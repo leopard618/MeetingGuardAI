@@ -22,6 +22,8 @@
  * - A4 part 2: matterMailbox (the owner's Microsoft mailbox: status, connect, disconnect, and a
  *   draft sends from it or not). connectMailbox opens the server's sign-in link in the system
  *   browser (expo-web-browser, loaded lazily) and resolves once the browser comes back.
+ *   matterWatch ("Watch this thread"): the forwards waiting, a draft from one (the usual draft,
+ *   confirmed the usual way), or dismiss one.
  */
 import { httpsCallable } from 'firebase/functions';
 
@@ -50,6 +52,8 @@ import {
   matterUsageResponseSchema,
   matterMailboxRequestSchema,
   matterMailboxResponseSchema,
+  matterWatchRequestSchema,
+  matterWatchResponseSchema,
   MATTER_MAILBOX_RETURN_URL,
   matterConfirmRequestSchema,
   matterConfirmResponseSchema,
@@ -71,6 +75,7 @@ import {
   type MatterDeleteResponse,
   type MatterUsageResponse,
   type MatterMailboxResponse,
+  type MatterWatchResponse,
   type MatterSetStatusResponse,
   type MatterSpeakResponse,
   type MatterStatusAction,
@@ -97,7 +102,8 @@ export type MatterCallableName =
   | typeof CALLABLES.matterMove
   | typeof CALLABLES.matterDelete
   | typeof CALLABLES.matterUsage
-  | typeof CALLABLES.matterMailbox;
+  | typeof CALLABLES.matterMailbox
+  | typeof CALLABLES.matterWatch;
 
 export interface MatterTransport {
   call(name: MatterCallableName, request: unknown, options: { timeoutMs: number }): Promise<unknown>;
@@ -144,6 +150,12 @@ export interface MatterService {
   mailboxDisconnect(): Promise<MatterMailboxResponse>;
   /** A4 part 2: a draft sends from the connected mailbox (true) or from the assistant's address. */
   sendFrom(matterId: string, mailbox: boolean): Promise<MatterMailboxResponse>;
+  /** A4 part 2, "Watch this thread": the forwarded emails waiting, and where to forward to. */
+  watchList(): Promise<MatterWatchResponse>;
+  /** Turns a waiting forward into a matter draft that answers it (response.draft). */
+  watchDraft(watchId: string, language: Language, timeZone: string): Promise<MatterWatchResponse>;
+  /** Deletes a waiting forward. */
+  watchDismiss(watchId: string): Promise<MatterWatchResponse>;
 }
 
 export type MatterOpenItem = NonNullable<MatterViewResponse['matters']>[number];
@@ -251,6 +263,11 @@ export function createMatterService(deps: MatterServiceDeps): MatterService {
     mailboxDisconnect: async () => call(CALLABLES.matterMailbox, { action: 'disconnect' }, (raw) => matterMailboxResponseSchema.safeParse(raw)),
     sendFrom: async (matterId, mailbox) =>
       call(CALLABLES.matterMailbox, validated(matterMailboxRequestSchema, { action: 'sendFrom', matterId, mailbox }), (raw) => matterMailboxResponseSchema.safeParse(raw)),
+    watchList: async () => call(CALLABLES.matterWatch, { action: 'list' }, (raw) => matterWatchResponseSchema.safeParse(raw)),
+    watchDraft: async (watchId, language, timeZone) =>
+      call(CALLABLES.matterWatch, validated(matterWatchRequestSchema, { action: 'draft', watchId, language, timeZone }), (raw) => matterWatchResponseSchema.safeParse(raw)),
+    watchDismiss: async (watchId) =>
+      call(CALLABLES.matterWatch, validated(matterWatchRequestSchema, { action: 'dismiss', watchId }), (raw) => matterWatchResponseSchema.safeParse(raw)),
   };
 }
 

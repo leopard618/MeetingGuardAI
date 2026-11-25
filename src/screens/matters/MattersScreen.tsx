@@ -22,15 +22,27 @@
  * server's Microsoft sign-in in the system browser; the status is asked again when it comes back)
  * or the connected address with "Disconnect" (asks first). A draft shows "Send from my mailbox"
  * while one is connected; switching it redrafts the read-back and the first email (new hash).
+ * "Watch this thread": the emails the owner forwarded from that mailbox wait under the mailbox
+ * section; tapping one drafts the answer (the usual draft, with their email shown above it);
+ * tapped again ("Draft ready") it opens that same draft; the close button removes one (asks
+ * first). Nothing is sent until the owner confirms.
  * Every string lives in the "matters" namespace (EN + ES). Nothing typed is logged.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import { Switch, Text, TextInput } from 'react-native-paper';
+import { IconButton, Switch, Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
-import type { MatterConfirmResponse, MatterDraftResponse, MatterMailboxResponse, MatterSendOutcome, MatterUsageResponse } from '../../core/aiContract';
+import type {
+  MatterConfirmResponse,
+  MatterDraftResponse,
+  MatterMailboxResponse,
+  MatterSendOutcome,
+  MatterUsageResponse,
+  MatterWatchItem,
+  MatterWatchResponse,
+} from '../../core/aiContract';
 import { toAppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
 import { toBaseLanguage } from '../../core/types';
@@ -47,7 +59,7 @@ import { useMatterVoice } from './useMatterVoice';
 export { matterErrorKey };
 
 
-type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | 'mailbox' | null;
+type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | 'mailbox' | 'watch' | null;
 type Done = { kind: 'sent' } | { kind: 'sending' } | { kind: 'not_sent' } | { kind: 'unknown'; inactiveRecipient: boolean } | { kind: 'cancelled' };
 
 function doneFor(result: MatterConfirmResponse): Done {
@@ -75,6 +87,8 @@ export function MattersScreen(): ReactElement {
   const [usage, setUsage] = useState<MatterUsageResponse | null>(null);
   /** A4 part 2: the Microsoft mailbox; null while unknown (hidden then, like the meter). */
   const [mailbox, setMailbox] = useState<MatterMailboxResponse | null>(null);
+  /** "Watch this thread": the forwarded emails waiting; null while unknown (hidden then). */
+  const [watch, setWatch] = useState<MatterWatchResponse | null>(null);
   /** A3: the matter was dictated, so the assistant answers aloud. */
   const [spoken, setSpoken] = useState(false);
   const base = toBaseLanguage(language); // M12: the executive assistant stays en/es
@@ -82,7 +96,7 @@ export function MattersScreen(): ReactElement {
   // every state update comes after the await (react-hooks/set-state-in-effect); the list is a
   // convenience, so a failed read (or the assistant off) simply shows none
   const loadOpen = useCallback(async (): Promise<void> => {
-    const [list, meter, box] = await Promise.all([
+    const [list, meter, box, watching] = await Promise.all([
       matterService.listOpen().catch((): MatterOpenItem[] => []),
       Promise.resolve()
         .then(() => matterService.usage())
@@ -90,10 +104,14 @@ export function MattersScreen(): ReactElement {
       Promise.resolve()
         .then(() => matterService.mailboxStatus())
         .catch(() => null),
+      Promise.resolve()
+        .then(() => matterService.watchList())
+        .catch(() => null),
     ]);
     setOpenMatters(list);
     setUsage(meter);
     setMailbox(box);
+    setWatch(watching);
   }, []);
 
   useEffect(() => {
@@ -173,6 +191,32 @@ export function MattersScreen(): ReactElement {
       setMailbox({ available: result.available, connected: result.connected, address: result.address });
       if (result.draft) setDraft(result.draft);
     });
+
+  // "Watch this thread": the draft that answers a forwarded email (one model call, nothing sent)
+  const openWatch = (item: MatterWatchItem): Promise<void> =>
+    run('watch', async () => {
+      const result = await matterService.watchDraft(item.watchId, base, getDeviceTimeZone());
+      setWatch({ available: result.available, address: result.address, items: result.items });
+      if (result.draft) {
+        setDraft(result.draft);
+        setAnswer('');
+      }
+    });
+
+  const dismissWatch = (item: MatterWatchItem): void => {
+    Alert.alert(t('matters:watch.dismissTitle'), t('matters:watch.dismissMessage'), [
+      { text: t('matters:watch.dismissKeep'), style: 'cancel' },
+      {
+        text: t('matters:watch.dismissConfirm'),
+        style: 'destructive',
+        onPress: () =>
+          void run('watch', async () => {
+            setWatch(await matterService.watchDismiss(item.watchId));
+            Toast.show({ type: 'success', text1: t('matters:watch.removed') });
+          }),
+      },
+    ]);
+  };
 
   const confirm = (): Promise<void> =>
     run('confirm', async () => {
@@ -405,6 +449,42 @@ export function MattersScreen(): ReactElement {
             </ListGroup>
           </Section>
         ) : null}
+        {watch && (watch.available || watch.items.length > 0) ? (
+          <Section title={t('matters:watch.title')} testID="matters-watch">
+            <Text variant="bodySmall" style={[styles.explainer, { color: colors.onSurfaceVariant }]} testID="matters-watch-how">
+              {watch.available && watch.address ? t('matters:watch.how', { address: watch.address }) : t('matters:watch.notAvailable')}
+            </Text>
+            {watch.items.length > 0 ? (
+              <ListGroup>
+                {watch.items.map((item) => (
+                  <ListRow
+                    key={item.watchId}
+                    icon="email-arrow-right-outline"
+                    title={t('matters:watch.itemTitle', {
+                      from: item.fromName ?? item.fromEmail ?? t('matters:watch.unknownSender'),
+                      subject: item.subject || t('matters:watch.noSubject'),
+                    })}
+                    supporting={item.drafted ? t('matters:watch.drafted') : item.preview || undefined}
+                    trailing={
+                      <IconButton
+                        icon="close"
+                        size={20}
+                        onPress={() => dismissWatch(item)}
+                        disabled={busy !== null}
+                        accessibilityLabel={t('matters:watch.dismiss')}
+                        testID={`matters-watch-dismiss-${item.watchId}`}
+                      />
+                    }
+                    onPress={() => void openWatch(item)}
+                    disabled={busy !== null || !watch.available}
+                    accessibilityRole="button"
+                    testID={`matters-watch-${item.watchId}`}
+                  />
+                ))}
+              </ListGroup>
+            ) : null}
+          </Section>
+        ) : null}
         {openMatters && openMatters.length > 0 ? (
           <Section title={t('matters:ask.title')} testID="matters-ask-section">
             <AskPanel
@@ -445,6 +525,23 @@ export function MattersScreen(): ReactElement {
         {micButton}
         {stopButton}
       </View>
+      {draft.forwarded ? (
+        <Section title={t('matters:watch.theirEmail')} testID="matters-forwarded">
+          <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+            {t('matters:email.from', {
+              value: draft.forwarded.fromEmail
+                ? `${draft.forwarded.fromName ? `${draft.forwarded.fromName} ` : ''}<${draft.forwarded.fromEmail}>`
+                : (draft.forwarded.fromName ?? t('matters:watch.unknownSender')),
+            })}
+          </Text>
+          <Text variant="bodyMedium" style={styles.subject}>
+            {t('matters:email.subject', { value: draft.forwarded.subject || t('matters:watch.noSubject') })}
+          </Text>
+          <Text variant="bodyMedium" selectable>
+            {draft.forwarded.text}
+          </Text>
+        </Section>
+      ) : null}
       {draft.questions.length > 0 ? (
         <Section title={t('matters:questions.title')} testID="matters-questions">
           {draft.questions.map((question) => (

@@ -1996,6 +1996,7 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   matterUsage: { request: 'matterUsageRequestSchema', response: 'matterUsageResponseSchema' },
   // A4 part 2: the owner's Microsoft mailbox.
   matterMailbox: { request: 'matterMailboxRequestSchema', response: 'matterMailboxResponseSchema' },
+  matterWatch: { request: 'matterWatchRequestSchema', response: 'matterWatchResponseSchema' },
 };
 
 // =============================================================================================

@@ -45,6 +45,10 @@
  *   matterMailboxCallback (HTTP: Microsoft's form_post after the sign-in), ./mailbox.ts. Both and
  *   every function that sends (matterConfirm, matterDecide, matterInboundRead, matterTick) bind
  *   MATTERS_MS_CLIENT_SECRET and MATTERS_MAILBOX_KEY: a mailbox matter sends through Graph.
+ * - A4 part 2, "Watch this thread": the inbound webhook hands mail to the assistant's own address
+ *   that matches no matter to ./watch.ts (a forward verified as coming from a connected mailbox
+ *   waits as a card), and matterWatch (callable: list, dismiss, draft; OPENAI_API_KEY for the
+ *   draft) turns a card into a matter draft. matterTick deletes cards nobody acted on.
  */
 import { timingSafeEqual } from 'node:crypto';
 
@@ -89,6 +93,7 @@ import type {
   MatterSpeakResponse,
   MatterUsageResponse,
   MatterViewResponse,
+  MatterWatchResponse,
 } from '../shared/aiContract';
 import { handleMatterUsage } from './allowance';
 import { handleMatterAsk, handleMatterSpeak } from './ask';
@@ -122,6 +127,7 @@ import {
   type SwitchState,
 } from './switch';
 import { handleMatterMessage, handleMatterMove } from './write';
+import { firestoreWatchStore, handleMatterWatch, receiveForward, watchAddress } from './watch';
 
 type MailCheckModule = typeof MailCheckNs;
 let mailCheckModule: MailCheckModule | null = null;
@@ -272,6 +278,7 @@ function deps(): MatterDeps {
     // A4 part 2
     mailbox,
     mailboxSender: (uid, address) => createMailboxSender(mailbox, uid, address, () => new Date()),
+    watches: firestoreWatchStore(adminDb()),
     speech: async (text, language) => {
       const { key } = await instanceOpenAiKeyProvider().get();
       const client = new OpenAI({ apiKey: key, timeout: MATTERS_TUNING.speechTimeoutMs, maxRetries: 0 });
@@ -386,6 +393,10 @@ function makeCallables() {
     // A4 part 2: the owner's Microsoft mailbox (status, connect, disconnect, a draft sends from it)
     matterMailbox: onCall({ ...CALLABLE_BASE, secrets: MAILBOX }, async (request): Promise<MatterMailboxResponse> =>
       handleMatterMailbox(callerOf(request.auth), request.data, await liveDeps()),
+    ),
+    // A4 part 2: "Watch this thread" (the forwards waiting; a draft from one is one model call)
+    matterWatch: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterWatchResponse> =>
+      handleMatterWatch(callerOf(request.auth), request.data, await liveDeps()),
     ),
   };
 }
@@ -527,12 +538,31 @@ function makeInboundWebhook() {
         res.status(200).send('ignored');
         return;
       }
+      const store = firestoreMatterStore(adminDb());
+      const domain = MATTERS_MAIL_DOMAIN.value();
+      const checkSender = loadMailCheck();
+      const params = mattersParams();
       const outcome = await handleInboundEmail(payload, {
-        store: firestoreMatterStore(adminDb()),
+        store,
         now: () => new Date(),
-        domain: MATTERS_MAIL_DOMAIN.value(),
+        domain,
         markerTtlDays: MATTERS_TUNING.inboundMarkerTtlDays,
-        checkSender: loadMailCheck(),
+        checkSender,
+        // A4 part 2: "Watch this thread", a forward from the owner's connected mailbox
+        watch: {
+          address: watchAddress({ fromLocalPart: MATTERS_TUNING.fromLocalPart, domain }),
+          receive: (email, body, marker) =>
+            receiveForward(email, body, marker, {
+              store: firestoreWatchStore(adminDb()),
+              matters: store,
+              mailboxOwners: (address) => firestoreMailboxStore(adminDb()).owners(address),
+              enabled: async () => params.MATTERS_ENABLED.value() === true && (await instanceSwitch().isOn()),
+              allowed: (uid) => isMatterUserAllowed(params.MATTERS_ALLOWED_UIDS.value(), uid),
+              checkSender,
+              domain,
+              now: () => new Date(),
+            }),
+        },
       });
       res.status(200).send(outcome);
     },
@@ -595,6 +625,7 @@ export const matterUsage = callables?.matterUsage;
 export const matterAdminSwitch = callables?.matterAdminSwitch;
 export const matterAdminUsage = callables?.matterAdminUsage;
 export const matterMailbox = callables?.matterMailbox;
+export const matterWatch = callables?.matterWatch;
 export const matterMailboxCallback = enabledAtLoad ? makeMailboxCallback() : undefined;
 export const assistantInboundEmail = enabledAtLoad ? makeInboundWebhook() : undefined;
 export const matterInboundRead = enabledAtLoad ? makeInboundRead() : undefined;

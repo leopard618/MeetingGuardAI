@@ -277,5 +277,21 @@
     "notConnected": "The mailbox was not connected.",
     "sendFromMine": "Send from my mailbox",
     "sendFromAssistant": "Off: it sends from the assistant's own address."
+  },
+  "watch": {
+    "title": "Watch a thread",
+    "how": "Forward an email from your Outlook to {{address}} and it shows here. Tap it and the assistant drafts a reply for you to check. Nothing is sent until you confirm.",
+    "notAvailable": "Connect your mailbox to answer these emails.",
+    "itemTitle": "{{from}}: {{subject}}",
+    "unknownSender": "Unknown sender",
+    "noSubject": "(no subject)",
+    "dismiss": "Remove",
+    "dismissTitle": "Remove this email?",
+    "dismissMessage": "The assistant will not answer it. Nothing is sent.",
+    "dismissConfirm": "Remove",
+    "dismissKeep": "Keep it",
+    "removed": "Email removed.",
+    "theirEmail": "Their email",
+    "drafted": "Draft ready. Tap to review it."
   }
 }

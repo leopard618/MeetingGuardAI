@@ -23,6 +23,7 @@
  *   matterSpend/{yyyy-mm-dd}_{uid}                   one user's assistant cost that day (A4), server only
  *   matterSettings/global                            the runtime on/off switch (A4), server only
  *   usage/{uid}/months/{yyyy-mm}                     the monthly allowance counters (A4), server only
+ *   matterWatches/{watchId}                          a forwarded thread waiting for the owner (A4 part 2), server only
  * Under users/{uid}, so deleteAccount's recursive delete removes the matters with the account;
  * the lookup collections carry the uid and are removed by deleteAccount as well. The two A2
  * queues are top-level collections queried on one field (nextActionAt, claimedAt), so they need no
@@ -75,6 +76,8 @@ export const MATTER_SETTINGS_DOC = 'global';
 // A4 part 2: the owner's Microsoft mailbox (server only; both carry the uid for deleteAccount)
 export const MATTER_MAILBOXES_COLLECTION = 'matterMailboxes';
 export const MATTER_MAILBOX_STATES_COLLECTION = 'matterMailboxStates';
+/** A4 part 2, "Watch this thread": verified forwards waiting for the owner (server only, with the uid). */
+export const MATTER_WATCHES_COLLECTION = 'matterWatches';
 export const matterSpendId = (dayKey: string, uid: string) => `${dayKey}_${uid}`;
 export const usageMonthPath = (uid: string, monthKey: string) => `usage/${uid}/months/${monthKey}`;
 
@@ -142,6 +145,17 @@ export const MATTER_LIMITS = {
   // ---- A4 ----
   /** Matters running (active or paused) at the same time, per user. */
   maxOpenMatters: 20,
+  // ---- A4 part 2, "Watch this thread" ----
+  /** The forwarded email kept (its newest message only; older quoted ones are left out). */
+  forwardedChars: 6000,
+  /** The owner's own words above a forward. */
+  forwardNoteChars: 1000,
+  /** Forwards waiting for the owner at the same time, per user (more are refused). */
+  maxWatchesWaiting: 10,
+  /** A forward waits this long for the owner, then it is deleted. */
+  watchWaitDays: 7,
+  /** A watched thread runs this long when the owner does not say until when. */
+  watchDays: 14,
 } as const;
 
 // ---------------------------------------------------------------------------------------------
@@ -258,6 +272,23 @@ export function draftHash(mandate: Mandate, firstEmail: FirstEmail, scheduling: 
 export function mailboxOf(doc: { sendFrom?: SendFrom; mailboxAddress?: string | null }): string | null {
   return doc.sendFrom === 'mailbox' && doc.mailboxAddress ? doc.mailboxAddress : null;
 }
+
+/**
+ * A4 part 2, "Watch this thread": the email the owner forwarded from their connected mailbox (its
+ * newest message). The forward itself is verified (DKIM aligned with the owner's mailbox); what
+ * it quotes is not, so it is DATA only: never instructions, and its addresses are never contacts,
+ * except the sender the forward names, which the owner then confirms in the read-back.
+ */
+export const forwardedEmailSchema = z
+  .object({
+    from: z.object({ name: z.string().max(MATTER_LIMITS.nameChars).nullable(), email: emailSchema }).strict().nullable(),
+    subject: z.string().max(MATTER_LIMITS.subjectChars),
+    text: z.string().max(MATTER_LIMITS.forwardedChars),
+    /** When the forward arrived. */
+    receivedAt: isoDateTimeSchema,
+  })
+  .strict();
+export type ForwardedEmail = z.infer<typeof forwardedEmailSchema>;
 
 /** A4 part 2: where a matter's emails go out from (fixed with the draft, part of its hash). */
 export const SEND_FROM = ['assistant', 'mailbox'] as const;
@@ -475,6 +506,8 @@ const matterDocShape = {
     sendFrom: z.enum(SEND_FROM).default('assistant'),
     /** The mailbox it sends from when sendFrom is 'mailbox'; part of the confirmed hash. */
     mailboxAddress: emailSchema.nullable().default(null),
+    /** "Watch this thread": the forwarded email this matter answers; null for a matter the owner wrote. */
+    watch: forwardedEmailSchema.nullable().default(null),
 };
 
 /** What the functions WRITE: strict, nothing outside the model. */

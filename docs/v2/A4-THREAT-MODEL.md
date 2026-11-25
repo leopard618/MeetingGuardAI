@@ -127,7 +127,7 @@ A user, a bug or a flood makes the assistant spend money without limit.
 
 Design after Dusko's review of November 24, 2026: the assistant **sends** from the owner's mailbox but never **reads** it. Replies come to our own inbound through Reply-To (T1), and a thread is watched by forwarding it to the assistant. So the app asks only for `Mail.Send`, `User.Read` (the mailbox's own address) and `offline_access`, never `Mail.Read`, and the question of which mailbox threads may be processed does not arise: nothing in the mailbox can be read.
 
-Built in `functions/src/matters/mailbox.ts` (connect, callback, sender), `graph.ts` (the only Microsoft calls) and `mailboxCrypto.ts` (encryption); tested in `functions/test/unit/mattersMailbox.test.ts` (T9.1 to T9.10 below).
+Built in `functions/src/matters/mailbox.ts` (connect, callback, sender), `graph.ts` (the only Microsoft calls), `mailboxCrypto.ts` (encryption) and `watch.ts` ("Watch this thread"); tested in `functions/test/unit/mattersMailbox.test.ts` (T9.1 to T9.10 below) and `mattersWatch.test.ts` (T9.11 to T9.15).
 
 | Control | Status |
 |---|---|
@@ -139,8 +139,8 @@ Built in `functions/src/matters/mailbox.ts` (connect, callback, sender), `graph.
 | Our Graph code can call only the token endpoint, `/me` (the address) and `sendMail`; it has no call that lists, searches or reads mail | Done (T9.1) |
 | Every email sent from the mailbox sets Reply-To to the matter address, so replies arrive at our inbound with the DKIM check of T1 | Done (T9.5) |
 | Sending from the mailbox is allowed per matter, fixed when the mandate is confirmed (the mailbox address is part of its hash, and the read-back says so), and goes through the same send check, caps and approval as the assistant's own address. A mailbox matter never falls back to the assistant's address, and another mailbox connected later never sends it | Done (T9.5, T9.6, T9.8) |
-| Watching a thread: the owner forwards it to the assistant. A forward starts a watch only when it comes from the owner's connected mailbox address with DKIM aligned; even then it becomes a "Watch this thread?" card, and nothing is sent until the owner confirms in the app. The quoted messages inside a forward are not verified and are treated as data only | A4 part 2, next step |
-| Pausing a matter or a watched thread stops sending for it; replies that arrive meanwhile are stored unread and processed once after resume | Done for matters (T9.7); watched threads with the next step |
+| Watching a thread: the owner forwards it to the assistant's own address. A forward starts a watch only when it comes from the address of exactly one connected mailbox, with DKIM aligned (our own check, `mailCheck.ts` 'trusted'), from an owner on the tester list while the switch is on; anything else keeps nothing but the dedupe marker. Even then it only becomes a card ("Watch a thread"); the model drafts the reply only when the owner opens the card, and nothing is sent until the owner confirms the draft in the app. The forwarded messages are not verified: code (`watch.ts parseForward`) keeps the newest one only, the model sees it fenced as data, and the only address it adds is the sender the forward names, which the owner sees in the read-back. A card waits at most 7 days and makes one draft: it stays ("draft ready") so the owner can return to that draft, and goes once the draft is confirmed or cancelled (`matterWatches`, server only, removed with the account) | Done (T9.11 to T9.15) |
+| Pausing a matter or a watched thread stops sending for it; replies that arrive meanwhile are stored unread and processed once after resume | Done (T9.7; a watched thread is a matter, T9.14) |
 | Disconnecting the mailbox, account deletion, or Microsoft refusing the access (`invalid_grant` on refresh, or 401/403 on sending) deletes the stored refresh token at once and stops all sending from the mailbox. A send that was already approved fails safely: the timeline says the mailbox is not connected; it never falls back silently to another address and is not retried with the old token | Done (T9.8, T9.9; `deleteAccount.ts` lists `matterMailboxes` and `matterMailboxStates`) |
 | The runtime switch off (T8) stops every send from the mailbox too, and a sign-in that comes back while it is off connects nothing | Done (T9.2, T9.10) |
 
@@ -157,7 +157,13 @@ Tests (`functions/test/unit/mattersMailbox.test.ts`), including the ones Francis
 9. Microsoft answering `invalid_grant` is handled like a disconnect and not retried; a refused send (401) also deletes the access; an expired client secret (`invalid_client`) fails safely and keeps it.
 10. With the runtime switch off, nothing is sent from the mailbox.
 
-With "Watch this thread" (next step): a forward from anyone other than the owner's connected mailbox, or without aligned DKIM, starts nothing; a valid one only creates the card; a paused watched thread sends nothing.
+"Watch this thread" (`functions/test/unit/mattersWatch.test.ts`):
+
+11. A forward from anyone other than the owner's connected mailbox, without an aligned DKIM signature, without the sender check, while the assistant is off for the owner, from an address two accounts connected, as an automatic reply, without a forward in it, or past 10 waiting, starts nothing; a verified one only creates the card (no model call, no email); the same forward twice is one card.
+12. The card: only its owner sees, drafts or removes it; removing is always allowed; without a connected mailbox it cannot be opened; it is deleted after 7 days, also by the tick while the assistant is off; it makes one draft, opens that same draft again without a model call, and goes once the draft is confirmed or cancelled.
+13. The draft: one model call with the forward fenced as data (it cannot close its own fence); its sender is the contact, an address quoted inside it never is; "Re:" its subject; nothing is sent until the owner confirms, then from the mailbox with Reply-To the matter address; the usual limits apply and a failed draft keeps the card; a redraft keeps the forward.
+14. A watched thread runs like any matter: the reply read sees the forward as data; paused, it sends nothing.
+15. No address, subject or text of a forward in any log line.
 
 If `Mail.Read` is ever added, mail read through Graph needs its own sender check (T1 checks DKIM on the raw email, which Graph does not give in the same form), reading is limited to the matter and watched conversations, and the thread tests above are extended before it is turned on.
 

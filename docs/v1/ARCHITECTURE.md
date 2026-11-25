@@ -2134,6 +2134,23 @@ A3 (scheduling, voice, history) build on it.
   `email_failed` with detail 'mailbox'. `invalid_grant` or a 401/403 on sending deletes the
   record. Disconnect deletes it (owner only, any switch state); deleteAccount removes both
   collections.
+- **A4 part 2: "Watch this thread"** (threat model T9). The mailbox is never read, so the owner
+  forwards the thread to the assistant's own address. In the inbound webhook, mail to that address
+  that matches no matter goes to `watch.ts receiveForward`: the From must be the address of exactly
+  one `matterMailboxes` record (`MailboxStore.owners`), the owner allowed and the switch on, not an
+  automatic reply, and `mailCheck.ts` must say 'trusted' (DKIM aligned); else only the dedupe
+  marker is written. `parseForward` (code, EN and ES wrappers of Outlook, Gmail and Apple Mail; an
+  HTML body that hides text is read from its visible text with the quotes kept) takes the owner's
+  note, the wrapper's sender and subject, and the newest forwarded message only; it is stored as
+  `matterWatches/{sha256(providerId)}` (uid, expiresAt a week later; server only). matterWatch
+  `list` / `dismiss` (owner only) / `draft`: the draft claims the card, runs the usual limits and
+  one model call with `ctx.thread` (draft.ts fences it as `<forwarded_email>`, adds only its
+  sender as a known address, sets "Re:" its subject, and MATTER_LIMITS.watchDays when no end date),
+  writes the matter with `watch` (the forward; revise, matterChange and the reply read keep it in
+  the prompt as data), records the draft on the card (`matterId`, the card then waits 30 days)
+  and answers the draft with `forwarded` for the app. A card with a draft opens it again (no model
+  call) and is deleted once that matter is no longer a draft (checked when listing). A failed
+  draft releases the card. matterTick deletes expired cards, also while off.
 - **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel` (A2:
   `matterDecide` and `matterView`, with the lenient view schemas `matterApprovalViewSchema`,
   `matterProposalViewSchema`, `matterListItemSchema`), their
@@ -2180,3 +2197,8 @@ A3 (scheduling, voice, history) build on it.
   sending through Graph with Reply-To, sendFrom, pause, disconnect, Microsoft refusing the
   access, the switch); app `MattersMailbox.test.tsx` (Connect your mailbox, Disconnect with its
   question, Send from my mailbox on a draft, the timeline entry, the service calls).
+  `mattersWatch.test.ts` (T9.11 to T9.15: reading forwards, only a verified forward from the
+  connected mailbox becomes a card, list, dismiss and used once, the draft with the forward as
+  data and nothing sent before confirm, a watched matter paused, no forward content in logs); app
+  `MattersWatch.test.tsx` (Watch a thread, a draft with their email, removing one, the service
+  calls).

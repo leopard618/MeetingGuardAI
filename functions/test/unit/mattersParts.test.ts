@@ -385,6 +385,7 @@ function activeMatter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     purgedAt: null,
     sendFrom: 'assistant',
     mailboxAddress: null,
+    watch: null,
     ...overrides,
   };
   return base;
