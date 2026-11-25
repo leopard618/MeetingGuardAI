@@ -4,7 +4,8 @@
  *
  * matterSettings/global { enabled, updatedAt, updatedBy } (server only; no client rule). A missing
  * document or field means ON: the deploy-time gates (MATTERS_ENABLED, MATTERS_ALLOWED_UIDS) still
- * decide first. Each instance reads it at most every MATTERS_TUNING.switchCacheMs, so a switch-off
+ * decide first. A read that FAILS before an instance has ever read the switch means OFF (fail
+ * closed): a confirmed off never depends on one read succeeding. Each instance reads it at most every MATTERS_TUNING.switchCacheMs, so a switch-off
  * reaches every instance within that time.
  *
  * Off means: every matter callable answers not_configured (matterCancel and matterDelete still
@@ -39,9 +40,10 @@ export function switchStateOf(data: unknown): SwitchState {
 }
 
 /**
- * A short per-instance cache of the switch. A read that fails keeps the last known value (on at
- * first): an outage of one document read never stops the assistant, and never turns it back on
- * after a confirmed off either.
+ * A short per-instance cache of the switch. A read that fails keeps the last known value, so a
+ * short outage never turns a confirmed off back on, nor stops a running assistant. With no known
+ * value yet (a new instance) a failed read counts as OFF and is not cached: the next call reads
+ * again, so the assistant is back as soon as the document can be read (fail closed).
  */
 export function createRuntimeSwitch(read: () => Promise<unknown>, cacheMs: number, now: () => number = Date.now) {
   let cached: { enabled: boolean; at: number } | null = null;
@@ -52,8 +54,9 @@ export function createRuntimeSwitch(read: () => Promise<unknown>, cacheMs: numbe
       try {
         cached = { enabled: switchStateOf(await read()).enabled, at: t };
       } catch (error) {
-        logger.warn('matters.switch_read_failed', { errorName: error instanceof Error ? error.name : 'unknown' });
-        cached = { enabled: cached?.enabled ?? true, at: t };
+        logger.warn('matters.switch_read_failed', { errorName: error instanceof Error ? error.name : 'unknown', known: cached !== null });
+        if (cached === null) return false;
+        cached = { enabled: cached.enabled, at: t };
       }
       return cached.enabled;
     },

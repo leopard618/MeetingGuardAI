@@ -41,6 +41,10 @@
  *   viewer claims). Every handler gets liveDeps(): the runtime switch matterSettings/global
  *   (switch.ts) turns `enabled` off within MATTERS_TUNING.switchCacheMs, without a deploy. The
  *   spending cap, the monthly allowance and the retention period come from MATTERS_* lines.
+ * - A4 part 2: matterMailbox (callable: status, connect, disconnect, sendFrom) and
+ *   matterMailboxCallback (HTTP: Microsoft's form_post after the sign-in), ./mailbox.ts. Both and
+ *   every function that sends (matterConfirm, matterDecide, matterInboundRead, matterTick) bind
+ *   MATTERS_MS_CLIENT_SECRET and MATTERS_MAILBOX_KEY: a mailbox matter sends through Graph.
  */
 import { timingSafeEqual } from 'node:crypto';
 
@@ -78,6 +82,7 @@ import type {
   MatterDecideResponse,
   MatterDeleteResponse,
   MatterDraftResponse,
+  MatterMailboxResponse,
   MatterMessageResponse,
   MatterMoveResponse,
   MatterSetStatusResponse,
@@ -98,6 +103,9 @@ import {
   type MatterDeps,
 } from './handlers';
 import { handleMatterChange, handleMatterSetStatus } from './manage';
+import { mailboxRedirectUri } from './graph';
+import { callbackPage, createMailboxSender, firestoreMailboxStore, handleMailboxCallback, handleMatterMailbox, type MailboxDeps } from './mailbox';
+import { parseMailboxKeys } from './mailboxCrypto';
 import type * as MailCheckNs from './mailCheck';
 import type { SenderCheck } from './mailCheck';
 import { handleDeliveryEvent, handleInboundRead, handleMatterDecide, handleMatterView, runMatterTick } from './replies';
@@ -200,8 +208,27 @@ function callerOf(auth: { uid: string; token: Record<string, unknown> } | undefi
   };
 }
 
+/** A4 part 2: the owner's Microsoft mailbox (secrets read only when used). */
+function mailboxDeps(): MailboxDeps {
+  const params = mattersParams();
+  const clientId = params.MATTERS_MS_CLIENT_ID.value().trim();
+  return {
+    store: firestoreMailboxStore(adminDb()),
+    available: clientId.length > 0,
+    graph: () => ({
+      clientId,
+      clientSecret: params.MATTERS_MS_CLIENT_SECRET.value(),
+      redirectUri: mailboxRedirectUri(FUNCTIONS_REGION.value(), process.env.GCLOUD_PROJECT?.trim() ?? ''),
+      timeoutMs: MATTERS_TUNING.graphTimeoutMs,
+    }),
+    keys: () => parseMailboxKeys(params.MATTERS_MAILBOX_KEY.value()),
+    stateTtlMs: MATTERS_TUNING.mailboxStateTtlMs,
+  };
+}
+
 function deps(): MatterDeps {
   const params = mattersParams();
+  const mailbox = mailboxDeps();
   return {
     store: firestoreMatterStore(adminDb()),
     llm: () => {
@@ -242,6 +269,9 @@ function deps(): MatterDeps {
       voiceMinutes: params.MATTERS_MONTHLY_VOICE_MINUTES.value(),
     },
     retentionDays: params.MATTERS_RETENTION_DAYS.value(),
+    // A4 part 2
+    mailbox,
+    mailboxSender: (uid, address) => createMailboxSender(mailbox, uid, address, () => new Date()),
     speech: async (text, language) => {
       const { key } = await instanceOpenAiKeyProvider().get();
       const client = new OpenAI({ apiKey: key, timeout: MATTERS_TUNING.speechTimeoutMs, maxRetries: 0 });
@@ -313,8 +343,10 @@ function callableBase(): CallableOptions {
 }
 
 function makeCallables() {
-  const { MATTERS_POSTMARK_TOKEN } = mattersParams();
+  const { MATTERS_POSTMARK_TOKEN, MATTERS_MS_CLIENT_SECRET, MATTERS_MAILBOX_KEY } = mattersParams();
   const CALLABLE_BASE = callableBase();
+  // A4 part 2: a mailbox matter sends through Graph (client secret, and the key for the stored access)
+  const MAILBOX = [MATTERS_MS_CLIENT_SECRET, MATTERS_MAILBOX_KEY];
   return {
     matterDraft: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterDraftResponse> =>
       handleMatterDraft(callerOf(request.auth), request.data, await liveDeps()),
@@ -322,11 +354,11 @@ function makeCallables() {
     matterRevise: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterDraftResponse> =>
       handleMatterRevise(callerOf(request.auth), request.data, await liveDeps()),
     ),
-    matterConfirm: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN] }, async (request): Promise<MatterConfirmResponse> =>
+    matterConfirm: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN, ...MAILBOX] }, async (request): Promise<MatterConfirmResponse> =>
       handleMatterConfirm(callerOf(request.auth), request.data, await liveDeps()),
     ),
     matterCancel: onCall(CALLABLE_BASE, async (request): Promise<MatterCancelResponse> => handleMatterCancel(callerOf(request.auth), request.data, await liveDeps())),
-    matterDecide: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN] }, async (request): Promise<MatterDecideResponse> =>
+    matterDecide: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN, ...MAILBOX] }, async (request): Promise<MatterDecideResponse> =>
       handleMatterDecide(callerOf(request.auth), request.data, await liveDeps()),
     ),
     // the app's open matters and matter page, read for the owner (no client rule needed)
@@ -351,17 +383,21 @@ function makeCallables() {
     // A4: the admin dashboard (admin claim to switch, viewer claim to read)
     matterAdminSwitch: onCall(CALLABLE_BASE, (request): Promise<SwitchState> => handleMatterAdminSwitch(adminCallerOf(request.auth), request.data, adminDeps())),
     matterAdminUsage: onCall(CALLABLE_BASE, (request): Promise<MatterAdminUsageResponse> => handleMatterAdminUsage(adminCallerOf(request.auth), request.data, adminDeps())),
+    // A4 part 2: the owner's Microsoft mailbox (status, connect, disconnect, a draft sends from it)
+    matterMailbox: onCall({ ...CALLABLE_BASE, secrets: MAILBOX }, async (request): Promise<MatterMailboxResponse> =>
+      handleMatterMailbox(callerOf(request.auth), request.data, await liveDeps()),
+    ),
   };
 }
 
 /** A2: the model read of each stored reply (the webhook never calls the model). */
 function makeInboundRead() {
-  const { MATTERS_POSTMARK_TOKEN } = mattersParams();
+  const { MATTERS_POSTMARK_TOKEN, MATTERS_MS_CLIENT_SECRET, MATTERS_MAILBOX_KEY } = mattersParams();
   return onDocumentCreated(
     {
       document: 'users/{uid}/matters/{matterId}/messages/{messageId}',
       region: FUNCTIONS_REGION,
-      secrets: [OPENAI_API_KEY, MATTERS_POSTMARK_TOKEN],
+      secrets: [OPENAI_API_KEY, MATTERS_POSTMARK_TOKEN, MATTERS_MS_CLIENT_SECRET, MATTERS_MAILBOX_KEY],
       timeoutSeconds: MATTERS_TUNING.readTimeoutSeconds,
       memory: MATTERS_TUNING.memory,
       maxInstances: MATTERS_TUNING.maxInstances,
@@ -381,13 +417,13 @@ function makeInboundRead() {
 
 /** A2: end dates, follow-ups and read retries, every 15 minutes. */
 function makeTick() {
-  const { MATTERS_POSTMARK_TOKEN } = mattersParams();
+  const { MATTERS_POSTMARK_TOKEN, MATTERS_MS_CLIENT_SECRET, MATTERS_MAILBOX_KEY } = mattersParams();
   return onSchedule(
     {
       schedule: 'every 15 minutes',
       timeZone: 'Etc/UTC',
       region: FUNCTIONS_REGION,
-      secrets: [OPENAI_API_KEY, MATTERS_POSTMARK_TOKEN],
+      secrets: [OPENAI_API_KEY, MATTERS_POSTMARK_TOKEN, MATTERS_MS_CLIENT_SECRET, MATTERS_MAILBOX_KEY],
       timeoutSeconds: MATTERS_TUNING.tickTimeoutSeconds,
       memory: MATTERS_TUNING.memory,
       maxInstances: 1,
@@ -503,6 +539,41 @@ function makeInboundWebhook() {
   );
 }
 
+/**
+ * A4 part 2: Microsoft posts the sign-in result here (response_mode form_post), at the redirect URI
+ * registered on the mailbox app (graph.ts mailboxRedirectUri). No Firebase auth: the single-use
+ * state ties it to the owner who started the sign-in. Answers a page that returns to the app.
+ */
+function makeMailboxCallback() {
+  const { MATTERS_ENABLED, MATTERS_MS_CLIENT_SECRET, MATTERS_MAILBOX_KEY } = mattersParams();
+  return onRequest(
+    {
+      region: FUNCTIONS_REGION,
+      secrets: [MATTERS_MS_CLIENT_SECRET, MATTERS_MAILBOX_KEY],
+      timeoutSeconds: 30,
+      memory: '256MiB',
+      maxInstances: MATTERS_TUNING.maxInstances,
+      ...runtimeIdentity(),
+    },
+    async (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      res.set('Referrer-Policy', 'no-referrer');
+      if (MATTERS_ENABLED.value() !== true) {
+        res.status(404).send('Not configured');
+        return;
+      }
+      if (req.method !== 'POST' && req.method !== 'GET') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+      // form_post puts the answer in the body; a GET (an error shown by Microsoft, a reload) has only the query
+      const source = (req.method === 'POST' && req.body && typeof req.body === 'object' ? req.body : req.query) as Record<string, unknown>;
+      const { result, language } = await handleMailboxCallback({ code: source.code, state: source.state, error: source.error }, await liveDeps());
+      res.status(200).type('html').send(callbackPage(result, language));
+    },
+  );
+}
+
 const enabledAtLoad = mattersEnabledAtLoad();
 const callables = enabledAtLoad ? makeCallables() : undefined;
 
@@ -523,6 +594,8 @@ export const matterDelete = callables?.matterDelete;
 export const matterUsage = callables?.matterUsage;
 export const matterAdminSwitch = callables?.matterAdminSwitch;
 export const matterAdminUsage = callables?.matterAdminUsage;
+export const matterMailbox = callables?.matterMailbox;
+export const matterMailboxCallback = enabledAtLoad ? makeMailboxCallback() : undefined;
 export const assistantInboundEmail = enabledAtLoad ? makeInboundWebhook() : undefined;
 export const matterInboundRead = enabledAtLoad ? makeInboundRead() : undefined;
 export const matterTick = enabledAtLoad ? makeTick() : undefined;

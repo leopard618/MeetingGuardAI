@@ -292,6 +292,23 @@ describe('the runtime switch', () => {
     expect(read).toHaveBeenCalledTimes(3);
   });
 
+  it('fails closed: a failed read before any known value counts as off, and is read again on the next call', async () => {
+    let t = 0;
+    const read = jest.fn<Promise<unknown>, []>().mockRejectedValueOnce(new Error('down')).mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(null);
+    const sw = createRuntimeSwitch(read, 30_000, () => t);
+    await expect(sw.isOn()).resolves.toBe(false);
+    t = 1_000;
+    await expect(sw.isOn()).resolves.toBe(false);
+    t = 2_000;
+    // the document can be read again (missing = on): back on at once, not after the cache period
+    await expect(sw.isOn()).resolves.toBe(true);
+    expect(read).toHaveBeenCalledTimes(3);
+    // a later failed read keeps the known value
+    read.mockRejectedValueOnce(new Error('down'));
+    t = 40_000;
+    await expect(sw.isOn()).resolves.toBe(true);
+  });
+
   it('switched off: callables answer not_configured, a reply waits unread in the queue, the tick sends nothing', async () => {
     const ctx = setup();
     const matterId = await active(ctx, { follow_up: { every_days: 1, max_count: 3 } });

@@ -16,7 +16,7 @@
  * - A2 sends (replies, follow-ups) only after the first email really went out (firstSentAt): a
  *   matter whose first email is failed, unknown, sending or a test never gets a second email.
  */
-import { draftHash, isOwnDomain, type MatterDoc } from './model';
+import { draftHash, isOwnDomain, mailboxOf, type MatterDoc } from './model';
 
 export const SEND_REFUSALS = [
   'switched_off',
@@ -51,7 +51,7 @@ export function checkSend(input: {
   if (!input.enabled) return { ok: false, reason: 'switched_off' };
   if (matter.status !== 'active') return { ok: false, reason: 'not_active' };
   if (!matter.mandate || !matter.firstEmail || !matter.confirmedHash) return { ok: false, reason: 'not_confirmed' };
-  if (draftHash(matter.mandate, matter.firstEmail, matter.scheduling) !== matter.confirmedHash) {
+  if (draftHash(matter.mandate, matter.firstEmail, matter.scheduling, mailboxOf(matter)) !== matter.confirmedHash) {
     return { ok: false, reason: 'changed_since_confirmation' };
   }
   if (now.getTime() >= Date.parse(matter.mandate.endsAt)) return { ok: false, reason: 'ended' };

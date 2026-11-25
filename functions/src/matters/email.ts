@@ -10,11 +10,15 @@
  * - Development without an account: Postmark's public test token POSTMARK_API_TEST accepts the
  *   request and delivers nothing.
  * Logs and errors carry categories and Postmark error codes only, never addresses or text.
+ *
+ * A4 part 2: a matter confirmed to send from the owner's Microsoft mailbox (sendFrom 'mailbox')
+ * goes out through Graph instead (mailbox.ts createMailboxSender, chosen by senderFor). The same
+ * email, with From the mailbox address and the same Reply-To, signature and AI footer.
  */
 import { randomBytes } from 'node:crypto';
 
 import type { Language } from '../shared/aiContract';
-import { replyAddressFor, type MatterDoc } from './model';
+import { mailboxOf, replyAddressFor, type MatterDoc } from './model';
 import { disclosureFooter, senderName } from './text';
 
 export interface OutboundEmail {
@@ -44,13 +48,19 @@ export function fromAddress(domain: string, localPart: string): string {
   return `${localPart}@${domain.toLowerCase()}`;
 }
 
+/** A4 part 2: the From of a matter's email: the owner's mailbox, or the assistant's address. */
+function fromHeader(matter: Partial<Pick<MatterDoc, 'sendFrom' | 'mailboxAddress'>>, name: string, domain: string, localPart: string): string {
+  const mailbox = mailboxOf(matter);
+  return mailbox ?? `"${name}" <${fromAddress(domain, localPart)}>`;
+}
+
 export function newMessageId(matterId: string, domain: string, random: () => string = () => randomBytes(8).toString('hex')): string {
   return `<${matterId}.${random()}@${domain.toLowerCase()}>`;
 }
 
 /** The first email of a matter, exactly as it is sent (and as the draft shows it). */
 export function composeFirstEmail(input: {
-  matter: Pick<MatterDoc, 'mandate' | 'firstEmail' | 'ownerName' | 'ownerEmail' | 'replyToken'>;
+  matter: Pick<MatterDoc, 'mandate' | 'firstEmail' | 'ownerName' | 'ownerEmail' | 'replyToken'> & Partial<Pick<MatterDoc, 'sendFrom' | 'mailboxAddress'>>;
   matterId: string;
   domain: string;
   fromLocalPart: string;
@@ -63,7 +73,7 @@ export function composeFirstEmail(input: {
   const language: Language = matter.mandate.language;
   const cc = matter.mandate.copyOwner === 'cc' && matter.ownerEmail ? [matter.ownerEmail] : [];
   return {
-    from: `"${senderName(matter.ownerName, language)}" <${fromAddress(input.domain, input.fromLocalPart)}>`,
+    from: fromHeader(matter, senderName(matter.ownerName, language), input.domain, input.fromLocalPart),
     to: matter.mandate.contacts.map((c) => c.email),
     cc,
     replyTo: replyAddressFor(matter.replyToken, input.domain),
@@ -83,7 +93,7 @@ export function composeFirstEmail(input: {
  * out); the body is the text before the signature.
  */
 export function composeMatterEmail(input: {
-  matter: Pick<MatterDoc, 'mandate' | 'ownerName' | 'replyToken'>;
+  matter: Pick<MatterDoc, 'mandate' | 'ownerName' | 'replyToken'> & Partial<Pick<MatterDoc, 'sendFrom' | 'mailboxAddress'>>;
   matterId: string;
   uid: string;
   domain: string;
@@ -104,7 +114,7 @@ export function composeMatterEmail(input: {
   const name = senderName(input.matter.ownerName, language);
   const footer = disclosureFooter(input.matter.ownerName, language);
   return {
-    from: `"${name}" <${fromAddress(input.domain, input.fromLocalPart)}>`,
+    from: fromHeader(input.matter, name, input.domain, input.fromLocalPart),
     to: input.to,
     cc: input.cc,
     replyTo: replyAddressFor(input.matter.replyToken, input.domain),
@@ -128,13 +138,29 @@ ${input.quoted}` : ''}`,
 
 export class EmailSendError extends Error {
   constructor(
-    readonly kind: 'configuration' | 'rejected' | 'rate_limited' | 'timeout' | 'connection' | 'server' | 'unknown',
+    /** A4 part 2: 'mailbox' = the owner's mailbox cannot send (not connected, changed, access refused); nothing went out. */
+    readonly kind: 'configuration' | 'rejected' | 'rate_limited' | 'timeout' | 'connection' | 'server' | 'unknown' | 'mailbox',
     /** Postmark's ErrorCode (0 = none), or the HTTP status when there is no body. */
     readonly code: number | null,
     options?: { cause?: unknown },
   ) {
     super(`Email send failed: ${kind}${code !== null ? ` (${code})` : ''}`, options);
     this.name = 'EmailSendError';
+  }
+}
+
+/**
+ * A4 part 2: the owner's mailbox cannot send. Never retried with the same access and never sent
+ * from another address instead: the matter's send is refused, the owner sees it on the timeline
+ * (email_failed 'mailbox') and reconnects.
+ */
+export class MailboxSendError extends EmailSendError {
+  constructor(
+    readonly reason: 'not_connected' | 'changed' | 'revoked' | 'client' | 'not_configured' | 'unavailable',
+    options?: { cause?: unknown },
+  ) {
+    super('mailbox', null, options);
+    this.name = 'MailboxSendError';
   }
 }
 
@@ -152,6 +178,25 @@ export interface EmailSender {
    * token (accepted, delivered to nobody); throws EmailSendError.
    */
   send(email: OutboundEmail): Promise<{ providerId: string; test?: boolean }>;
+}
+
+/**
+ * A4 part 2: who sends a matter's email: the owner's mailbox when the matter was confirmed for it,
+ * else the assistant (Postmark). A mailbox matter never falls back to the assistant's address.
+ */
+export function senderFor(
+  deps: { sender: () => EmailSender; mailboxSender?: (uid: string, address: string) => EmailSender },
+  uid: string,
+  matter: Partial<Pick<MatterDoc, 'sendFrom' | 'mailboxAddress'>>,
+): EmailSender {
+  if (matter.sendFrom !== 'mailbox') return deps.sender();
+  const mailbox = mailboxOf(matter);
+  if (!mailbox || !deps.mailboxSender) {
+    return {
+      send: () => Promise.reject(new MailboxSendError(deps.mailboxSender ? 'not_connected' : 'not_configured')),
+    };
+  }
+  return deps.mailboxSender(uid, mailbox);
 }
 
 /** Postmark's public test token: every send is accepted and nothing is delivered. */

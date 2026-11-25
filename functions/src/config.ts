@@ -525,6 +525,22 @@ export function mattersParams() {
       default: 30,
       description: 'Natural voice minutes one user may use per month (the Assistant plan allowance).',
     }),
+    /**
+     * A4 part 2: the owner's Microsoft mailbox (docs/v2/A4-THREAT-MODEL.md T9). Its own app
+     * registration "Meeting Guard AI Mailbox" (Mail.Send, offline_access, User.Read; managed by
+     * Dusko). The client id is public; empty turns the mailbox off (matterMailbox available false).
+     */
+    MATTERS_MS_CLIENT_ID: defineString('MATTERS_MS_CLIENT_ID', {
+      default: 'dbd0daab-1ef8-4f95-b798-6c1e1187b87f',
+      description: 'Client id of the Microsoft app registration for the owner mailbox (Mail.Send). Empty turns the mailbox off.',
+    }),
+    /** A4 part 2: the client secret of that registration (the server is a confidential client). */
+    MATTERS_MS_CLIENT_SECRET: defineSecret('MATTERS_MS_CLIENT_SECRET'),
+    /**
+     * A4 part 2: AES-256-GCM key for the stored refresh tokens (32 bytes, base64 or hex). Several
+     * keys separated by commas rotate: the first encrypts, every one decrypts.
+     */
+    MATTERS_MAILBOX_KEY: defineSecret('MATTERS_MAILBOX_KEY'),
   };
   return mattersParamsCache;
 }
@@ -546,6 +562,9 @@ export const MATTERS_PARAM_NAMES = [
   'MATTERS_MONTHLY_MATTERS',
   'MATTERS_MONTHLY_EMAILS',
   'MATTERS_MONTHLY_VOICE_MINUTES',
+  'MATTERS_MS_CLIENT_ID',
+  'MATTERS_MS_CLIENT_SECRET',
+  'MATTERS_MAILBOX_KEY',
 ] as const;
 
 type MattersParams = {
@@ -564,6 +583,9 @@ type MattersParams = {
   MATTERS_MONTHLY_MATTERS: ReturnType<typeof defineInt>;
   MATTERS_MONTHLY_EMAILS: ReturnType<typeof defineInt>;
   MATTERS_MONTHLY_VOICE_MINUTES: ReturnType<typeof defineInt>;
+  MATTERS_MS_CLIENT_ID: ReturnType<typeof defineString>;
+  MATTERS_MS_CLIENT_SECRET: ReturnType<typeof defineSecret>;
+  MATTERS_MAILBOX_KEY: ReturnType<typeof defineSecret>;
 };
 let mattersParamsCache: MattersParams | undefined;
 
@@ -608,6 +630,10 @@ export const MATTERS_TUNING = {
   switchCacheMs: 30_000,
   /** A4: closed matters whose emails one tick deletes (MATTERS_RETENTION_DAYS). */
   tickPurgeBatch: 20,
+  /** A4 part 2: per-request timeout against login.microsoftonline.com and Graph. */
+  graphTimeoutMs: 10_000,
+  /** A4 part 2: how long a "Connect your mailbox" sign-in may take (its state expires then). */
+  mailboxStateTtlMs: 10 * 60_000,
 } as const;
 
 /** Parses MATTERS_ALLOWED_UIDS; '*' allows everyone. */

@@ -64,7 +64,7 @@ import {
   type MatterCaller,
   type MatterDeps,
 } from './handlers';
-import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, EmailSendError, composeMatterEmail, fromAddress, newMessageId, type OutboundEmail } from './email';
+import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, EmailSendError, composeMatterEmail, fromAddress, newMessageId, senderFor, type OutboundEmail } from './email';
 import { claimSend } from './allowance';
 import { COST_RATES, spendAllows } from './cost';
 import { guardReply } from './guard';
@@ -757,7 +757,7 @@ export async function sendCard(uid: string, matterId: string, cardId: string, ca
   const contacts = email.to.join(', ');
   let result: { providerId: string; test?: boolean };
   try {
-    result = await deps.sender().send(email);
+    result = await senderFor(deps, uid, matter).send(email);
   } catch (error) {
     if (!(error instanceof EmailSendError)) throw error; // the claim stays 'sending': never resent
     (error.kind === 'configuration' ? logger.error : logger.warn)('matters.reply_send_failed', { uid, matterId, kind: error.kind, code: error.code });
@@ -1201,7 +1201,7 @@ async function sendFollowUp(uid: string, matterId: string, plan: Extract<TickPla
     });
   };
   try {
-    const result = await deps.sender().send(email);
+    const result = await senderFor(deps, uid, doc).send(email);
     await recordSent(result.test ? 'test' : 'sent', result.providerId, 'follow_up_sent');
     logger.info('matters.follow_up_sent', { uid, matterId, number: plan.number });
   } catch (error) {

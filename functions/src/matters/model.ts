@@ -72,6 +72,9 @@ export const MATTER_RETENTION_COLLECTION = 'matterRetention';
 export const MATTER_SPEND_COLLECTION = 'matterSpend';
 export const MATTER_SETTINGS_COLLECTION = 'matterSettings';
 export const MATTER_SETTINGS_DOC = 'global';
+// A4 part 2: the owner's Microsoft mailbox (server only; both carry the uid for deleteAccount)
+export const MATTER_MAILBOXES_COLLECTION = 'matterMailboxes';
+export const MATTER_MAILBOX_STATES_COLLECTION = 'matterMailboxStates';
 export const matterSpendId = (dayKey: string, uid: string) => `${dayKey}_${uid}`;
 export const usageMonthPath = (uid: string, monthKey: string) => `usage/${uid}/months/${monthKey}`;
 
@@ -241,12 +244,24 @@ export type FirstEmail = z.infer<typeof firstEmailSchema>;
  * back the hash of the version it showed; any later change gives another hash, so a stale screen
  * can never confirm something the user did not read.
  */
-export function draftHash(mandate: Mandate, firstEmail: FirstEmail, scheduling: SchedulingMode = 'ask'): string {
+export function draftHash(mandate: Mandate, firstEmail: FirstEmail, scheduling: SchedulingMode = 'ask', mailbox: string | null = null): string {
   // A3: automatic booking is part of what the user confirms (the read-back says it), so it is in
   // the hash; 'ask' adds nothing, so every matter confirmed before A3 keeps its hash
   const scheduled = scheduling === 'auto' ? { scheduling } : {};
-  return createHash('sha256').update(canonicalJson({ firstEmail, mandate, ...scheduled })).digest('hex');
+  // A4 part 2: sending from the owner's mailbox (and which one) is confirmed too; the assistant's
+  // own address adds nothing, so every earlier matter keeps its hash
+  const from = mailbox ? { mailbox: mailbox.trim().toLowerCase() } : {};
+  return createHash('sha256').update(canonicalJson({ firstEmail, mandate, ...scheduled, ...from })).digest('hex');
 }
+
+/** A4 part 2: the mailbox a matter sends from (null: the assistant's own address). */
+export function mailboxOf(doc: { sendFrom?: SendFrom; mailboxAddress?: string | null }): string | null {
+  return doc.sendFrom === 'mailbox' && doc.mailboxAddress ? doc.mailboxAddress : null;
+}
+
+/** A4 part 2: where a matter's emails go out from (fixed with the draft, part of its hash). */
+export const SEND_FROM = ['assistant', 'mailbox'] as const;
+export type SendFrom = (typeof SEND_FROM)[number];
 
 /**
  * A3: how the assistant books the meeting of a matter, fixed when the draft is written:
@@ -455,6 +470,11 @@ const matterDocShape = {
     // ---- A4 ----
     /** When the email texts of this closed matter were deleted (MATTERS_RETENTION_DAYS); null until then. */
     purgedAt: isoDateTimeSchema.nullable().default(null),
+    // ---- A4 part 2 ----
+    /** SEND_FROM: the assistant's address, or the owner's connected Microsoft mailbox (mailboxAddress). */
+    sendFrom: z.enum(SEND_FROM).default('assistant'),
+    /** The mailbox it sends from when sendFrom is 'mailbox'; part of the confirmed hash. */
+    mailboxAddress: emailSchema.nullable().default(null),
 };
 
 /** What the functions WRITE: strict, nothing outside the model. */

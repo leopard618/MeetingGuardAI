@@ -18,20 +18,24 @@
  *          sends twice) / not sent (refused: retry = the same confirm) / unknown (no clear answer:
  *          it may have gone out, so no retry; the copy sentence only with a copy and not after a
  *          406) / cancelled; until cancelled, the matter can still be cancelled from here
+ * A4 part 2, the owner's Microsoft mailbox: under the usage meter, "Connect your mailbox" (the
+ * server's Microsoft sign-in in the system browser; the status is asked again when it comes back)
+ * or the connected address with "Disconnect" (asks first). A draft shows "Send from my mailbox"
+ * while one is connected; switching it redrafts the read-back and the first email (new hash).
  * Every string lives in the "matters" namespace (EN + ES). Nothing typed is logged.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Text, TextInput } from 'react-native-paper';
+import { Alert, StyleSheet, View } from 'react-native';
+import { Switch, Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
-import type { MatterConfirmResponse, MatterDraftResponse, MatterSendOutcome, MatterUsageResponse } from '../../core/aiContract';
+import type { MatterConfirmResponse, MatterDraftResponse, MatterMailboxResponse, MatterSendOutcome, MatterUsageResponse } from '../../core/aiContract';
 import { toAppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
 import { toBaseLanguage } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
-import { matterService, type MatterOpenItem } from '../../services/matters';
+import { matterService, openMailboxSignIn, type MatterOpenItem } from '../../services/matters';
 import { spacing, useAppTheme } from '../../theme';
 import { voiceCommand } from '../assistant/voiceModel';
 import { ScreenBody, Section } from '../shared/Section';
@@ -43,7 +47,7 @@ import { useMatterVoice } from './useMatterVoice';
 export { matterErrorKey };
 
 
-type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | null;
+type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | 'mailbox' | null;
 type Done = { kind: 'sent' } | { kind: 'sending' } | { kind: 'not_sent' } | { kind: 'unknown'; inactiveRecipient: boolean } | { kind: 'cancelled' };
 
 function doneFor(result: MatterConfirmResponse): Done {
@@ -69,6 +73,8 @@ export function MattersScreen(): ReactElement {
   const [openMatterId, setOpenMatterId] = useState<string | null>(null);
   /** A4: the usage meter; null while unknown (it is a convenience: a failed read shows nothing). */
   const [usage, setUsage] = useState<MatterUsageResponse | null>(null);
+  /** A4 part 2: the Microsoft mailbox; null while unknown (hidden then, like the meter). */
+  const [mailbox, setMailbox] = useState<MatterMailboxResponse | null>(null);
   /** A3: the matter was dictated, so the assistant answers aloud. */
   const [spoken, setSpoken] = useState(false);
   const base = toBaseLanguage(language); // M12: the executive assistant stays en/es
@@ -76,9 +82,18 @@ export function MattersScreen(): ReactElement {
   // every state update comes after the await (react-hooks/set-state-in-effect); the list is a
   // convenience, so a failed read (or the assistant off) simply shows none
   const loadOpen = useCallback(async (): Promise<void> => {
-    const [list, meter] = await Promise.all([matterService.listOpen().catch((): MatterOpenItem[] => []), Promise.resolve().then(() => matterService.usage()).catch(() => null)]);
+    const [list, meter, box] = await Promise.all([
+      matterService.listOpen().catch((): MatterOpenItem[] => []),
+      Promise.resolve()
+        .then(() => matterService.usage())
+        .catch(() => null),
+      Promise.resolve()
+        .then(() => matterService.mailboxStatus())
+        .catch(() => null),
+    ]);
     setOpenMatters(list);
     setUsage(meter);
+    setMailbox(box);
   }, []);
 
   useEffect(() => {
@@ -123,6 +138,40 @@ export function MattersScreen(): ReactElement {
       setDraft(next);
       setAnswer('');
       sayDraft(next, spoken);
+    });
+
+  // A4 part 2: the sign-in happens in the browser; only the server knows how it ended
+  const connectMailbox = (): Promise<void> =>
+    run('mailbox', async () => {
+      const link = await matterService.mailboxConnectLink(base);
+      if (!link.authUrl) return;
+      await openMailboxSignIn(link.authUrl);
+      const status = await matterService.mailboxStatus();
+      setMailbox(status);
+      Toast.show({ type: status.connected ? 'success' : 'info', text1: t(status.connected ? 'matters:mailbox.connected' : 'matters:mailbox.notConnected') });
+    });
+
+  const disconnectMailbox = (): void => {
+    Alert.alert(t('matters:mailbox.disconnectTitle'), t('matters:mailbox.disconnectMessage'), [
+      { text: t('matters:mailbox.disconnectKeep'), style: 'cancel' },
+      {
+        text: t('matters:mailbox.disconnectConfirm'),
+        style: 'destructive',
+        onPress: () =>
+          void run('mailbox', async () => {
+            setMailbox(await matterService.mailboxDisconnect());
+            Toast.show({ type: 'success', text1: t('matters:mailbox.disconnected') });
+          }),
+      },
+    ]);
+  };
+
+  const sendFromMailbox = (on: boolean): Promise<void> =>
+    run('mailbox', async () => {
+      if (!draft) return;
+      const result = await matterService.sendFrom(draft.matterId, on);
+      setMailbox({ available: result.available, connected: result.connected, address: result.address });
+      if (result.draft) setDraft(result.draft);
     });
 
   const confirm = (): Promise<void> =>
@@ -321,6 +370,41 @@ export function MattersScreen(): ReactElement {
             </Text>
           </View>
         ) : null}
+        {mailbox?.available ? (
+          <Section title={t('matters:mailbox.title')} testID="matters-mailbox">
+            <ListGroup>
+              {mailbox.connected ? (
+                <>
+                  <ListRow
+                    icon="microsoft-outlook"
+                    title={t('matters:mailbox.connectedAs', { address: mailbox.address ?? '' })}
+                    supporting={t('matters:mailbox.connectedHint')}
+                    testID="matters-mailbox-address"
+                  />
+                  <ListRow
+                    icon="link-variant-off"
+                    title={t('matters:mailbox.disconnect')}
+                    onPress={disconnectMailbox}
+                    disabled={busy !== null}
+                    accessibilityRole="button"
+                    testID="matters-mailbox-disconnect"
+                  />
+                </>
+              ) : (
+                <ListRow
+                  icon="microsoft-outlook"
+                  title={t('matters:mailbox.connect')}
+                  supporting={t('matters:mailbox.connectHint')}
+                  trailing="chevron"
+                  onPress={() => void connectMailbox()}
+                  disabled={busy !== null}
+                  accessibilityRole="button"
+                  testID="matters-mailbox-connect"
+                />
+              )}
+            </ListGroup>
+          </Section>
+        ) : null}
         {openMatters && openMatters.length > 0 ? (
           <Section title={t('matters:ask.title')} testID="matters-ask-section">
             <AskPanel
@@ -378,6 +462,24 @@ export function MattersScreen(): ReactElement {
               {draft.readBack}
             </Text>
           </Section>
+          {mailbox?.connected ? (
+            <ListGroup>
+              <ListRow
+                icon="microsoft-outlook"
+                title={t('matters:mailbox.sendFromMine')}
+                supporting={draft.sendFrom === 'mailbox' ? (mailbox.address ?? '') : t('matters:mailbox.sendFromAssistant')}
+                trailing={
+                  <Switch
+                    value={draft.sendFrom === 'mailbox'}
+                    onValueChange={(on) => void sendFromMailbox(on)}
+                    disabled={busy !== null}
+                    testID="matters-send-from"
+                  />
+                }
+                testID="matters-send-from-row"
+              />
+            </ListGroup>
+          ) : null}
           <Section title={t('matters:email.title')} testID="matters-email">
             <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
               {t('matters:email.from', { value: draft.firstEmail.from })}

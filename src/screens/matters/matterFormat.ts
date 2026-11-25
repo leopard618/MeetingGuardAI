@@ -62,6 +62,8 @@ export const TIMELINE_TYPES = [
 const READABLE_DETAIL = new Set(['email_sent', 'email_received', 'email_bounced', 'meeting_booked', 'meeting_moved', 'reply_sent', 'follow_up_sent', 'email_unconfirmed']);
 
 export function timelineKey(event: MatterEventView): string {
+  // A4 part 2: a send refused because the owner's mailbox is not connected (or no longer allows it)
+  if (event.type === 'email_failed' && event.detail === 'mailbox') return 'matters:timeline.type.email_failed_mailbox';
   return (TIMELINE_TYPES as readonly string[]).includes(event.type) ? `matters:timeline.type.${event.type}` : 'matters:timeline.type.other';
 }
 

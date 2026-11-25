@@ -229,7 +229,8 @@
       "other": "Novedad",
       "meeting_moved": "Reunión movida",
       "message_drafted": "Correo listo para que lo envíes",
-      "emails_deleted": "Correos eliminados al terminar el plazo de conservación"
+      "emails_deleted": "Correos eliminados al terminar el plazo de conservación",
+      "email_failed_mailbox": "No se pudo enviar un correo: tu buzón no está conectado. Vuelve a conectarlo en la pantalla del asistente."
     }
   },
   "contact": {
@@ -259,5 +260,22 @@
   "usage": {
     "month": "Este mes: {{matters}} de {{mattersLimit}} asuntos, {{emails}} de {{emailsLimit}} correos.",
     "capReached": "Hoy se ha alcanzado el límite del asistente. Vuelve a funcionar mañana."
+  },
+  "mailbox": {
+    "title": "Tu buzón de Microsoft",
+    "connect": "Conectar tu buzón",
+    "connectHint": "El asistente puede enviar sus correos desde tu dirección de Outlook. Nunca lee tu buzón.",
+    "connectedAs": "Conectado: {{address}}",
+    "connectedHint": "Los asuntos nuevos se envían desde esta dirección. Las respuestas llegan al asistente.",
+    "disconnect": "Desconectar",
+    "disconnectTitle": "¿Desconectar tu buzón?",
+    "disconnectMessage": "El asistente deja de enviar desde él al momento. Los asuntos que envían desde él no se enviarán hasta que lo vuelvas a conectar.",
+    "disconnectConfirm": "Desconectar",
+    "disconnectKeep": "Mantenerlo",
+    "disconnected": "Buzón desconectado.",
+    "connected": "Buzón conectado.",
+    "notConnected": "El buzón no se ha conectado.",
+    "sendFromMine": "Enviar desde mi buzón",
+    "sendFromAssistant": "Desactivado: envía desde la dirección propia del asistente."
   }
 }
