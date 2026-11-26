@@ -14,7 +14,7 @@ The principle behind every control: **the model only suggests, code decides.** N
 | The mandate (whom, what, until when) | `users/{uid}/matters/{id}` | Limits what the assistant may do |
 | The sending domain's reputation | Postmark, DNS of `assistant.meetingguard.ai` | One abused domain stops mail for every user |
 | The owner's calendar and tasks | `users/{uid}/meetings`, `users/{uid}/tasks` | The assistant books meetings and proposes tasks |
-| The owner's Microsoft mailbox (A4 part 2) | Microsoft Graph, a refresh token kept encrypted on the server | Whoever steals it can send email as the owner (sending only: the app has no permission to read the mailbox) |
+| The owner's Microsoft mailbox (A4 part 2) | Microsoft Graph, a refresh token kept encrypted on the server (`matterMailboxes`) | Whoever steals it can send email as the owner (sending only: the app has no permission to read the mailbox) |
 | Money | OpenAI, Postmark | Model calls and emails cost per use |
 
 ## 2. Who might attack, and how
@@ -121,39 +121,49 @@ A user, a bug or a flood makes the assistant spend money without limit.
 |---|---|---|
 | Deploy-time gate `MATTERS_ENABLED` and the tester list `MATTERS_ALLOWED_UIDS` | `index.ts`, `handlers.ts requireCaller` | `mattersIndex.test.ts` |
 | **A4:** a runtime switch, `matterSettings/global.enabled`, set by an admin from the dashboard (`matterAdminSwitch`) without a deploy. Every instance sees it within 30 seconds. Off: the callables answer not_configured, matterTick sends and reads nothing, replies are stored and wait in the read queue. Cancel and delete keep working | `switch.ts`, `index.ts liveDeps`, `replies.ts` | `mattersA4.test.ts` |
-| A failed read of the switch keeps the last known value: an outage never turns a confirmed "off" back on | `switch.ts createRuntimeSwitch` | `mattersA4.test.ts` |
+| A failed read of the switch keeps the last known value: an outage never turns a confirmed "off" back on. Before an instance has read it once, a failed read counts as off (fail closed, after Dusko's review) and is retried on the next call | `switch.ts createRuntimeSwitch` | `mattersA4.test.ts` |
 
 ### T9. Stolen access to the owner's Microsoft mailbox (A4 part 2)
 
-Design after Dusko's review of November 24, 2026: the assistant **sends** from the owner's mailbox but never **reads** it. Replies come to our own inbound through Reply-To (T1), and a thread is watched by forwarding it to the assistant. So the app asks only for `Mail.Send` and `offline_access`, never `Mail.Read`, and the question of which mailbox threads may be processed does not arise: nothing in the mailbox can be read.
+Design after Dusko's review of November 24, 2026: the assistant **sends** from the owner's mailbox but never **reads** it. Replies come to our own inbound through Reply-To (T1), and a thread is watched by forwarding it to the assistant. So the app asks only for `Mail.Send`, `User.Read` (the mailbox's own address) and `offline_access`, never `Mail.Read`, and the question of which mailbox threads may be processed does not arise: nothing in the mailbox can be read.
+
+Built in `functions/src/matters/mailbox.ts` (connect, callback, sender), `graph.ts` (the only Microsoft calls), `mailboxCrypto.ts` (encryption) and `watch.ts` ("Watch this thread"); tested in `functions/test/unit/mattersMailbox.test.ts` (T9.1 to T9.10 below) and `mattersWatch.test.ts` (T9.11 to T9.15).
 
 | Control | Status |
 |---|---|
-| A separate Microsoft app registration for the mailbox, apart from the calendar app: an admin who allows the calendar does not allow mail by that, and an admin who refuses mail does not block the calendar. Created and managed by Dusko | A4 part 2 |
-| Two permissions only, `Mail.Send` and `offline_access`, fixed in code and asked for in a separate "Connect your mailbox" step, never at sign-in. No admin consent step unless a tenant blocks user consent | A4 part 2 |
-| The server does the sign-in exchange itself, as a confidential client: a Web redirect URI on our function, a client secret set by Dusko as a Firebase secret (never in Firestore, the app or chat), PKCE, and a `state` tied to the signed-in uid, single use and short-lived. A code returned with another user's or an old `state` is refused | A4 part 2 |
-| The refresh token is kept on the server only, encrypted with AES-256-GCM: a random 12-byte nonce for each record, the uid and mailbox address as associated data (a record copied to another user or mailbox cannot be decrypted), and a key id in front so the key can be rotated. The key is the secret `MATTERS_MAILBOX_KEY`, set by Dusko; Cloud KMS is looked at again in A9. Access tokens live only in memory for one call | A4 part 2 |
-| The refresh token and access tokens are never sent to the app, never in a document the app can read, never in the admin dashboard and never in logs | A4 part 2 |
-| Our Graph code can call only the token endpoint and `sendMail`; it has no call that lists, searches or reads mail | A4 part 2 |
-| Every email sent from the mailbox sets Reply-To to the matter address, so replies arrive at our inbound with the DKIM check of T1 | A4 part 2 |
-| Sending from the mailbox is allowed per matter, fixed when the mandate is confirmed (part of its hash), and goes through the same send check, caps and approval as the assistant's own address | A4 part 2 |
-| Watching a thread: the owner forwards it to the assistant. A forward starts a watch only when it comes from the owner's connected mailbox address with DKIM aligned; even then it becomes a "Watch this thread?" card, and nothing is sent until the owner confirms in the app. The quoted messages inside a forward are not verified and are treated as data only | A4 part 2 |
-| Pausing a matter or a watched thread stops sending for it; replies that arrive meanwhile are stored unread and processed once after resume | A4 part 2 |
-| Disconnecting the mailbox, account deletion, or Microsoft refusing the token (revoked or expired) deletes the stored refresh token at once and stops all sending from the mailbox. A send that was already approved fails safely with a card; it never falls back silently to another address | A4 part 2 |
-| The runtime switch off (T8) stops every send from the mailbox too | A4 part 2 |
+| A separate Microsoft app registration for the mailbox ("Meeting Guard AI Mailbox"), apart from the calendar app: an admin who allows the calendar does not allow mail by that, and an admin who refuses mail does not block the calendar. Created and managed by Dusko | Done (Dusko) |
+| Three delegated permissions only, `Mail.Send`, `User.Read` (to read the mailbox's own address) and `offline_access`, fixed in code (`graph.ts MAILBOX_SCOPES`) and asked for in a separate "Connect your mailbox" step, never at sign-in. No admin consent step unless a tenant blocks user consent. A consent without `Mail.Send` stores nothing | Done (T9.1, T9.2) |
+| The server does the sign-in exchange itself, as a confidential client: a Web redirect URI on our function (`matterMailboxCallback`), the client secret `MATTERS_MS_CLIENT_SECRET` set by Dusko as a Firebase secret (never in Firestore, the app or chat), PKCE (S256), and a `state` tied to the signed-in uid, single use and valid 10 minutes. The answer comes back as a form POST (`form_post`), so the code is never in a URL or a request log | Done (T9.2) |
+| The refresh token is kept on the server only (`matterMailboxes/{uid}`, no client rule), encrypted with AES-256-GCM: a random 12-byte nonce for each record, the uid and mailbox address as associated data (a record copied to another user or mailbox cannot be decrypted), and a key id in front so the key can be rotated (`MATTERS_MAILBOX_KEY` may list several keys: the first encrypts, every one decrypts). The key is set by Dusko; Cloud KMS is looked at again in A9. The PKCE verifier of a sign-in in progress is encrypted the same way. Access tokens live only in memory for one call; a rotated refresh token replaces the stored one | Done (T9.3) |
+| The refresh token and access tokens are never sent to the app, never in a document the app can read, never in the admin dashboard and never in logs | Done (T9.4) |
+| Our Graph code can call only the token endpoint, `/me` (the address) and `sendMail`; it has no call that lists, searches or reads mail | Done (T9.1) |
+| Every email sent from the mailbox sets Reply-To to the matter address, so replies arrive at our inbound with the DKIM check of T1 | Done (T9.5) |
+| Sending from the mailbox is allowed per matter, fixed when the mandate is confirmed (the mailbox address is part of its hash, and the read-back says so), and goes through the same send check, caps and approval as the assistant's own address. A mailbox matter never falls back to the assistant's address, and another mailbox connected later never sends it | Done (T9.5, T9.6, T9.8) |
+| Watching a thread: the owner forwards it to the assistant's own address. A forward starts a watch only when it comes from the address of exactly one connected mailbox, with DKIM aligned (our own check, `mailCheck.ts` 'trusted'), from an owner on the tester list while the switch is on; anything else keeps nothing but the dedupe marker. Even then it only becomes a card ("Watch a thread"); the model drafts the reply only when the owner opens the card, and nothing is sent until the owner confirms the draft in the app. The forwarded messages are not verified: code (`watch.ts parseForward`) keeps the newest one only, the model sees it fenced as data, and the only address it adds is the sender the forward names, which the owner sees in the read-back. A card waits at most 7 days and makes one draft: it stays ("draft ready") so the owner can return to that draft, and goes once the draft is confirmed or cancelled (`matterWatches`, server only, removed with the account) | Done (T9.11 to T9.15) |
+| Pausing a matter or a watched thread stops sending for it; replies that arrive meanwhile are stored unread and processed once after resume | Done (T9.7; a watched thread is a matter, T9.14) |
+| Disconnecting the mailbox, account deletion, or Microsoft refusing the access (`invalid_grant` on refresh, or 401/403 on sending) deletes the stored refresh token at once and stops all sending from the mailbox. A send that was already approved fails safely: the timeline says the mailbox is not connected; it never falls back silently to another address and is not retried with the old token | Done (T9.8, T9.9; `deleteAccount.ts` lists `matterMailboxes` and `matterMailboxStates`) |
+| The runtime switch off (T8) stops every send from the mailbox too, and a sign-in that comes back while it is off connects nothing | Done (T9.2, T9.10) |
 
-Tests to be written in part 2 (`mattersMailbox.test.ts`), including the ones Francisco asked for:
+Tests (`functions/test/unit/mattersMailbox.test.ts`), including the ones Francisco asked for:
 
-1. Only `Mail.Send` and `offline_access` are requested; the Graph client offers no read call (a test fails if one is added).
-2. Sign-in: a code with another uid's `state`, a reused or expired `state`, or a wrong PKCE verifier is refused and nothing is stored.
-3. Encryption: a record decrypts only with its own uid and mailbox; a changed byte fails; a record under the previous key id still decrypts after rotation, and new records use the new key.
-4. No token in a Firestore document the app can read, in a function response, or in a log line.
-5. Every email sent from the mailbox carries Reply-To with the matter address; its reply arrives through the inbound and passes the T1 checks.
-6. A forward from anyone other than the owner's connected mailbox, or without aligned DKIM, starts nothing; a valid one only creates the card.
-7. A paused matter and a paused watched thread send nothing; a reply that arrives while paused is processed once after resume, and other matters are not affected.
-8. Disconnecting stops all sending from the mailbox for every matter of the owner and deletes the stored token; an approved send then fails with a card.
-9. Microsoft answering `invalid_grant` (revoked or expired) is handled like a disconnect: the owner is told and the old token is not retried. An expired client secret (`invalid_client`) fails safely with a card, without retry storms.
+1. Only `Mail.Send`, `User.Read` and `offline_access` are requested and the code comes back in a POST body; the Graph code has no read call (the test fails if one is added).
+2. Sign-in: a reused, unknown, malformed or expired `state`, a wrong PKCE verifier, a denial or a consent without `Mail.Send` stores nothing; connecting needs the tester list and the switch on.
+3. Encryption: a record decrypts only with its own uid and mailbox; a changed byte fails; a fresh nonce each time; a record under the previous key still decrypts after rotation, new records use the new key; a weak key is refused.
+4. No token, code or client secret in the stored record, a function response or a log line.
+5. A new draft sends from the connected mailbox; the read-back and the hash say so, and switching back is a new version. Confirming sends through Graph with Reply-To the matter address and nothing through the assistant's address; the contact's reply comes back through the inbound; an approved reply also goes out through the mailbox; a rotated refresh token is stored.
+6. A draft sends from the mailbox only while one is connected, and only a draft can change it.
+7. A paused matter sends nothing from the mailbox: no approved reply, no follow-up.
+8. Disconnecting (always allowed, even off the tester list) deletes the access; a later approved reply fails with a timeline entry and nothing goes out from another address; follow-ups fail without calling Microsoft. A different mailbox connected later never sends a matter confirmed for the first one.
+9. Microsoft answering `invalid_grant` is handled like a disconnect and not retried; a refused send (401) also deletes the access; an expired client secret (`invalid_client`) fails safely and keeps it.
 10. With the runtime switch off, nothing is sent from the mailbox.
+
+"Watch this thread" (`functions/test/unit/mattersWatch.test.ts`):
+
+11. A forward from anyone other than the owner's connected mailbox, without an aligned DKIM signature, without the sender check, while the assistant is off for the owner, from an address two accounts connected, as an automatic reply, without a forward in it, or past 10 waiting, starts nothing; a verified one only creates the card (no model call, no email); the same forward twice is one card.
+12. The card: only its owner sees, drafts or removes it; removing is always allowed; without a connected mailbox it cannot be opened; it is deleted after 7 days, also by the tick while the assistant is off; it makes one draft, opens that same draft again without a model call, and goes once the draft is confirmed or cancelled.
+13. The draft: one model call with the forward fenced as data (it cannot close its own fence); its sender is the contact, an address quoted inside it never is; "Re:" its subject; nothing is sent until the owner confirms, then from the mailbox with Reply-To the matter address; the usual limits apply and a failed draft keeps the card; a redraft keeps the forward.
+14. A watched thread runs like any matter: the reply read sees the forward as data; paused, it sends nothing.
+15. No address, subject or text of a forward in any log line.
 
 If `Mail.Read` is ever added, mail read through Graph needs its own sender check (T1 checks DKIM on the raw email, which Graph does not give in the same form), reading is limited to the matter and watched conversations, and the thread tests above are extended before it is turned on.
 
@@ -180,7 +190,7 @@ If `Mail.Read` is ever added, mail read through Graph needs its own sender check
 | Model reads per matter per day | 10 | `MATTER_CAPS.readsPerDay` |
 | Exchanges per matter per day | 6 | `MATTER_CAPS.exchangesPerDay` |
 | Emails kept after a matter closes | 90 days | `MATTERS_RETENTION_DAYS` (A4) |
-| Microsoft mailbox permissions | `Mail.Send` and `offline_access` only | the mailbox app registration (A4 part 2) |
+| Microsoft mailbox permissions | `Mail.Send`, `User.Read` and `offline_access` only | `graph.ts MAILBOX_SCOPES`, the mailbox app registration (A4 part 2) |
 
 The temporary tester values (150 drafts and 150 emails a day) go back to 30 before the beta.
 
@@ -193,10 +203,11 @@ The temporary tester values (150 drafts and 150 emails a day) go back to 30 befo
 5. **Matters that closed before A4 have no retention entry.** Only test matters exist; they can be deleted by hand.
 6. **A contact can ignore Reply-To and answer the owner's address directly** (A4 part 2). The owner gets that reply in their own inbox; the assistant does not see it and may still send a follow-up. The owner can pause or close the matter.
 7. **The mailbox client secret expires** (Microsoft allows at most 24 months). Until Dusko renews it, connecting and sending from mailboxes fail safely with a card; emails from the assistant's own address keep working.
+8. **Emails sent from the owner's mailbox carry Microsoft's own Message-ID** (`sendMail` cannot set ours or In-Reply-To). Replies still reach the matter through the Reply-To address; a contact's mail program may group a follow-up as a new conversation. Bounces of those emails go to the owner's mailbox, not to our delivery webhook.
 
 ## 6. Sign-off
 
 | | Name | Date | Signature |
 |---|---|---|---|
-| Written by | Sven | November 23, 2026 | |
+| Written by | Sven | November 23, 2026 (updated November 25, 2026) | |
 | Reviewed and signed by | Dusko | | |

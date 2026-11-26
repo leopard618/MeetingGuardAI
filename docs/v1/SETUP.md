@@ -1269,6 +1269,23 @@ the model's real prices; while they are 0 the cap uses high fallback prices. The
 the assistant off without a deploy is `matterSettings/global` (`{ "enabled": false }`), set from
 the admin dashboard with matterAdminSwitch or in the Firestore console.
 
+A4 part 2, the owner's Microsoft mailbox (docs/v2/A4-THREAT-MODEL.md T9). Its own app
+registration, "Meeting Guard AI Mailbox" (Dusko), with the delegated permissions `Mail.Send`,
+`User.Read` and `offline_access` only, and a Web redirect URI to our callback:
+`https://us-central1-<project>.cloudfunctions.net/matterMailboxCallback`. `MATTERS_MS_CLIENT_ID`
+is its client id (public; the default is the production one, empty turns the mailbox off). Two
+secrets, set by Dusko and bound only to matterMailbox, matterMailboxCallback and the functions
+that send: `MATTERS_MS_CLIENT_SECRET` (the registration's client secret; it expires, renew it
+before then) and `MATTERS_MAILBOX_KEY` (32 random bytes as base64 or 64 hex characters, for
+example `openssl rand -base64 32`; to rotate, put the new key first and keep the old one after a
+comma). No rule or index: `matterMailboxes` and `matterMailboxStates` are server-only.
+
+"Watch this thread" (A4 part 2) needs nothing new to set up: the owner forwards an email from the
+connected mailbox to the assistant's own address (`assistant@<MATTERS_MAIL_DOMAIN>`), which
+already reaches assistantInboundEmail through the Postmark inbound domain. The callable
+matterWatch (OPENAI_API_KEY only) lists the waiting forwards and drafts from one. No rule or index:
+`matterWatches` is server-only and queried on single fields (uid, expiresAt).
+
 A full or by-name deploy also needs every declared param of the codebase in the deployer's
 `.env.<projectId>`, the summaries ones included (`SUMMARIES_ENABLED=false` and empty
 `SUMMARIES_PILOT_UIDS`, `SUMMARIES_ADDRESS_TEMPLATE` and `SUMMARIES_SENDERS` when you do not
@@ -1277,7 +1294,7 @@ run summaries); a non-interactive deploy stops on a missing one before deploying
 Deploy only the matter functions by name (CONTRIBUTING, "Deploying"):
 
 ```bash
-npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents,functions:matterSetStatus,functions:matterChange,functions:matterAsk,functions:matterSpeak,functions:matterMessage,functions:matterMove,functions:matterDelete,functions:matterUsage,functions:matterAdminSwitch,functions:matterAdminUsage
+npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents,functions:matterSetStatus,functions:matterChange,functions:matterAsk,functions:matterSpeak,functions:matterMessage,functions:matterMove,functions:matterDelete,functions:matterUsage,functions:matterAdminSwitch,functions:matterAdminUsage,functions:matterMailbox,functions:matterMailboxCallback,functions:matterWatch
 ```
 
 No Firestore index is needed: the A2 queues (`matterSchedule`, `matterReadQueue`) are top-level

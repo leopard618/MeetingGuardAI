@@ -383,6 +383,9 @@ function activeMatter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     pendingChange: null,
     usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0, emails: 0, speechChars: 0 },
     purgedAt: null,
+    sendFrom: 'assistant',
+    mailboxAddress: null,
+    watch: null,
     ...overrides,
   };
   return base;

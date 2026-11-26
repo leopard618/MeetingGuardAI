@@ -28,7 +28,7 @@ import * as logger from 'firebase-functions/logger';
 
 import { matterChangeRequestSchema, matterSetStatusRequestSchema, usageDayKey, type MatterDraftResponse, type MatterSetStatusResponse } from '../shared/aiContract';
 import { changeView, event, matterError, readable, requireCaller, requireSignedIn, runDraft, type MatterCaller, type MatterDeps, type Tokens } from './handlers';
-import { MATTER_LIMITS, changeHash, draftHash, withModelCall, type MatterDoc, type PendingChange } from './model';
+import { MATTER_LIMITS, changeHash, draftHash, mailboxOf, withModelCall, type MatterDoc, type PendingChange } from './model';
 import { nextActionAt } from './schedule';
 import { QUESTIONS, readBack } from './text';
 
@@ -129,7 +129,8 @@ async function draftChange(caller: MatterCaller, matterId: string, text: string,
   const result = await runDraft(
     deps,
     caller.uid,
-    { request, language: current.language, timeZone: current.timeZone, ownerName: current.ownerName, ownerEmail: current.ownerEmail, now, domain: deps.domain },
+    // a watched thread keeps the email it answers (its sender stays a known contact)
+    { request, language: current.language, timeZone: current.timeZone, ownerName: current.ownerName, ownerEmail: current.ownerEmail, now, domain: deps.domain, thread: current.watch },
     (t) => {
       tokens = t;
     },
@@ -145,7 +146,7 @@ async function draftChange(caller: MatterCaller, matterId: string, text: string,
     request,
     mandate,
     questions,
-    readBack: mandate ? readBack(mandate, current.ownerEmail, current.language, current.scheduling) : '',
+    readBack: mandate ? readBack(mandate, current.ownerEmail, current.language, current.scheduling, mailboxOf(current)) : '',
     hash: mandate && questions.length === 0 ? changeHash(mandate, current.scheduling) : null,
     createdAt: nowIso,
   };
@@ -174,7 +175,7 @@ async function confirmChange(caller: MatterCaller, matterId: string, hash: strin
       ...doc,
       mandate: change.mandate,
       readBack: change.readBack,
-      confirmedHash: draftHash(change.mandate, doc.firstEmail, doc.scheduling),
+      confirmedHash: draftHash(change.mandate, doc.firstEmail, doc.scheduling, mailboxOf(doc)),
       mandateVersion: doc.mandateVersion + 1,
       pendingChange: null,
       offeredSlots: [],

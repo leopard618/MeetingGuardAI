@@ -143,6 +143,10 @@ export const CALLABLES = {
   // A4: delete a matter, the usage meter
   matterDelete: 'matterDelete',
   matterUsage: 'matterUsage',
+  // A4 part 2: the owner's Microsoft mailbox (status, connect, disconnect, send a draft from it)
+  matterMailbox: 'matterMailbox',
+  // A4 part 2: "Watch this thread" (forwards from the owner's mailbox waiting as cards)
+  matterWatch: 'matterWatch',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -2226,6 +2230,23 @@ export const matterDraftResponseSchema = z.object({
    * told (the goal, what is asked, the end date or the meeting), so the app offers to let them know.
    */
   letThemKnow: z.boolean().optional(),
+  /**
+   * A4 part 2: where this draft's emails go out from: the assistant's own address, or the owner's
+   * connected Microsoft mailbox (firstEmail.from shows which). Part of what the owner confirms.
+   */
+  sendFrom: z.enum(['assistant', 'mailbox']).optional(),
+  /**
+   * A4 part 2, "Watch this thread": the email the owner forwarded, which the first email answers.
+   * Someone else's words, shown so the owner sees what is answered; never instructions.
+   */
+  forwarded: z
+    .object({
+      fromName: z.string().nullable(),
+      fromEmail: z.string().nullable(),
+      subject: z.string(),
+      text: z.string(),
+    })
+    .optional(),
 });
 export type MatterDraftResponse = z.infer<typeof matterDraftResponseSchema>;
 
@@ -2656,6 +2677,74 @@ export const matterUsageResponseSchema = z.object({
   }),
 });
 export type MatterUsageResponse = z.infer<typeof matterUsageResponseSchema>;
+
+/**
+ * A4 part 2, matterMailbox: the owner's Microsoft mailbox (docs/v2/A4-THREAT-MODEL.md T9). The
+ * assistant only SENDS from it (Mail.Send); replies come to the matter address (Reply-To).
+ * - status: whether a mailbox is connected, and its address;
+ * - connect: a Microsoft sign-in link (authUrl) for the system browser; the server finishes the
+ *   sign-in (matterMailboxCallback) and sends the browser back to MATTER_MAILBOX_RETURN_URL;
+ * - disconnect: deletes the stored access at once (always allowed for the signed-in owner);
+ * - sendFrom: a draft sends from the mailbox (true) or from the assistant's address (false); the
+ *   answer carries the redrafted read-back and first email with a new draftHash.
+ * available is false when the mailbox is not set up on the server (no client id).
+ */
+export const MATTER_MAILBOX_RETURN_URL = 'meetingguardai://matters/mailbox';
+export const matterMailboxRequestSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('status') }).strict(),
+  z.object({ action: z.literal('connect'), language: z.enum(['en', 'es']).optional() }).strict(),
+  z.object({ action: z.literal('disconnect') }).strict(),
+  z.object({ action: z.literal('sendFrom'), matterId: matterIdSchema, mailbox: z.boolean() }).strict(),
+]);
+export type MatterMailboxRequest = z.infer<typeof matterMailboxRequestSchema>;
+export const matterMailboxResponseSchema = z.object({
+  available: z.boolean(),
+  connected: z.boolean(),
+  address: z.string().nullable(),
+  authUrl: z.string().url().optional(),
+  draft: matterDraftResponseSchema.optional(),
+});
+export type MatterMailboxResponse = z.infer<typeof matterMailboxResponseSchema>;
+
+/**
+ * A4 part 2, matterWatch: "Watch this thread". The owner forwards an email from their connected
+ * mailbox to the assistant's address (`address`). A forward our own sender check verifies as
+ * coming from that mailbox waits here as a card; nothing is drafted or sent until the owner acts:
+ * - list: the forwards waiting, newest first;
+ * - draft: turns one into a matter draft that answers it (the usual read-back, first email and
+ *   confirm); a forward makes one draft: asked again, it opens that draft, and the forward goes
+ *   once the draft is confirmed or cancelled;
+ * - dismiss: deletes one (always allowed for the signed-in owner).
+ */
+export const WATCH_ID_PATTERN = /^[a-f0-9]{40}$/;
+export const matterWatchRequestSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('list') }).strict(),
+  z.object({ action: z.literal('draft'), watchId: z.string().regex(WATCH_ID_PATTERN), language: languageSchema, timeZone: timeZoneSchema }).strict(),
+  z.object({ action: z.literal('dismiss'), watchId: z.string().regex(WATCH_ID_PATTERN) }).strict(),
+]);
+export type MatterWatchRequest = z.infer<typeof matterWatchRequestSchema>;
+export const matterWatchItemSchema = z.object({
+  watchId: z.string().regex(WATCH_ID_PATTERN),
+  /** Who wrote the forwarded email, as the forward names them (null when it does not say). */
+  fromName: z.string().nullable(),
+  fromEmail: z.string().nullable(),
+  subject: z.string(),
+  /** The start of the forwarded email. */
+  preview: z.string(),
+  receivedAt: isoDateTimeSchema,
+  /** Its draft exists and waits for the owner (draft opens it again). */
+  drafted: z.boolean().optional(),
+});
+export type MatterWatchItem = z.infer<typeof matterWatchItemSchema>;
+export const matterWatchResponseSchema = z.object({
+  /** Whether the owner can watch threads (the assistant on for them and a mailbox connected). */
+  available: z.boolean(),
+  /** Where to forward the email to; null when not available. */
+  address: z.string().nullable(),
+  items: z.array(matterWatchItemSchema),
+  draft: matterDraftResponseSchema.optional(),
+});
+export type MatterWatchResponse = z.infer<typeof matterWatchResponseSchema>;
 
 /** matterSpeak (demo only, MATTERS_NATURAL_VOICE): a spoken answer in a natural voice, and its measured size. */
 export const MATTER_SPEAK_MAX_CHARS = 1200;

@@ -1994,6 +1994,9 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   // A4: delete a matter, the usage meter.
   matterDelete: { request: 'matterDeleteRequestSchema', response: 'matterDeleteResponseSchema' },
   matterUsage: { request: 'matterUsageRequestSchema', response: 'matterUsageResponseSchema' },
+  // A4 part 2: the owner's Microsoft mailbox.
+  matterMailbox: { request: 'matterMailboxRequestSchema', response: 'matterMailboxResponseSchema' },
+  matterWatch: { request: 'matterWatchRequestSchema', response: 'matterWatchResponseSchema' },
 };
 
 // =============================================================================================

@@ -38,6 +38,9 @@ const FUNCTION_NAMES = [
   'matterInboundRead',
   'matterTick',
   'matterDeliveryEvents',
+  'matterMailbox',
+  'matterMailboxCallback',
+  'matterWatch',
 ] as const;
 
 function secretKeys(fn: unknown): string[] {
@@ -105,15 +108,23 @@ describe('matters functions: deploy gate', () => {
     const mod = loadModule(' TRUE ');
     expect(secretKeys(mod.matterDraft)).toEqual(['OPENAI_API_KEY']);
     expect(secretKeys(mod.matterRevise)).toEqual(['OPENAI_API_KEY']);
-    expect(secretKeys(mod.matterConfirm)).toEqual(['MATTERS_POSTMARK_TOKEN']);
+    // A4 part 2: every function that sends may send through the owner's mailbox
+    const MAILBOX = ['MATTERS_MAILBOX_KEY', 'MATTERS_MS_CLIENT_SECRET'];
+    expect(secretKeys(mod.matterConfirm)).toEqual([...MAILBOX, 'MATTERS_POSTMARK_TOKEN']);
     expect(secretKeys(mod.matterCancel)).toEqual([]);
     expect(secretKeys(mod.assistantInboundEmail)).toEqual(['MATTERS_INBOUND_PASSWORD']);
     // A2
-    expect(secretKeys(mod.matterDecide)).toEqual(['MATTERS_POSTMARK_TOKEN']);
+    expect(secretKeys(mod.matterDecide)).toEqual([...MAILBOX, 'MATTERS_POSTMARK_TOKEN']);
     expect(secretKeys(mod.matterView)).toEqual([]);
-    expect(secretKeys(mod.matterInboundRead)).toEqual(['MATTERS_POSTMARK_TOKEN', 'OPENAI_API_KEY']);
-    expect(secretKeys(mod.matterTick)).toEqual(['MATTERS_POSTMARK_TOKEN', 'OPENAI_API_KEY']);
+    expect(secretKeys(mod.matterInboundRead)).toEqual([...MAILBOX, 'MATTERS_POSTMARK_TOKEN', 'OPENAI_API_KEY']);
+    expect(secretKeys(mod.matterTick)).toEqual([...MAILBOX, 'MATTERS_POSTMARK_TOKEN', 'OPENAI_API_KEY']);
     expect(secretKeys(mod.matterDeliveryEvents)).toEqual(['MATTERS_INBOUND_PASSWORD']);
+    // A4 part 2: the mailbox callable and Microsoft's sign-in redirect; nothing else needs them
+    expect(secretKeys(mod.matterMailbox)).toEqual(MAILBOX);
+    expect(secretKeys(mod.matterMailboxCallback)).toEqual(MAILBOX);
+    expect(secretKeys(mod.matterView)).not.toContain('MATTERS_MAILBOX_KEY');
+    // "Watch this thread": a draft from a forward is one model call, and nothing is sent
+    expect(secretKeys(mod.matterWatch)).toEqual(['OPENAI_API_KEY']);
   });
 
   it('wires the read trigger to the messages of a matter, the tick every 15 minutes, and the webhook for raw emails', () => {

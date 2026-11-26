@@ -64,7 +64,7 @@ import {
   type MatterCaller,
   type MatterDeps,
 } from './handlers';
-import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, EmailSendError, composeMatterEmail, fromAddress, newMessageId, type OutboundEmail } from './email';
+import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, EmailSendError, composeMatterEmail, fromAddress, newMessageId, senderFor, type OutboundEmail } from './email';
 import { claimSend } from './allowance';
 import { COST_RATES, spendAllows } from './cost';
 import { guardReply } from './guard';
@@ -757,7 +757,7 @@ export async function sendCard(uid: string, matterId: string, cardId: string, ca
   const contacts = email.to.join(', ');
   let result: { providerId: string; test?: boolean };
   try {
-    result = await deps.sender().send(email);
+    result = await senderFor(deps, uid, matter).send(email);
   } catch (error) {
     if (!(error instanceof EmailSendError)) throw error; // the claim stays 'sending': never resent
     (error.kind === 'configuration' ? logger.error : logger.warn)('matters.reply_send_failed', { uid, matterId, kind: error.kind, code: error.code });
@@ -1071,6 +1071,8 @@ type TickPlan =
 export interface TickResult {
   /** A4: closed matters whose email texts were deleted (MATTERS_RETENTION_DAYS). */
   purged?: number;
+  /** A4 part 2: forwarded threads that waited too long and were deleted (watch.ts). */
+  watchesDeleted?: number;
   schedules: number;
   ended: number;
   followUps: number;
@@ -1083,6 +1085,14 @@ export async function runMatterTick(deps: MatterDeps, batch: { schedules: number
   const result: TickResult = { schedules: 0, ended: 0, followUps: 0, reads: 0 };
   // A4: the retention purge runs even while the assistant is switched off; nothing else does
   result.purged = await purgeDue(deps, batch.purges ?? 20);
+  // A4 part 2: forwards nobody acted on are deleted after MATTER_LIMITS.watchWaitDays, even while off
+  if (deps.watches) {
+    try {
+      result.watchesDeleted = await deps.watches.purgeExpired(now.toISOString(), batch.purges ?? 20);
+    } catch (error) {
+      logger.error('matters.watch_purge_failed', { errorName: error instanceof Error ? error.name : 'unknown' });
+    }
+  }
   if (!deps.enabled) return result;
   for (const entry of await deps.store.dueSchedules(now.toISOString(), batch.schedules)) {
     result.schedules += 1;
@@ -1201,7 +1211,7 @@ async function sendFollowUp(uid: string, matterId: string, plan: Extract<TickPla
     });
   };
   try {
-    const result = await deps.sender().send(email);
+    const result = await senderFor(deps, uid, doc).send(email);
     await recordSent(result.test ? 'test' : 'sent', result.providerId, 'follow_up_sent');
     logger.info('matters.follow_up_sent', { uid, matterId, number: plan.number });
   } catch (error) {

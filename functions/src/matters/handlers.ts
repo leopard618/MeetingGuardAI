@@ -19,6 +19,10 @@
  * rate_limited error also says which limit ({ reason, limit }, MATTER_LIMIT_KINDS). Logs carry
  * uid, matterId and categories only, never the user's words, addresses or email text.
  *
+ * A4 part 2, "Watch this thread": mail to the assistant's own address that matches no matter goes
+ * to deps.watch (watch.ts receiveForward), which keeps only a forward verified as coming from the
+ * owner's connected mailbox, as a card. Nothing is drafted or sent from the webhook.
+ *
  * A4 (docs/v2/A4-THREAT-MODEL.md): every model call checks the user's spending cap of the day
  * first (acquireGlobalBudget, cost.ts) and adds its cost afterwards (recordUsage); a draft and a
  * confirm refuse past MATTER_LIMITS.maxOpenMatters running matters; the first confirm of a matter
@@ -51,8 +55,9 @@ import { safetyIdentifierFor, type LlmClient } from '../assistant/llm';
 import { isValidTimeZone } from '../assistant/time';
 import { addModelSpend, checkSpend, SpendCapReachedError } from './cost';
 import { draftMatter, type DraftResult } from './draft';
-import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, bareAddress, composeFirstEmail, EmailSendError, type EmailSender, type OutboundEmail } from './email';
-import { matchInbound, parseInbound, toMatterMessage } from './inbound';
+import { INACTIVE_RECIPIENT_CODE, UNCERTAIN_SEND_KINDS, bareAddress, composeFirstEmail, EmailSendError, senderFor, type EmailSender, type OutboundEmail } from './email';
+import type { MailboxDeps } from './mailbox';
+import { matchInbound, parseInbound, toMatterMessage, type InboundEmail } from './inbound';
 import type { SenderCheck } from './mailCheck';
 import {
   EMPTY_USAGE,
@@ -60,6 +65,7 @@ import {
   SENDING_WINDOW_MS,
   draftHash,
   isOwnDomain,
+  mailboxOf,
   matterDocSchema,
   monthKeyOf,
   newReplyToken,
@@ -71,8 +77,9 @@ import {
 } from './model';
 import { nextActionAt } from './schedule';
 import { checkSend } from './sendCheck';
-import { MatterUnreadableError, type MatterStore } from './store';
+import { MatterUnreadableError, type InboundMarker, type MatterStore } from './store';
 import { ownerDisplayName, readBack, senderName } from './text';
+import type { WatchStore } from './watch';
 
 export interface MatterCaller {
   uid: string;
@@ -123,6 +130,13 @@ export interface MatterDeps {
   monthly?: { matters: number; emails: number; voiceMinutes: number };
   /** MATTERS_RETENTION_DAYS: closed matters keep their emails this long. */
   retentionDays?: number;
+  // ---- A4 part 2 ----
+  /** The owner's Microsoft mailbox (mailbox.ts); absent = not set up. */
+  mailbox?: MailboxDeps;
+  /** Sends a mailbox matter's email through Graph (mailbox.ts createMailboxSender); used by senderFor. */
+  mailboxSender?: (uid: string, address: string) => EmailSender;
+  /** "Watch this thread": the forwards waiting for the owner (watch.ts); absent = not set up. */
+  watches?: WatchStore;
 }
 
 /** The project-wide model budget is spent for today: the call never reaches OpenAI. */
@@ -209,7 +223,7 @@ export function limitError(limit: MatterLimitKind): HttpsError {
 }
 
 /** A4: the user's running matters (active or paused) are at MATTER_LIMITS.maxOpenMatters. */
-async function requireRoomForMatter(uid: string, deps: MatterDeps): Promise<void> {
+export async function requireRoomForMatter(uid: string, deps: MatterDeps): Promise<void> {
   const open = await deps.store.listMatters(uid, ['active', 'paused']);
   if (open.length >= MATTER_LIMITS.maxOpenMatters) throw limitError('open_matters');
 }
@@ -232,7 +246,7 @@ export function requireCaller(caller: MatterCaller | null, deps: MatterDeps): Ma
  * The caller's email only when the token says it is verified (it receives the copies). A trusted
  * sign-in provider lets the caller in, but does not by itself make the email a verified one.
  */
-function verifiedEmail(caller: MatterCaller): string | null {
+export function verifiedEmail(caller: MatterCaller): string | null {
   return caller.email && caller.emailVerified === true ? caller.email : null;
 }
 
@@ -246,7 +260,7 @@ export async function readable<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-async function consumeDaily(uid: string, deps: MatterDeps): Promise<void> {
+export async function consumeDaily(uid: string, deps: MatterDeps): Promise<void> {
   const now = deps.now();
   if (!(await deps.store.consumeDaily(uid, usageDayKey(now), deps.dailyLimit, now.toISOString()))) throw matterError('rate_limited');
 }
@@ -257,7 +271,7 @@ export async function runDraft(deps: MatterDeps, uid: string, ctx: Parameters<ty
   try {
     // the matter model calls count against the project-wide budget and the admin stats (A2), and
     // against the user's spending cap of the day (A4)
-    await acquireGlobalBudget(deps, ctx.request.length + 4000, BUDGET_CHARS_PER_UNIT, uid);
+    await acquireGlobalBudget(deps, ctx.request.length + (ctx.thread?.text.length ?? 0) + 4000, BUDGET_CHARS_PER_UNIT, uid);
     return await draftMatter(deps.llm(), ctx, safetyIdentifierFor(uid), (usage) => {
       onTokens?.(usage);
       return recordUsage(deps, usage, uid);
@@ -294,7 +308,12 @@ export function draftView(matterId: string, doc: MatterDoc, deps: Pick<MatterDep
     readBack: doc.readBack,
     questions: doc.questions,
     firstEmail: email ? { from: email.from, to: email.to, cc: email.cc, subject: email.subject, text: email.text } : null,
-    draftHash: complete && doc.status === 'draft' ? draftHash(doc.mandate!, doc.firstEmail!, doc.scheduling) : null,
+    draftHash: complete && doc.status === 'draft' ? draftHash(doc.mandate!, doc.firstEmail!, doc.scheduling, mailboxOf(doc)) : null,
+    sendFrom: doc.sendFrom,
+    // "Watch this thread": the forwarded email the first email answers
+    ...(doc.watch
+      ? { forwarded: { fromName: doc.watch.from?.name ?? null, fromEmail: doc.watch.from?.email ?? null, subject: doc.watch.subject, text: doc.watch.text } }
+      : {}),
   };
 }
 
@@ -317,15 +336,29 @@ export function schedulingFor(mandate: MatterDoc['mandate'], deps: Pick<MatterDe
   return deps.autoSchedule === true && mandate?.meeting ? 'auto' : 'ask';
 }
 
-function draftFields(result: DraftResult, ownerEmail: string | null, language: Language, scheduling: MatterDoc['scheduling']) {
+export function draftFields(result: DraftResult, ownerEmail: string | null, language: Language, scheduling: MatterDoc['scheduling'], mailbox: string | null = null) {
   return {
     title: result.title,
     mandate: result.mandate,
     firstEmail: result.firstEmail,
     questions: result.questions,
-    readBack: result.mandate ? readBack(result.mandate, ownerEmail, language, scheduling) : '',
+    readBack: result.mandate ? readBack(result.mandate, ownerEmail, language, scheduling, mailbox) : '',
     scheduling,
+    // A4 part 2: where the emails go out from (fixed with the draft; part of its hash)
+    sendFrom: mailbox ? ('mailbox' as const) : ('assistant' as const),
+    mailboxAddress: mailbox,
   };
+}
+
+/** A4 part 2: a new draft sends from the owner's connected mailbox, when there is one. */
+export async function defaultMailbox(uid: string, deps: MatterDeps): Promise<string | null> {
+  if (!deps.mailbox?.available) return null;
+  try {
+    return (await deps.mailbox.store.get(uid))?.address ?? null;
+  } catch (error) {
+    logger.warn('matters.mailbox_read_failed', { uid, errorName: error instanceof Error ? error.name : 'unknown' });
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -341,6 +374,7 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
   await consumeDaily(caller.uid, deps);
   const ownerEmail = verifiedEmail(caller);
   const ownerName = ownerDisplayName(caller.name, deps.domain);
+  const mailbox = await defaultMailbox(caller.uid, deps);
   const now = deps.now();
   let tokens: Tokens = null;
   const result = await runDraft(
@@ -368,7 +402,7 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
     source: request.source,
     ownerName,
     ownerEmail,
-    ...draftFields(result, ownerEmail, request.language, schedulingFor(result.mandate, deps)),
+    ...draftFields(result, ownerEmail, request.language, schedulingFor(result.mandate, deps), mailbox),
     usage: withModelCall(EMPTY_USAGE, tokens),
     mandateVersion: 1,
     confirmedHash: null,
@@ -417,6 +451,8 @@ async function reviseMatter(callerIn: MatterCaller | null, data: unknown, deps: 
       ownerEmail: current.ownerEmail,
       now,
       domain: deps.domain,
+      // a watched thread is redrafted with the email it answers
+      thread: current.watch,
     },
     (t) => {
       tokens = t;
@@ -432,7 +468,7 @@ async function reviseMatter(callerIn: MatterCaller | null, data: unknown, deps: 
     const next: MatterDoc = matterDocSchema.parse({
       ...doc,
       request,
-      ...draftFields(result, doc.ownerEmail, doc.language, schedulingFor(result.mandate, deps)),
+      ...draftFields(result, doc.ownerEmail, doc.language, schedulingFor(result.mandate, deps), mailboxOf(doc)),
       usage: withModelCall(doc.usage, tokens),
       mandateVersion: doc.mandateVersion + 1,
       updatedAt: nowIso,
@@ -522,7 +558,7 @@ async function confirmMatter(callerIn: MatterCaller | null, data: unknown, deps:
       if (settled) return { result: settled };
     } else {
       if (doc.status !== 'draft' || !doc.mandate || !doc.firstEmail) return { result: { kind: 'stale' } };
-      if (draftHash(doc.mandate, doc.firstEmail, doc.scheduling) !== hash) return { result: { kind: 'stale' } };
+      if (draftHash(doc.mandate, doc.firstEmail, doc.scheduling, mailboxOf(doc)) !== hash) return { result: { kind: 'stale' } };
       if (Date.parse(doc.mandate.endsAt) <= now.getTime()) return { result: { kind: 'ended' } };
     }
     const claim = { firstSendState: 'sending' as const, firstSendClaimedAt: nowIso, firstSendUnknownCause: null, updatedAt: nowIso };
@@ -586,7 +622,8 @@ async function sendFirstEmail(
   });
   let result: { providerId: string; test?: boolean };
   try {
-    result = await deps.sender().send(email);
+    // A4 part 2: a mailbox matter goes out through the owner's mailbox, never another address
+    result = await senderFor(deps, uid, doc).send(email);
   } catch (error) {
     if (!(error instanceof EmailSendError)) throw error; // the claim stays 'sending': never resent
     (error.kind === 'configuration' ? logger.error : logger.warn)('matters.send_failed', { uid, matterId, kind: error.kind, code: error.code });
@@ -665,7 +702,15 @@ async function cancelMatter(callerIn: MatterCaller | null, data: unknown, deps: 
 // Inbound webhook
 // ---------------------------------------------------------------------------------------------
 
-export type InboundOutcome = 'stored' | 'duplicate' | 'unmatched' | 'ignored';
+/** watch: a verified forward to the assistant's address now waits as a card (watch.ts). */
+export type InboundOutcome = 'stored' | 'duplicate' | 'unmatched' | 'ignored' | 'watch';
+
+/** "Watch this thread" in the inbound webhook: the assistant's address and what handles mail to it. */
+export interface WatchInbound {
+  /** <fromLocalPart>@<mail domain>, lowercase. */
+  address: string;
+  receive: (email: InboundEmail, payload: unknown, marker: InboundMarker) => Promise<InboundOutcome>;
+}
 
 /** Replies to a matter that ended are still kept for this long (shown, never acted on). */
 export const INBOUND_AFTER_END_DAYS = 7;
@@ -747,7 +792,7 @@ export async function recordUndeliverable(
 
 export async function handleInboundEmail(
   payload: unknown,
-  deps: Pick<MatterDeps, 'store' | 'now' | 'domain'> & { markerTtlDays: number; checkSender?: SenderCheck },
+  deps: Pick<MatterDeps, 'store' | 'now' | 'domain'> & { markerTtlDays: number; checkSender?: SenderCheck; watch?: WatchInbound },
 ): Promise<InboundOutcome> {
   const email = parseInbound(payload);
   if (!email) return 'ignored';
@@ -760,6 +805,11 @@ export async function handleInboundEmail(
   const nowIso = now.toISOString();
   const marker = { providerId: email.providerId, receivedAt: nowIso, expiresAt: new Date(now.getTime() + deps.markerTtlDays * 86_400_000).toISOString() };
   const match = await matchInbound(email, deps.domain, deps.store);
+  // A4 part 2: mail to the assistant's own address that belongs to no matter may be a forward to watch
+  const watch = deps.watch;
+  if (!match && watch && email.recipients.some((address) => address.trim().toLowerCase() === watch.address)) {
+    return watch.receive(email, payload, marker);
+  }
   const matter = match ? await deps.store.getMatter(match.uid, match.matterId) : null;
   if (!match || !matter || !acceptsInbound(matter, now)) {
     // marked, so Postmark's retries of the same email are recognised; nothing else is kept

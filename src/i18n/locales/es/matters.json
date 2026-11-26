@@ -229,7 +229,8 @@
       "other": "Novedad",
       "meeting_moved": "Reunión movida",
       "message_drafted": "Correo listo para que lo envíes",
-      "emails_deleted": "Correos eliminados al terminar el plazo de conservación"
+      "emails_deleted": "Correos eliminados al terminar el plazo de conservación",
+      "email_failed_mailbox": "No se pudo enviar un correo: tu buzón no está conectado. Vuelve a conectarlo en la pantalla del asistente."
     }
   },
   "contact": {
@@ -259,5 +260,38 @@
   "usage": {
     "month": "Este mes: {{matters}} de {{mattersLimit}} asuntos, {{emails}} de {{emailsLimit}} correos.",
     "capReached": "Hoy se ha alcanzado el límite del asistente. Vuelve a funcionar mañana."
+  },
+  "mailbox": {
+    "title": "Tu buzón de Microsoft",
+    "connect": "Conectar tu buzón",
+    "connectHint": "El asistente puede enviar sus correos desde tu dirección de Outlook. Nunca lee tu buzón.",
+    "connectedAs": "Conectado: {{address}}",
+    "connectedHint": "Los asuntos nuevos se envían desde esta dirección. Las respuestas llegan al asistente.",
+    "disconnect": "Desconectar",
+    "disconnectTitle": "¿Desconectar tu buzón?",
+    "disconnectMessage": "El asistente deja de enviar desde él al momento. Los asuntos que envían desde él no se enviarán hasta que lo vuelvas a conectar.",
+    "disconnectConfirm": "Desconectar",
+    "disconnectKeep": "Mantenerlo",
+    "disconnected": "Buzón desconectado.",
+    "connected": "Buzón conectado.",
+    "notConnected": "El buzón no se ha conectado.",
+    "sendFromMine": "Enviar desde mi buzón",
+    "sendFromAssistant": "Desactivado: envía desde la dirección propia del asistente."
+  },
+  "watch": {
+    "title": "Seguir una conversación",
+    "how": "Reenvía un correo desde tu Outlook a {{address}} y aparecerá aquí. Tócalo y el asistente prepara una respuesta para que la revises. No se envía nada hasta que confirmes.",
+    "notAvailable": "Conecta tu buzón para responder a estos correos.",
+    "itemTitle": "{{from}}: {{subject}}",
+    "unknownSender": "Remitente desconocido",
+    "noSubject": "(sin asunto)",
+    "dismiss": "Quitar",
+    "dismissTitle": "¿Quitar este correo?",
+    "dismissMessage": "El asistente no lo responderá. No se envía nada.",
+    "dismissConfirm": "Quitar",
+    "dismissKeep": "Mantenerlo",
+    "removed": "Correo quitado.",
+    "theirEmail": "Su correo",
+    "drafted": "Borrador listo. Tócalo para revisarlo."
   }
 }
