@@ -77,6 +77,8 @@ export interface MailboxStore {
   rotate(uid: string, address: string, sealedRefresh: string, keyId: string, nowIso: string): Promise<boolean>;
   /** true when there was a record. */
   remove(uid: string): Promise<boolean>;
+  /** "Watch this thread": the uids whose connected mailbox is this address (at most 2: more than one is refused). */
+  owners(address: string): Promise<string[]>;
   createState(stateId: string, state: MailboxState): Promise<void>;
   /** Reads AND deletes a state in one transaction: each one is used at most once. */
   takeState(stateId: string): Promise<MailboxState | null>;
@@ -111,6 +113,10 @@ export function firestoreMailboxStore(db: Firestore): MailboxStore {
       const existed = (await ref.get()).exists;
       await ref.delete();
       return existed;
+    },
+    async owners(address) {
+      const snapshot = await mailboxes.where('address', '==', address.trim().toLowerCase()).limit(2).select().get();
+      return snapshot.docs.map((doc) => doc.id);
     },
     async createState(stateId, state) {
       await states.doc(stateId).create(mailboxStateSchema.parse(state));

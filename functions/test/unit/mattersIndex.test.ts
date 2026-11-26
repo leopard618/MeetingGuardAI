@@ -40,6 +40,7 @@ const FUNCTION_NAMES = [
   'matterDeliveryEvents',
   'matterMailbox',
   'matterMailboxCallback',
+  'matterWatch',
 ] as const;
 
 function secretKeys(fn: unknown): string[] {
@@ -122,6 +123,8 @@ describe('matters functions: deploy gate', () => {
     expect(secretKeys(mod.matterMailbox)).toEqual(MAILBOX);
     expect(secretKeys(mod.matterMailboxCallback)).toEqual(MAILBOX);
     expect(secretKeys(mod.matterView)).not.toContain('MATTERS_MAILBOX_KEY');
+    // "Watch this thread": a draft from a forward is one model call, and nothing is sent
+    expect(secretKeys(mod.matterWatch)).toEqual(['OPENAI_API_KEY']);
   });
 
   it('wires the read trigger to the messages of a matter, the tick every 15 minutes, and the webhook for raw emails', () => {

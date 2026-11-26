@@ -94,7 +94,8 @@ export { fathomConnect, fathomOAuth, fathomWebhook } from './summaries';
 // matterSetStatus, matterChange, matterAsk and matterSpeak (callables), under the same gate. A3 feedback
 // adds matterMessage and matterMove (callables: each only makes a card the owner sends). A4 adds
 // matterDelete and matterUsage (callables), matterAdminSwitch and matterAdminUsage (admin dashboard).
-// A4 part 2 adds matterMailbox (callable) and matterMailboxCallback (Microsoft's sign-in redirect).
+// A4 part 2 adds matterMailbox (callable) and matterMailboxCallback (Microsoft's sign-in redirect),
+// and matterWatch (callable: "Watch this thread").
 export {
   assistantInboundEmail,
   matterAdminSwitch,
@@ -109,6 +110,7 @@ export {
   matterDraft,
   matterInboundRead,
   matterMailbox,
+  matterWatch,
   matterMailboxCallback,
   matterMessage,
   matterMove,

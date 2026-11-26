@@ -129,7 +129,8 @@ async function draftChange(caller: MatterCaller, matterId: string, text: string,
   const result = await runDraft(
     deps,
     caller.uid,
-    { request, language: current.language, timeZone: current.timeZone, ownerName: current.ownerName, ownerEmail: current.ownerEmail, now, domain: deps.domain },
+    // a watched thread keeps the email it answers (its sender stays a known contact)
+    { request, language: current.language, timeZone: current.timeZone, ownerName: current.ownerName, ownerEmail: current.ownerEmail, now, domain: deps.domain, thread: current.watch },
     (t) => {
       tokens = t;
     },

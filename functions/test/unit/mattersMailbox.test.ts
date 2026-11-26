@@ -56,6 +56,9 @@ class FakeMailboxStore implements MailboxStore {
     this.records.set(uid, { ...current, sealedRefresh, keyId, updatedAt: nowIso });
     return true;
   }
+  async owners(address: string) {
+    return [...this.records.entries()].filter(([, r]) => r.address === address.trim().toLowerCase()).map(([uid]) => uid).slice(0, 2);
+  }
   async remove(uid: string) {
     return this.records.delete(uid);
   }

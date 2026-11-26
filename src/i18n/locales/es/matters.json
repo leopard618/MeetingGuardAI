@@ -277,5 +277,21 @@
     "notConnected": "El buzón no se ha conectado.",
     "sendFromMine": "Enviar desde mi buzón",
     "sendFromAssistant": "Desactivado: envía desde la dirección propia del asistente."
+  },
+  "watch": {
+    "title": "Seguir una conversación",
+    "how": "Reenvía un correo desde tu Outlook a {{address}} y aparecerá aquí. Tócalo y el asistente prepara una respuesta para que la revises. No se envía nada hasta que confirmes.",
+    "notAvailable": "Conecta tu buzón para responder a estos correos.",
+    "itemTitle": "{{from}}: {{subject}}",
+    "unknownSender": "Remitente desconocido",
+    "noSubject": "(sin asunto)",
+    "dismiss": "Quitar",
+    "dismissTitle": "¿Quitar este correo?",
+    "dismissMessage": "El asistente no lo responderá. No se envía nada.",
+    "dismissConfirm": "Quitar",
+    "dismissKeep": "Mantenerlo",
+    "removed": "Correo quitado.",
+    "theirEmail": "Su correo",
+    "drafted": "Borrador listo. Tócalo para revisarlo."
   }
 }

@@ -88,8 +88,12 @@ export function hasHiddenHtml(html: string): boolean {
 
 const ENTITIES: Readonly<Record<string, string>> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'" };
 
-/** The visible text of an HTML body: no scripts, styles, comments, hidden elements or quoted blocks. */
-export function htmlToText(html: string): string {
+/**
+ * The visible text of an HTML body: no scripts, styles, comments, hidden elements or quoted blocks.
+ * A4 part 2: keepQuotes keeps the quoted blocks (a forward's content is quoted); hidden elements
+ * are still removed.
+ */
+export function htmlToText(html: string, options: { keepQuotes?: boolean } = {}): string {
   let text = html.slice(0, 200_000);
   text = text.replace(/<!--[\s\S]*?-->/g, ' ');
   text = text.replace(/<(script|style|head|title|template|noscript)\b[\s\S]*?<\/\1\s*>/gi, ' ');
@@ -99,8 +103,10 @@ export function htmlToText(html: string): string {
     text = next;
   }
   // quoted older text: <blockquote> and Gmail's quote block
-  text = text.replace(/<blockquote\b[\s\S]*?<\/blockquote\s*>/gi, ' ');
-  text = text.replace(/<div[^>]*class\s*=\s*["'][^"']*gmail_quote[\s\S]*$/i, ' ');
+  if (!options.keepQuotes) {
+    text = text.replace(/<blockquote\b[\s\S]*?<\/blockquote\s*>/gi, ' ');
+    text = text.replace(/<div[^>]*class\s*=\s*["'][^"']*gmail_quote[\s\S]*$/i, ' ');
+  }
   text = text.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|tr|h[1-6]|table)\s*>/gi, '\n');
   text = text.replace(/<[^>]*>/g, ' ');
   text = text.replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]+|#39);/gi, (all, name: string) => {
