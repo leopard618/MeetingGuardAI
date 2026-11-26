@@ -49,6 +49,12 @@
  *   that matches no matter to ./watch.ts (a forward verified as coming from a connected mailbox
  *   waits as a card), and matterWatch (callable: list, dismiss, draft; OPENAI_API_KEY for the
  *   draft) turns a card into a matter draft. matterTick deletes cards nobody acted on.
+ * - A5: matterSettings (callable: the owner's settings and consent; no secret), matterDigest
+ *   (callable: the morning digest, written by code; no secret) and matterStream (HTTP POST with the
+ *   Firebase ID token as Bearer: answers and briefings streamed as newline-delimited JSON, so the
+ *   app speaks from the first sentence; OPENAI_API_KEY). The inbound webhook also takes a forward
+ *   from the owner's mailbox to a matter's address ("Add an email to this matter"); matterTick sends
+ *   the daily summary emails.
  */
 import { timingSafeEqual } from 'node:crypto';
 
@@ -73,7 +79,7 @@ import {
   parsePricePerM,
   parseReasoningEffort,
 } from '../config';
-import { adminDb } from '../firebase';
+import { adminAuth, adminDb } from '../firebase';
 import { instanceOpenAiKeyProvider, withKeyRetry } from '../openaiKey';
 import { AI_STATS_SHARD_COUNT, adminStatsAiShardPath } from '../admin/schemas';
 import { createGlobalBudget, firestoreGlobalBudgetStore, type GlobalBudget } from '../assistant/globalBudget';
@@ -94,6 +100,9 @@ import type {
   MatterUsageResponse,
   MatterViewResponse,
   MatterWatchResponse,
+  MatterDigestResponse,
+  MatterSettingsResponse,
+  MatterStreamLine,
 } from '../shared/aiContract';
 import { handleMatterUsage } from './allowance';
 import { handleMatterAsk, handleMatterSpeak } from './ask';
@@ -127,7 +136,11 @@ import {
   type SwitchState,
 } from './switch';
 import { handleMatterMessage, handleMatterMove } from './write';
-import { firestoreWatchStore, handleMatterWatch, receiveForward, watchAddress } from './watch';
+import { firestoreWatchStore, handleMatterWatch, receiveForward, receiveIntoMatter, watchAddress } from './watch';
+import { handleMatterDigest } from './digest';
+import { firestorePrefsStore, handleMatterSettings } from './settings';
+import { handleMatterStream } from './stream';
+import { createOpenAiStreamClient } from './streamLlm';
 
 type MailCheckModule = typeof MailCheckNs;
 let mailCheckModule: MailCheckModule | null = null;
@@ -279,6 +292,14 @@ function deps(): MatterDeps {
     mailbox,
     mailboxSender: (uid, address) => createMailboxSender(mailbox, uid, address, () => new Date()),
     watches: firestoreWatchStore(adminDb()),
+    // A5
+    prefs: firestorePrefsStore(adminDb()),
+    llmStream: () =>
+      createOpenAiStreamClient({
+        apiKey: async () => (await instanceOpenAiKeyProvider().get()).key,
+        model: OPENAI_MODEL.value(),
+        reasoningEffort: parseReasoningEffort(OPENAI_REASONING_EFFORT.value()),
+      }),
     speech: async (text, language) => {
       const { key } = await instanceOpenAiKeyProvider().get();
       const client = new OpenAI({ apiKey: key, timeout: MATTERS_TUNING.speechTimeoutMs, maxRetries: 0 });
@@ -398,6 +419,9 @@ function makeCallables() {
     matterWatch: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, async (request): Promise<MatterWatchResponse> =>
       handleMatterWatch(callerOf(request.auth), request.data, await liveDeps()),
     ),
+    // A5: settings and consent; the morning digest (code only, no model)
+    matterSettings: onCall(CALLABLE_BASE, async (request): Promise<MatterSettingsResponse> => handleMatterSettings(callerOf(request.auth), request.data, await liveDeps())),
+    matterDigest: onCall(CALLABLE_BASE, async (request): Promise<MatterDigestResponse> => handleMatterDigest(callerOf(request.auth), request.data, await liveDeps())),
   };
 }
 
@@ -562,6 +586,19 @@ function makeInboundWebhook() {
               domain,
               now: () => new Date(),
             }),
+          // A5: a forward from the owner's mailbox to a matter's own address
+          intoMatter: (email, body, marker, match, matter) =>
+            receiveIntoMatter(email, body, marker, match, matter, {
+              store: firestoreWatchStore(adminDb()),
+              matters: store,
+              mailboxOwners: (address) => firestoreMailboxStore(adminDb()).owners(address),
+              enabled: async () => params.MATTERS_ENABLED.value() === true && (await instanceSwitch().isOn()),
+              allowed: (uid) => isMatterUserAllowed(params.MATTERS_ALLOWED_UIDS.value(), uid),
+              checkSender,
+              domain,
+              now: () => new Date(),
+              addInbound: (...args) => store.addInboundMessage(...args),
+            }),
         },
       });
       res.status(200).send(outcome);
@@ -604,6 +641,58 @@ function makeMailboxCallback() {
   );
 }
 
+/**
+ * A5: answers and briefings streamed as they are written. HTTP, not a callable, so the body can
+ * flow while the model writes; the caller is the Firebase ID token (Bearer), checked here. Every
+ * outcome is one 200 response of newline-delimited JSON (stream.ts); only a request that is not a
+ * POST, or the assistant off at deploy, gets another status.
+ */
+function makeStream() {
+  const { MATTERS_ENABLED } = mattersParams();
+  return onRequest(
+    {
+      region: FUNCTIONS_REGION,
+      secrets: [OPENAI_API_KEY],
+      timeoutSeconds: MATTERS_TUNING.streamTimeoutSeconds,
+      memory: MATTERS_TUNING.memory,
+      cpu: MATTERS_TUNING.cpu,
+      concurrency: MATTERS_TUNING.concurrency,
+      maxInstances: MATTERS_TUNING.maxInstances,
+      ...runtimeIdentity(),
+    },
+    async (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      if (MATTERS_ENABLED.value() !== true) {
+        res.status(404).send('Not configured');
+        return;
+      }
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+      const header = req.headers.authorization;
+      const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
+      let caller: MatterCaller | null = null;
+      if (token) {
+        try {
+          const decoded = await adminAuth().verifyIdToken(token);
+          caller = callerOf({ uid: decoded.uid, token: decoded as unknown as Record<string, unknown> });
+        } catch {
+          caller = null;
+        }
+      }
+      res.status(200);
+      res.set('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.set('X-Accel-Buffering', 'no');
+      const write = (line: MatterStreamLine): void => {
+        res.write(`${JSON.stringify(line)}\n`);
+      };
+      await handleMatterStream(caller, req.body, await liveDeps(), write);
+      res.end();
+    },
+  );
+}
+
 const enabledAtLoad = mattersEnabledAtLoad();
 const callables = enabledAtLoad ? makeCallables() : undefined;
 
@@ -626,6 +715,9 @@ export const matterAdminSwitch = callables?.matterAdminSwitch;
 export const matterAdminUsage = callables?.matterAdminUsage;
 export const matterMailbox = callables?.matterMailbox;
 export const matterWatch = callables?.matterWatch;
+export const matterSettings = callables?.matterSettings;
+export const matterDigest = callables?.matterDigest;
+export const matterStream = enabledAtLoad ? makeStream() : undefined;
 export const matterMailboxCallback = enabledAtLoad ? makeMailboxCallback() : undefined;
 export const assistantInboundEmail = enabledAtLoad ? makeInboundWebhook() : undefined;
 export const matterInboundRead = enabledAtLoad ? makeInboundRead() : undefined;

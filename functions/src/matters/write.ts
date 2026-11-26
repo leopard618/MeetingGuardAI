@@ -47,6 +47,7 @@ import {
   type MatterDeps,
   type Tokens,
 } from './handlers';
+import { requireConsent } from './settings';
 import { SpendCapReachedError } from './cost';
 import { threadSafeId } from './inbound';
 import { MATTER_LIMITS, draftEmailHash, withModelCall, type MatterApproval, type MatterDoc, type Slot, type StoredMessage } from './model';
@@ -194,6 +195,7 @@ function writeMessages(matter: MatterDoc, thread: readonly StoredMessage[], word
 export function handleMatterMessage(callerIn: MatterCaller | null, data: unknown, deps: MatterDeps): Promise<MatterMessageResponse> {
   return readable(async () => {
     const caller = requireCaller(callerIn, deps);
+    await requireConsent(caller.uid, deps);
     const parsed = matterMessageRequestSchema.safeParse(data);
     if (!parsed.success) throw matterError('invalid_request');
     const { matterId, text } = parsed.data;
@@ -334,6 +336,7 @@ async function isFree(deps: MatterDeps, uid: string, meetingId: string, slot: Sl
 export function handleMatterMove(callerIn: MatterCaller | null, data: unknown, deps: MatterDeps): Promise<MatterMoveResponse> {
   return readable(async () => {
     const caller = requireCaller(callerIn, deps);
+    await requireConsent(caller.uid, deps);
     const parsed = matterMoveRequestSchema.safeParse(data);
     if (!parsed.success) throw matterError('invalid_request');
     const { matterId } = parsed.data;

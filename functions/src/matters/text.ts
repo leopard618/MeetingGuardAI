@@ -461,3 +461,88 @@ export const ASK_TEXT = {
     return parts.join(' ');
   },
 } as const;
+
+
+// ---------------------------------------------------------------------------------------------
+// A5: the timeline in words (the morning digest and the daily summary email)
+// ---------------------------------------------------------------------------------------------
+
+type Words = Readonly<Record<'en' | 'es', string>>;
+const lang = (language: Language): 'en' | 'es' => (language === 'es' ? 'es' : 'en');
+const EVENT_WORDS: Readonly<Record<string, Words>> = {
+  email_sent: { en: 'First email sent to {d}.', es: 'Primer correo enviado a {d}.' },
+  email_received: { en: 'Email received from {d}.', es: 'Correo recibido de {d}.' },
+  reply_sent: { en: 'Reply sent.', es: 'Respuesta enviada.' },
+  follow_up_sent: { en: 'Follow-up sent.', es: 'Recordatorio enviado.' },
+  approval_requested: { en: 'Waiting for your decision.', es: 'Espera tu decisión.' },
+  meeting_booked: { en: 'Meeting booked: {d}.', es: 'Reunión reservada: {d}.' },
+  meeting_moved: { en: 'Meeting moved: {d}.', es: 'Reunión movida: {d}.' },
+  email_bounced: { en: 'An email could not be delivered: {d}.', es: 'Un correo no se pudo entregar: {d}.' },
+  email_failed: { en: 'An email could not be sent.', es: 'No se pudo enviar un correo.' },
+  booking_refused: { en: 'A time could not be booked.', es: 'No se pudo reservar una hora.' },
+  paused: { en: 'Paused.', es: 'En pausa.' },
+  resumed: { en: 'Resumed.', es: 'Reanudado.' },
+  mandate_changed: { en: 'The mandate was changed.', es: 'Se cambió el mandato.' },
+};
+const STATUS_WORDS: Readonly<Record<string, Words>> = {
+  ended: { en: 'Ended: the end date passed.', es: 'Terminado: pasó la fecha final.' },
+  cancelled: { en: 'Cancelled.', es: 'Cancelado.' },
+  done: { en: 'Done.', es: 'Hecho.' },
+};
+
+export const SUMMARY_TEXT = {
+  /** One timeline event in words; null for the ones the owner does not need to hear about. */
+  event(type: string, detail: string, language: Language): string | null {
+    const l = lang(language);
+    if (type === 'status_changed') return STATUS_WORDS[detail]?.[l] ?? null;
+    const words = EVENT_WORDS[type]?.[l];
+    if (!words) return null;
+    // a sender's name without the address after it ("Super <super@example.com>" -> "Super")
+    const who = detail.replace(/\s*<[^<>\s]+@[^<>\s]+>/g, '').trim();
+    return words.replace('{d}', who || detail.trim() || (l === 'es' ? 'el contacto' : 'the contact'));
+  },
+  subject: (language: Language) => (lang(language) === 'es' ? 'Resumen diario de tu asistente de IA' : 'Daily summary from your AI assistant'),
+  fromName: (language: Language) => (lang(language) === 'es' ? 'Tu asistente de IA' : 'Your AI assistant'),
+  intro: (language: Language) =>
+    lang(language) === 'es'
+      ? 'Esto es lo que pasó en el último día en los asuntos en los que pediste un resumen diario en lugar de copias:'
+      : 'Here is what happened in the last day on the matters where you asked for a daily summary instead of copies:',
+  outro: (language: Language) =>
+    lang(language) === 'es'
+      ? 'Abre Meeting Guard AI para ver cada asunto completo. Este correo solo te llega a ti.'
+      : 'Open Meeting Guard AI to see each matter in full. This email goes to you only.',
+};
+
+export const DIGEST_TEXT = {
+  cards: (count: number, language: Language) =>
+    lang(language) === 'es' ? (count === 1 ? '1 tarjeta espera tu decisión.' : `${count} tarjetas esperan tu decisión.`) : count === 1 ? '1 card waits for your decision.' : `${count} cards wait for your decision.`,
+  draft: (language: Language) => (lang(language) === 'es' ? 'Un borrador espera tu confirmación.' : 'A draft waits for your confirmation.'),
+  forwards: (count: number, language: Language) =>
+    lang(language) === 'es'
+      ? count === 1
+        ? '1 correo reenviado espera tu respuesta.'
+        : `${count} correos reenviados esperan tu respuesta.`
+      : count === 1
+        ? '1 forwarded email waits for your answer.'
+        : `${count} forwarded emails wait for your answer.`,
+  forwardsTitle: (language: Language) => (lang(language) === 'es' ? 'Seguir una conversación' : 'Watch a thread'),
+  followUp: (when: string, language: Language) => (lang(language) === 'es' ? `Recordatorio previsto: ${when}.` : `Follow-up due: ${when}.`),
+  meeting: (when: string, language: Language) => (lang(language) === 'es' ? `Reunión: ${when}.` : `Meeting: ${when}.`),
+  nothing: (language: Language) => (lang(language) === 'es' ? 'Nada nuevo en tus asuntos.' : 'Nothing new on your matters.'),
+  heading: (key: 'moved' | 'needsYou' | 'followUps' | 'meetings', language: Language): string =>
+    ({
+      moved: { en: 'What moved', es: 'Qué se movió' },
+      needsYou: { en: 'Needs you today', es: 'Te necesita hoy' },
+      followUps: { en: 'Follow-ups due', es: 'Recordatorios previstos' },
+      meetings: { en: 'Meetings it arranged', es: 'Reuniones que organizó' },
+    })[key][lang(language)],
+};
+
+
+// A5: briefings
+export const BRIEF_TEXT = {
+  useBriefMe: (language: Language) =>
+    language === 'es' ? 'Abre el asunto o la reunión y toca Prepárame para escuchar el resumen.' : 'Open the matter or the meeting and tap Brief me to hear the briefing.',
+  notFound: (language: Language) =>
+    language === 'es' ? 'No encuentro esa reunión en tu agenda de los próximos días.' : 'I cannot find that meeting in your calendar for the next days.',
+};

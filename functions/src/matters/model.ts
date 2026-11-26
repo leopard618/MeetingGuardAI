@@ -24,6 +24,7 @@
  *   matterSettings/global                            the runtime on/off switch (A4), server only
  *   usage/{uid}/months/{yyyy-mm}                     the monthly allowance counters (A4), server only
  *   matterWatches/{watchId}                          a forwarded thread waiting for the owner (A4 part 2), server only
+ *   matterPrefs/{uid}                                the owner's assistant settings and consent (A5), server only
  * Under users/{uid}, so deleteAccount's recursive delete removes the matters with the account;
  * the lookup collections carry the uid and are removed by deleteAccount as well. The two A2
  * queues are top-level collections queried on one field (nextActionAt, claimedAt), so they need no
@@ -78,6 +79,8 @@ export const MATTER_MAILBOXES_COLLECTION = 'matterMailboxes';
 export const MATTER_MAILBOX_STATES_COLLECTION = 'matterMailboxStates';
 /** A4 part 2, "Watch this thread": verified forwards waiting for the owner (server only, with the uid). */
 export const MATTER_WATCHES_COLLECTION = 'matterWatches';
+/** A5: the owner's assistant settings, consent and daily summary schedule (server only, with the uid). */
+export const MATTER_PREFS_COLLECTION = 'matterPrefs';
 export const matterSpendId = (dayKey: string, uid: string) => `${dayKey}_${uid}`;
 export const usageMonthPath = (uid: string, monthKey: string) => `usage/${uid}/months/${monthKey}`;
 
@@ -508,6 +511,9 @@ const matterDocShape = {
     mailboxAddress: emailSchema.nullable().default(null),
     /** "Watch this thread": the forwarded email this matter answers; null for a matter the owner wrote. */
     watch: forwardedEmailSchema.nullable().default(null),
+    // ---- A5 ----
+    /** The owner's signature line (settings), under the assistant's name in every email; '' for none. */
+    signature: z.string().max(120).default(''),
 };
 
 /** What the functions WRITE: strict, nothing outside the model. */

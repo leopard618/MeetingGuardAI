@@ -1286,6 +1286,13 @@ already reaches assistantInboundEmail through the Postmark inbound domain. The c
 matterWatch (OPENAI_API_KEY only) lists the waiting forwards and drafts from one. No rule or index:
 `matterWatches` is server-only and queried on single fields (uid, expiresAt).
 
+A5 (the assistant complete in the app): matterSettings and matterDigest (callables, no secret) and
+matterStream (HTTP POST with the Firebase ID token as Bearer; OPENAI_API_KEY; answers and briefings
+streamed as newline-delimited JSON, so the app speaks from the first sentence). The app finds it at
+`https://<region>-<project>.cloudfunctions.net/matterStream`. New server-only collection
+`matterPrefs` (settings, consent, the daily summary time; single-field query on summaryNextAt), no
+rule or index. The daily summary emails go out from matterTick.
+
 A full or by-name deploy also needs every declared param of the codebase in the deployer's
 `.env.<projectId>`, the summaries ones included (`SUMMARIES_ENABLED=false` and empty
 `SUMMARIES_PILOT_UIDS`, `SUMMARIES_ADDRESS_TEMPLATE` and `SUMMARIES_SENDERS` when you do not
@@ -1294,7 +1301,7 @@ run summaries); a non-interactive deploy stops on a missing one before deploying
 Deploy only the matter functions by name (CONTRIBUTING, "Deploying"):
 
 ```bash
-npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents,functions:matterSetStatus,functions:matterChange,functions:matterAsk,functions:matterSpeak,functions:matterMessage,functions:matterMove,functions:matterDelete,functions:matterUsage,functions:matterAdminSwitch,functions:matterAdminUsage,functions:matterMailbox,functions:matterMailboxCallback,functions:matterWatch
+npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail,functions:matterDecide,functions:matterView,functions:matterInboundRead,functions:matterTick,functions:matterDeliveryEvents,functions:matterSetStatus,functions:matterChange,functions:matterAsk,functions:matterSpeak,functions:matterMessage,functions:matterMove,functions:matterDelete,functions:matterUsage,functions:matterAdminSwitch,functions:matterAdminUsage,functions:matterMailbox,functions:matterMailboxCallback,functions:matterWatch,functions:matterSettings,functions:matterDigest,functions:matterStream
 ```
 
 No Firestore index is needed: the A2 queues (`matterSchedule`, `matterReadQueue`) are top-level

@@ -45,6 +45,7 @@ import {
   MATTER_MAILBOXES_COLLECTION,
   MATTER_MAILBOX_STATES_COLLECTION,
   MATTER_WATCHES_COLLECTION,
+  MATTER_PREFS_COLLECTION,
   MATTER_RETENTION_COLLECTION,
   MATTER_SCHEDULE_COLLECTION,
   MATTER_SPEND_COLLECTION,
@@ -189,7 +190,7 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
       // A2 adds the follow-up schedule and the read retry queue (both carry the uid)
       // A4 adds the retention entries and the daily spend (matterRetention, matterSpend; both carry the uid)
       // A4 part 2 adds the mailbox access and sign-ins in progress (matterMailboxes, matterMailboxStates)
-      // and the forwarded threads waiting for the owner (matterWatches)
+      // and the forwarded threads waiting for the owner (matterWatches); A5 the settings (matterPrefs)
       for (const name of [
         MATTER_ADDRESSES_COLLECTION,
         MATTER_MESSAGE_IDS_COLLECTION,
@@ -200,6 +201,7 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
         MATTER_MAILBOXES_COLLECTION,
         MATTER_MAILBOX_STATES_COLLECTION,
         MATTER_WATCHES_COLLECTION,
+        MATTER_PREFS_COLLECTION,
       ]) {
         const snapshot = await db.collection(name).where('uid', '==', uid).select().get();
         for (let start = 0; start < snapshot.docs.length; start += 400) {

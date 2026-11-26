@@ -64,6 +64,7 @@ function matter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     sendFrom: 'assistant',
     mailboxAddress: null,
     watch: null,
+    signature: '',
     ...overrides,
   };
 }

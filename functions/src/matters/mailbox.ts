@@ -37,6 +37,7 @@ import { MailboxAuthError, authorizeUrl, exchangeCode, readOwnAddress, refreshAc
 import { MailboxCryptoError, mailboxAad, openSecret, sealSecret, sealedKeyId, stateAad, type MailboxKey } from './mailboxCrypto';
 import { MATTER_MAILBOXES_COLLECTION, MATTER_MAILBOX_STATES_COLLECTION, matterDocSchema, type MatterDoc } from './model';
 import { draftView, event, matterError, readable, requireCaller, requireSignedIn, type MatterCaller, type MatterDeps } from './handlers';
+import { requireConsent } from './settings';
 import { readBack } from './text';
 
 // ---------------------------------------------------------------------------------------------
@@ -204,6 +205,7 @@ async function mailboxAction(callerIn: MatterCaller | null, data: unknown, deps:
   const caller = requireCaller(callerIn, deps);
   if (request.action === 'connect') {
     if (!usable(mb)) throw matterError('not_configured');
+    await requireConsent(caller.uid, deps);
     let graph: GraphConfig;
     try {
       graph = mb.graph();

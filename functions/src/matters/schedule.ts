@@ -5,9 +5,10 @@
  * - A follow-up is due everyDays after our last email that went out (lastOutboundAt), while no
  *   contact has answered since (lastInboundAt; an automatic reply never counts), fewer than
  *   maxCount follow-ups went out, and the end date has not passed.
- * - It goes out only in working hours in the mandate's zone: Monday to Friday, 9:00 to 18:00
- *   (settings come with A5). Outside them it waits for the next working morning, computed in the
- *   zone, so a daylight saving change never moves it to 8:00 or 10:00.
+ * - It goes out only in working hours in the mandate's zone: the owner's working hours and days
+ *   (A5 settings; Monday to Friday, 9:00 to 18:00 by default), so never on a quiet day. Outside
+ *   them it waits for the next working morning, computed in the zone, so a daylight saving change
+ *   never moves it an hour.
  * - matterSchedule/{matterId}.nextActionAt is the next instant matterTick looks at the matter: the
  *   next follow-up, else the end date (to close the matter then).
  * - A3: no follow-up once the meeting is booked; after a resume the interval counts from the
@@ -20,23 +21,34 @@ const DAY_MS = 86_400_000;
 
 export const WORKING_HOURS = { startHour: 9, endHour: 18, days: [1, 2, 3, 4, 5] } as const;
 
-/** Whether `now` is inside working hours in `zone`. */
-export function inWorkingHours(now: Date, zone: string): boolean {
+/** A5: the owner's working hours ("HH:MM") and days (0 Sunday to 6 Saturday) for offering times. */
+export interface WorkingHours {
+  start: string;
+  end: string;
+  days: readonly number[];
+}
+export const DEFAULT_WORKING_HOURS: WorkingHours = { start: '09:00', end: '18:00', days: WORKING_HOURS.days };
+
+const minutesOf = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+/** Whether `now` is inside working hours in `zone` (A5: the owner's hours and days). */
+export function inWorkingHours(now: Date, zone: string, hours: WorkingHours = DEFAULT_WORKING_HOURS): boolean {
   const parts = getZonedParts(now, zone);
-  return (WORKING_HOURS.days as readonly number[]).includes(parts.weekday) && parts.hour >= WORKING_HOURS.startHour && parts.hour < WORKING_HOURS.endHour;
+  const minute = parts.hour * 60 + parts.minute;
+  return hours.days.includes(parts.weekday) && minute >= minutesOf(hours.start) && minute < minutesOf(hours.end);
 }
 
-/** `now` when it is inside working hours, else the next working day's 9:00 in `zone`. */
-export function nextWorkingSlot(now: Date, zone: string): Date {
-  if (inWorkingHours(now, zone)) return now;
+/** `now` when it is inside working hours, else the start of the next working day in `zone`. */
+export function nextWorkingSlot(now: Date, zone: string, hours: WorkingHours = DEFAULT_WORKING_HOURS): Date {
+  if (inWorkingHours(now, zone, hours)) return now;
   const parts = getZonedParts(now, zone);
   let date = toLocalDateTime(now, zone).date;
-  // before 9:00 on a working day: that morning
-  const startToday = (WORKING_HOURS.days as readonly number[]).includes(parts.weekday) && parts.hour < WORKING_HOURS.startHour;
+  // before the start on a working day: that morning
+  const startToday = hours.days.includes(parts.weekday) && parts.hour * 60 + parts.minute < minutesOf(hours.start);
   if (!startToday) date = addDaysToLocalDate(date, 1);
   for (let i = 0; i < 8; i += 1) {
-    const morning = new Date(zonedDateTimeToUtcIso(date, `${String(WORKING_HOURS.startHour).padStart(2, '0')}:00`, zone));
-    if ((WORKING_HOURS.days as readonly number[]).includes(getZonedParts(morning, zone).weekday)) return morning;
+    const morning = new Date(zonedDateTimeToUtcIso(date, hours.start, zone));
+    if (hours.days.includes(getZonedParts(morning, zone).weekday)) return morning;
     date = addDaysToLocalDate(date, 1);
   }
   return now;

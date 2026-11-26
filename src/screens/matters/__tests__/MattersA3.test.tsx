@@ -38,6 +38,8 @@ jest.mock('../../../services/matters', () => ({
     confirmChange: (...args: unknown[]): unknown => mockService.confirmChange(...args),
     ask: (...args: unknown[]): unknown => mockService.ask(...args),
     speak: (...args: unknown[]): unknown => mockService.speak(...args),
+    // A5: no stream in these tests: the panel asks the callable instead (the fallback)
+    streamAsk: (): Promise<never> => Promise.reject(Object.assign(new Error('no stream'), { details: { stream: 'unavailable' } })),
   },
 }));
 

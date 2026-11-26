@@ -25,7 +25,7 @@ import type { MeetingReader, MeetingRecord } from '../assistant/context';
 import { expandOccurrences, type RecurrenceOverrides } from '../shared/recurrence';
 import { addDaysToLocalDate, getZonedParts, toLocalDateTime, zonedDateTimeToUtcIso } from '../shared/time';
 import type { Mandate, Slot } from './model';
-import { WORKING_HOURS } from './schedule';
+import { DEFAULT_WORKING_HOURS, type WorkingHours } from './schedule';
 
 export const AVAILABILITY = {
   /** Kept free before and after every busy meeting. */
@@ -50,8 +50,6 @@ export interface Interval {
   start: number;
   end: number;
 }
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
 
 /** RecurrenceOverrides from the assistant's lenient reader (only status and a new start are known there). */
 function overridesOf(record: MeetingRecord): RecurrenceOverrides | null {
@@ -118,17 +116,17 @@ function isWholeDayWindow(startMs: number, zone: string): boolean {
   return p.hour === 0 && p.minute === 0;
 }
 
-/** Working hours of one local date, as an interval. */
-function workingHoursOf(date: string, zone: string): Interval {
+/** Working hours of one local date, as an interval (A5: the owner's hours from the settings). */
+function workingHoursOf(date: string, zone: string, hours: WorkingHours): Interval {
   return {
-    start: Date.parse(zonedDateTimeToUtcIso(date, `${pad2(WORKING_HOURS.startHour)}:00`, zone)),
-    end: Date.parse(zonedDateTimeToUtcIso(date, `${pad2(WORKING_HOURS.endHour)}:00`, zone)),
+    start: Date.parse(zonedDateTimeToUtcIso(date, hours.start, zone)),
+    end: Date.parse(zonedDateTimeToUtcIso(date, hours.end, zone)),
   };
 }
 
-function isWorkingDay(date: string, zone: string): boolean {
+function isWorkingDay(date: string, zone: string, hours: WorkingHours): boolean {
   const noon = Date.parse(zonedDateTimeToUtcIso(date, '12:00', zone));
-  return (WORKING_HOURS.days as readonly number[]).includes(getZonedParts(new Date(noon), zone).weekday);
+  return hours.days.includes(getZonedParts(new Date(noon), zone).weekday);
 }
 
 /** The local dates from the day of fromMs to the day of toMs (at most horizonDays + 2). */
@@ -151,11 +149,12 @@ function clip(list: Interval[], fromMs: number, toMs: number): Interval[] {
 }
 
 /** Where a meeting of this mandate may go, between fromMs and toMs (see the module comment). */
-export function allowedRanges(meeting: NonNullable<Mandate['meeting']>, zone: string, fromMs: number, toMs: number): Interval[] {
+export function allowedRanges(meeting: NonNullable<Mandate['meeting']>, zone: string, fromMs: number, toMs: number, hours: WorkingHours = DEFAULT_WORKING_HOURS): Interval[] {
   if (toMs <= fromMs) return [];
   const out: Interval[] = [];
   if (meeting.windows.length === 0) {
-    for (const date of localDates(fromMs, toMs, zone)) if (isWorkingDay(date, zone)) out.push(workingHoursOf(date, zone));
+    // A5: the owner's working hours and days (quiet days are never offered)
+    for (const date of localDates(fromMs, toMs, zone)) if (isWorkingDay(date, zone, hours)) out.push(workingHoursOf(date, zone, hours));
     return clip(out, fromMs, toMs);
   }
   for (const window of meeting.windows) {
@@ -165,8 +164,8 @@ export function allowedRanges(meeting: NonNullable<Mandate['meeting']>, zone: st
     if (isWholeDayWindow(start, zone)) {
       // "Tuesday or Wednesday": those days, within working hours (any weekday the user named)
       for (const date of localDates(start, end - 1, zone)) {
-        const hours = workingHoursOf(date, zone);
-        out.push({ start: Math.max(hours.start, start), end: Math.min(hours.end, end) });
+        const day = workingHoursOf(date, zone, hours);
+        out.push({ start: Math.max(day.start, start), end: Math.min(day.end, end) });
       }
     } else {
       out.push({ start, end });

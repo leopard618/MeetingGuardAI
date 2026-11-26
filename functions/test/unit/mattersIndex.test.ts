@@ -41,6 +41,9 @@ const FUNCTION_NAMES = [
   'matterMailbox',
   'matterMailboxCallback',
   'matterWatch',
+  'matterSettings',
+  'matterDigest',
+  'matterStream',
 ] as const;
 
 function secretKeys(fn: unknown): string[] {
@@ -125,6 +128,10 @@ describe('matters functions: deploy gate', () => {
     expect(secretKeys(mod.matterView)).not.toContain('MATTERS_MAILBOX_KEY');
     // "Watch this thread": a draft from a forward is one model call, and nothing is sent
     expect(secretKeys(mod.matterWatch)).toEqual(['OPENAI_API_KEY']);
+    // A5: settings and the digest need no secret; the streamed answers call the model
+    expect(secretKeys(mod.matterSettings)).toEqual([]);
+    expect(secretKeys(mod.matterDigest)).toEqual([]);
+    expect(secretKeys(mod.matterStream)).toEqual(['OPENAI_API_KEY']);
   });
 
   it('wires the read trigger to the messages of a matter, the tick every 15 minutes, and the webhook for raw emails', () => {

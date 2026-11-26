@@ -80,6 +80,9 @@ import { checkSend } from './sendCheck';
 import { MatterUnreadableError, type InboundMarker, type MatterStore } from './store';
 import { ownerDisplayName, readBack, senderName } from './text';
 import type { WatchStore } from './watch';
+import type { PrefsStore } from './settings';
+import type { StreamLlm } from './streamLlm';
+import { prefsOf, requireConsent, scheduleDailySummary } from './settings';
 
 export interface MatterCaller {
   uid: string;
@@ -137,6 +140,11 @@ export interface MatterDeps {
   mailboxSender?: (uid: string, address: string) => EmailSender;
   /** "Watch this thread": the forwards waiting for the owner (watch.ts); absent = not set up. */
   watches?: WatchStore;
+  // ---- A5 ----
+  /** The owner's settings, consent and daily summary (settings.ts); absent = defaults, no consent check. */
+  prefs?: PrefsStore;
+  /** Model calls whose text streams (matterStream: answers and briefings spoken as they arrive). */
+  llmStream?: () => StreamLlm;
 }
 
 /** The project-wide model budget is spent for today: the call never reaches OpenAI. */
@@ -200,6 +208,7 @@ const MESSAGES: Readonly<Record<MatterErrorCode, string>> = {
   not_allowed: 'This email is outside what you confirmed.',
   rate_limited: 'Too many drafts today. Try again tomorrow.',
   upstream_error: 'The assistant is temporarily unavailable. Please try again.',
+  consent_required: 'Agree to how the assistant uses your data first.',
 };
 
 export function matterError(reason: MatterErrorCode, message: string = MESSAGES[reason]): HttpsError {
@@ -336,7 +345,7 @@ export function schedulingFor(mandate: MatterDoc['mandate'], deps: Pick<MatterDe
   return deps.autoSchedule === true && mandate?.meeting ? 'auto' : 'ask';
 }
 
-export function draftFields(result: DraftResult, ownerEmail: string | null, language: Language, scheduling: MatterDoc['scheduling'], mailbox: string | null = null) {
+export function draftFields(result: DraftResult, ownerEmail: string | null, language: Language, scheduling: MatterDoc['scheduling'], mailbox: string | null = null, signature = '') {
   return {
     title: result.title,
     mandate: result.mandate,
@@ -347,12 +356,16 @@ export function draftFields(result: DraftResult, ownerEmail: string | null, lang
     // A4 part 2: where the emails go out from (fixed with the draft; part of its hash)
     sendFrom: mailbox ? ('mailbox' as const) : ('assistant' as const),
     mailboxAddress: mailbox,
+    // A5: the owner's signature line (settings)
+    signature,
   };
 }
 
 /** A4 part 2: a new draft sends from the owner's connected mailbox, when there is one. */
 export async function defaultMailbox(uid: string, deps: MatterDeps): Promise<string | null> {
   if (!deps.mailbox?.available) return null;
+  // A5: the owner may prefer the assistant's own address for new matters
+  if ((await prefsOf(uid, deps)).sendFrom === 'assistant') return null;
   try {
     return (await deps.mailbox.store.get(uid))?.address ?? null;
   } catch (error) {
@@ -370,11 +383,13 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
   const parsed = matterDraftRequestSchema.safeParse(data);
   if (!parsed.success || !isValidTimeZone(parsed.data.timeZone)) throw matterError('invalid_request');
   const request = parsed.data;
+  await requireConsent(caller.uid, deps);
   await requireRoomForMatter(caller.uid, deps);
   await consumeDaily(caller.uid, deps);
   const ownerEmail = verifiedEmail(caller);
   const ownerName = ownerDisplayName(caller.name, deps.domain);
   const mailbox = await defaultMailbox(caller.uid, deps);
+  const prefs = await prefsOf(caller.uid, deps);
   const now = deps.now();
   let tokens: Tokens = null;
   const result = await runDraft(
@@ -388,6 +403,7 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
       ownerEmail,
       now,
       domain: deps.domain,
+      defaults: prefs,
     },
     (t) => {
       tokens = t;
@@ -402,7 +418,7 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
     source: request.source,
     ownerName,
     ownerEmail,
-    ...draftFields(result, ownerEmail, request.language, schedulingFor(result.mandate, deps), mailbox),
+    ...draftFields(result, ownerEmail, request.language, schedulingFor(result.mandate, deps), mailbox, prefs.signature),
     usage: withModelCall(EMPTY_USAGE, tokens),
     mandateVersion: 1,
     confirmedHash: null,
@@ -437,7 +453,9 @@ async function reviseMatter(callerIn: MatterCaller | null, data: unknown, deps: 
   if (current.status !== 'draft') throw matterError('invalid_request', 'Only a draft can be changed.');
   const request = `${current.request}\n${answer}`;
   if (request.length > MATTER_LIMITS.requestChars) throw matterError('invalid_request', 'This matter has too many changes. Start a new one.');
+  await requireConsent(caller.uid, deps);
   await consumeDaily(caller.uid, deps);
+  const prefs = await prefsOf(caller.uid, deps);
   const now = deps.now();
   let tokens: Tokens = null;
   const result = await runDraft(
@@ -453,6 +471,7 @@ async function reviseMatter(callerIn: MatterCaller | null, data: unknown, deps: 
       domain: deps.domain,
       // a watched thread is redrafted with the email it answers
       thread: current.watch,
+      defaults: prefs,
     },
     (t) => {
       tokens = t;
@@ -468,7 +487,7 @@ async function reviseMatter(callerIn: MatterCaller | null, data: unknown, deps: 
     const next: MatterDoc = matterDocSchema.parse({
       ...doc,
       request,
-      ...draftFields(result, doc.ownerEmail, doc.language, schedulingFor(result.mandate, deps), mailboxOf(doc)),
+      ...draftFields(result, doc.ownerEmail, doc.language, schedulingFor(result.mandate, deps), mailboxOf(doc), doc.signature),
       usage: withModelCall(doc.usage, tokens),
       mandateVersion: doc.mandateVersion + 1,
       updatedAt: nowIso,
@@ -588,6 +607,8 @@ async function confirmMatter(callerIn: MatterCaller | null, data: unknown, deps:
       logger.warn('matters.allowance_count_failed', { uid: caller.uid, errorName: error instanceof Error ? error.name : 'unknown' });
     });
   }
+  // A5: a matter that keeps the owner informed by a daily summary needs one scheduled
+  if (outcome.first && outcome.doc.mandate?.copyOwner === 'daily_summary') await scheduleDailySummary(caller.uid, deps);
   const sent = await sendFirstEmail(caller.uid, matterId, outcome.doc, outcome.email, deps);
   return confirmResponse(matterId, sent.outcome, sent.unknownCause);
 }
@@ -710,6 +731,12 @@ export interface WatchInbound {
   /** <fromLocalPart>@<mail domain>, lowercase. */
   address: string;
   receive: (email: InboundEmail, payload: unknown, marker: InboundMarker) => Promise<InboundOutcome>;
+  /**
+   * A5, "Add an email to this matter": mail to a matter's own address that is a forward from the
+   * owner's connected mailbox (watch.ts receiveIntoMatter). null: not such a forward, the email is
+   * stored as usual.
+   */
+  intoMatter?: (email: InboundEmail, payload: unknown, marker: InboundMarker, match: { uid: string; matterId: string }, matter: MatterDoc) => Promise<InboundOutcome | null>;
 }
 
 /** Replies to a matter that ended are still kept for this long (shown, never acted on). */
@@ -816,6 +843,10 @@ export async function handleInboundEmail(
     if (!(await deps.store.markInbound(marker))) return 'duplicate';
     logger.info('matters.inbound_unmatched', { providerId: email.providerId, reason: !match || !matter ? 'no_matter' : 'not_live' });
     return 'unmatched';
+  }
+  if (watch?.intoMatter) {
+    const added = await watch.intoMatter(email, payload, marker, match, matter);
+    if (added !== null) return added;
   }
   const sender = email.from.name ? `${email.from.name} <${email.from.email}>` : email.from.email;
   const senderRole = senderRoleOf(email.from.email, matter);

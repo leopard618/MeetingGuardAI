@@ -28,6 +28,7 @@ import * as logger from 'firebase-functions/logger';
 
 import { matterChangeRequestSchema, matterSetStatusRequestSchema, usageDayKey, type MatterDraftResponse, type MatterSetStatusResponse } from '../shared/aiContract';
 import { changeView, event, matterError, readable, requireCaller, requireSignedIn, runDraft, type MatterCaller, type MatterDeps, type Tokens } from './handlers';
+import { prefsOf, requireConsent } from './settings';
 import { MATTER_LIMITS, changeHash, draftHash, mailboxOf, withModelCall, type MatterDoc, type PendingChange } from './model';
 import { nextActionAt } from './schedule';
 import { QUESTIONS, readBack } from './text';
@@ -107,6 +108,7 @@ const sameContacts = (a: MatterDoc['mandate'], b: MatterDoc['mandate']): boolean
 export function handleMatterChange(callerIn: MatterCaller | null, data: unknown, deps: MatterDeps): Promise<MatterDraftResponse> {
   return readable(async () => {
     const caller = requireCaller(callerIn, deps);
+    await requireConsent(caller.uid, deps);
     const parsed = matterChangeRequestSchema.safeParse(data);
     if (!parsed.success) throw matterError('invalid_request');
     const { matterId } = parsed.data;
@@ -130,7 +132,7 @@ async function draftChange(caller: MatterCaller, matterId: string, text: string,
     deps,
     caller.uid,
     // a watched thread keeps the email it answers (its sender stays a known contact)
-    { request, language: current.language, timeZone: current.timeZone, ownerName: current.ownerName, ownerEmail: current.ownerEmail, now, domain: deps.domain, thread: current.watch },
+    { request, language: current.language, timeZone: current.timeZone, ownerName: current.ownerName, ownerEmail: current.ownerEmail, now, domain: deps.domain, thread: current.watch, defaults: await prefsOf(caller.uid, deps) },
     (t) => {
       tokens = t;
     },

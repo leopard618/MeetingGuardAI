@@ -1539,7 +1539,8 @@ export type MainStackParamList = {
   /** Review the suggested tasks of one filed or kept summary (summaryCommitments). */
   SummaryCommitments: { summaryId: string };
   /** Settings > AI executive assistant: hand over a matter (prototype, section 36; only with EXPO_PUBLIC_MATTERS_ENABLED). */
-  Matters: undefined;
+  /** A5: a briefing notification opens one matter (brief: start its briefing). */
+  Matters: { matterId?: string; brief?: boolean } | undefined;
 };
 
 export type RootStackParamList = AuthStackParamList & OnboardingStackParamList & MainStackParamList;
@@ -1997,6 +1998,9 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   // A4 part 2: the owner's Microsoft mailbox.
   matterMailbox: { request: 'matterMailboxRequestSchema', response: 'matterMailboxResponseSchema' },
   matterWatch: { request: 'matterWatchRequestSchema', response: 'matterWatchResponseSchema' },
+  // A5: settings and consent, the morning digest (the streamed answers are an HTTP endpoint, matterStream).
+  matterSettings: { request: 'matterSettingsRequestSchema', response: 'matterSettingsResponseSchema' },
+  matterDigest: { request: 'matterDigestRequestSchema', response: 'matterDigestResponseSchema' },
 };
 
 // =============================================================================================

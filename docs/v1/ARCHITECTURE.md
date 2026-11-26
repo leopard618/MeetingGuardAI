@@ -2151,6 +2151,35 @@ A3 (scheduling, voice, history) build on it.
   and answers the draft with `forwarded` for the app. A card with a draft opens it again (no model
   call) and is deleted once that matter is no longer a draft (checked when listing). A failed
   draft releases the card. matterTick deletes expired cards, also while off.
+- **A5: the assistant complete in the app.** `settings.ts`: `matterPrefs/{uid}` (aiContract
+  `matterPrefsSchema`, the device zone, the consent, `summaryNextAt`); matterSettings get / save /
+  consent; `requireConsent` before every model call (draft, revise, change, ask, speak, message,
+  move, watch draft, mailbox connect, stream); `prefsOf` gives the defaults to `draft.ts`
+  (`defaultsRule` in the prompt, `defaultDays` and `meetingMinutes` in code), the working hours to
+  `availability.ts allowedRanges` (both offer sites in replies.ts), and the sender to
+  `defaultMailbox`; the signature is a matter field signed by `email.ts signed()` and rewritten on
+  the open matters when it changes; `runDailySummaries` (matterTick) emails the owner what moved
+  on daily-summary matters. `digest.ts`: matterDigest, code only (needs you, moved, follow-ups due
+  via `followUpDueAt`, meetings booked in 7 days and the briefing list). `stream.ts` with
+  `streamLlm.ts` (the matters' own streaming OpenAI adapter; `assistant/llm.ts` unchanged):
+  matterStream (HTTP, ID token) writes NDJSON lines; ask shares `prepareAsk` / `finishAsk` with
+  matterAsk and streams the answer field (`AnswerExtractor`); intent `briefing` goes on to
+  `streamBriefing` (records of the focused matter, or the owner's meetings of the next 7 days with
+  the matters that booked them). `watch.ts receiveIntoMatter`: a verified forward from the owner's
+  mailbox to a matter's address is stored as the quoted sender's email with auth 'unverified'
+  (`forwarded_by_owner`). matterView's page adds `address` and `firstSend`. App: the consent screen,
+  "Today", `AssistantSettings.tsx`, "Brief me" and the live answer in `AskPanel.tsx`,
+  `useMatterVoice.speakStream` (a sentence at a time), `matterStream.ts` (expo/fetch, whole body
+  when there is no stream; a stream that cannot start falls back to matterAsk),
+  `assistantNotifications.ts` (the digest count for the daily briefing line in `alerts/briefing.ts`,
+  "mgmatter:" briefing notifications), `digestRefresh.ts` (started in AppRoot: the digest on a new
+  session and when the app comes to the foreground, at most every 30 minutes, then the briefing
+  scheduler reconciles), and the deep links `meetingguardai://matters?matter=&brief=1` and
+  `meetingguardai://matters` (the daily briefing with the assistant's line, also as the Android
+  full-screen summary, opens "Today"). Follow-ups go out in the owner's working hours and days
+  (`schedule.ts inWorkingHours / nextWorkingSlot` with `settings.ts workingHoursOf`).
+  matterSettings save with `applyToOpen` changes the follow-ups and the copy rule of the running
+  matters (`applyToOpenMatters`, a mandate change each); get and save answer `openMatters`.
 - **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel` (A2:
   `matterDecide` and `matterView`, with the lenient view schemas `matterApprovalViewSchema`,
   `matterProposalViewSchema`, `matterListItemSchema`), their
@@ -2201,4 +2230,9 @@ A3 (scheduling, voice, history) build on it.
   connected mailbox becomes a card, list, dismiss and used once, the draft with the forward as
   data and nothing sent before confirm, a watched matter paused, no forward content in logs); app
   `MattersWatch.test.tsx` (Watch a thread, a draft with their email, removing one, the service
-  calls).
+  calls). A5: `mattersA5.test.ts` (settings and consent, defaults, working hours, the signature, the
+  daily summary, the digest, streamed answers and briefings, "Add an email to this matter", a first
+  email that did not go out); app `MattersA5.test.tsx` (the consent, Today, the settings page, a
+  briefing notification, retry, the voice a sentence at a time), `matterStream.test.ts` (the stream
+  client, the service, the briefing notifications, the deep link), and the briefing line in
+  `alerts/__tests__/briefing.test.ts`.

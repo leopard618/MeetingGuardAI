@@ -173,6 +173,20 @@ If `Mail.Read` is ever added, mail read through Graph needs its own sender check
 |---|---|
 | Firebase App Check on the assistant's functions, so they accept calls only from the real app and web agenda | A9 (Dusko) |
 | Every callable needs a signed-in user with a verified email or a trusted sign-in provider | Done (`handlers.ts requireSignedIn`) |
+| A5: matterStream is HTTP (so the answer can stream), not a callable: it verifies the Firebase ID token itself (Bearer), then applies the same checks as the callables (tester list, switch, consent, caps). App Check for it is checked by hand in A9, like the callables' switch | Done (ID token); App Check A9 (Dusko) |
+
+### A5 additions (the assistant complete in the app)
+
+| Control | Status |
+|---|---|
+| Consent before first use: the app shows what is sent to OpenAI through our server; the server records the version agreed (`matterPrefs/{uid}`) and every call that sends the owner's words or emails to the model answers `consent_required` until the current version is agreed | Done (`settings.ts requireConsent`; tests in `mattersA5.test.ts`) |
+| The morning digest is written by code from the owner's own matters, never by the model (nothing can be invented, no cost) | Done (`digest.ts`) |
+| Briefings use the records only (the matter's timeline, cards, commitments, last email, the owner's meetings of the next days), fenced as data; one model call each, counted on every cap | Done (`stream.ts briefingMessages`) |
+| "Add an email to this matter": only a forward from the owner's connected mailbox with DKIM aligned is added; what it quotes is stored as not verified (`auth.reason forwarded_by_owner`), so it is read and makes a card, and is never answered automatically | Done (`watch.ts receiveIntoMatter`) |
+| The daily summary email goes only to the owner's verified address, from the assistant's address, with what moved (timeline categories), never email bodies | Done (`settings.ts runDailySummaries`) |
+| Settings narrow, never widen: working hours and days only reduce the times offered and when follow-ups go out; the signature is one plain line; the defaults of new drafts are still read back and confirmed | Done (`availability.ts`, `schedule.ts`, `aiContract matterPrefsSchema`) |
+| "Also change my running matters" (settings): only the follow-ups and the copy rule of running matters change, after the app asks once more; each is a mandate change (read-back and confirmed hash rewritten, 'mandate_changed' on the timeline); a copy needs the owner's verified address; a matter with a change waiting for confirmation is left alone | Done (`settings.ts applyToOpenMatters`) |
+| A daily summary that cannot be sent is tried again for an hour, then skipped to the next day (no attempt every 15 minutes for ever) | Done (`settings.ts runDailySummaries`) |
 
 ## 4. Hard limits in one place
 
@@ -204,6 +218,7 @@ The temporary tester values (150 drafts and 150 emails a day) go back to 30 befo
 6. **A contact can ignore Reply-To and answer the owner's address directly** (A4 part 2). The owner gets that reply in their own inbox; the assistant does not see it and may still send a follow-up. The owner can pause or close the matter.
 7. **The mailbox client secret expires** (Microsoft allows at most 24 months). Until Dusko renews it, connecting and sending from mailboxes fail safely with a card; emails from the assistant's own address keep working.
 8. **Emails sent from the owner's mailbox carry Microsoft's own Message-ID** (`sendMail` cannot set ours or In-Reply-To). Replies still reach the matter through the Reply-To address; a contact's mail program may group a follow-up as a new conversation. Bounces of those emails go to the owner's mailbox, not to our delivery webhook.
+9. **Briefing notifications and the digest line are scheduled on the phone from the last digest** (A5): the app fetches the digest when a session starts and when it comes to the foreground (at most every 30 minutes), so a matter that changed while the app stayed closed can show a count a few hours old. Notifications sent from the server come with A8.
 
 ## 6. Sign-off
 

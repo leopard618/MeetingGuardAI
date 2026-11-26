@@ -3,4 +3,6 @@
  * docs/v1/ARCHITECTURE.md section 36). Switched off unless EXPO_PUBLIC_MATTERS_ENABLED.
  */
 export { matterService, createMatterService, mapMatterError, openMailboxSignIn } from './matterService';
+export { assistantNeedsYou, rememberDigest, scheduleBriefings } from './assistantNotifications';
+export { startAssistantDigestRefresh } from './digestRefresh';
 export type { MatterOpenItem, MatterPage, MatterService, MatterTransport } from './matterService';

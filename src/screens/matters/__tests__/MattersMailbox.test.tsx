@@ -8,7 +8,7 @@ import { Alert } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import { CALLABLES } from '../../../core/aiContract';
+import { CALLABLES, DEFAULT_MATTER_PREFS, MATTER_CONSENT_VERSION } from '../../../core/aiContract';
 import { I18nProvider, i18n } from '../../../i18n';
 import { createMatterService, type MatterTransport } from '../../../services/matters/matterService';
 import { MattersScreen } from '../MattersScreen';
@@ -32,6 +32,8 @@ const mockService = {
   mailboxConnectLink: jest.fn(),
   mailboxDisconnect: jest.fn(),
   sendFrom: jest.fn(),
+  settings: jest.fn(),
+  digest: jest.fn(),
 };
 const mockOpenSignIn = jest.fn();
 jest.mock('../../../services/matters', () => ({
@@ -46,6 +48,8 @@ const ADDRESS = 'ana.lopez@outlook.com';
 const OFF = { available: true, connected: false, address: null };
 const ON = { available: true, connected: true, address: ADDRESS };
 const AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?state=x';
+/** A5: the mailbox lives on the assistant's settings page. */
+const SETTINGS = { prefs: DEFAULT_MATTER_PREFS, consent: { version: MATTER_CONSENT_VERSION, at: '2026-11-25T10:00:00.000Z' }, consentVersion: MATTER_CONSENT_VERSION, address: 'assistant@assistant.meetingguard.ai' };
 
 function draft(sendFrom: 'assistant' | 'mailbox') {
   return {
@@ -87,23 +91,33 @@ beforeEach(async () => {
   mockService.listOpen.mockResolvedValue([]);
   mockService.usage.mockResolvedValue(null);
   mockService.mailboxStatus.mockResolvedValue(OFF);
+  mockService.settings.mockResolvedValue(SETTINGS);
+  mockService.digest.mockResolvedValue(null);
   await i18n.changeLanguage('en');
 });
+
+/** A5: Settings > the mailbox. */
+async function openSettings(): Promise<void> {
+  await press('matters-settings-open');
+}
 
 describe('Connect your mailbox', () => {
   it('hidden when the server does not offer it, or the status cannot be read', async () => {
     mockService.mailboxStatus.mockResolvedValue({ available: false, connected: false, address: null });
     await renderScreen();
-    expect(screen.queryByTestId('matters-mailbox')).toBeNull();
+    await openSettings();
+    expect(screen.queryByTestId('matters-mailbox-connect')).toBeNull();
     mockService.mailboxStatus.mockRejectedValue(new Error('offline'));
     await renderScreen();
-    expect(screen.queryByTestId('matters-mailbox')).toBeNull();
+    await openSettings();
+    expect(screen.queryByTestId('matters-mailbox-connect')).toBeNull();
   });
 
   it('opens the sign-in, then shows the connected address from the server', async () => {
     mockService.mailboxConnectLink.mockResolvedValue({ ...OFF, authUrl: AUTH_URL });
     mockOpenSignIn.mockResolvedValue(undefined);
     await renderScreen();
+    await openSettings();
     expect(screen.getByText('The assistant can send its emails from your Outlook address. It never reads your mailbox.')).toBeTruthy();
     mockService.mailboxStatus.mockResolvedValue(ON);
     await press('matters-mailbox-connect');
@@ -117,6 +131,7 @@ describe('Connect your mailbox', () => {
     mockService.mailboxConnectLink.mockResolvedValue({ ...OFF, authUrl: AUTH_URL });
     mockOpenSignIn.mockResolvedValue(undefined);
     await renderScreen();
+    await openSettings();
     await press('matters-mailbox-connect');
     expect(Toast.show).toHaveBeenCalledWith({ type: 'info', text1: 'The mailbox was not connected.' });
     expect(screen.getByTestId('matters-mailbox-connect')).toBeTruthy();
@@ -127,6 +142,7 @@ describe('Connect your mailbox', () => {
     mockService.mailboxStatus.mockResolvedValue(ON);
     mockService.mailboxDisconnect.mockResolvedValue(OFF);
     await renderScreen();
+    await openSettings();
     await press('matters-mailbox-disconnect');
     expect(alert).toHaveBeenCalledWith(
       'Disconnect your mailbox?',
@@ -151,6 +167,7 @@ describe('Connect your mailbox', () => {
   it('in Spanish', async () => {
     await i18n.changeLanguage('es');
     await renderScreen();
+    await openSettings();
     expect(screen.getByText('Conectar tu buzón')).toBeTruthy();
   });
 });

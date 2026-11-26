@@ -50,14 +50,16 @@ import {
   requireCaller,
   type MatterCaller,
   type MatterDeps,
+  type Tokens,
 } from './handlers';
 import { claimVoice } from './allowance';
+import { requireConsent } from './settings';
 import { COST_RATES, SpendCapReachedError, addSpeechSpend, checkSpend, speechSeconds } from './cost';
 import { MATTER_LIMITS, withModelCall, type MatterDoc } from './model';
-import { ASK_TEXT, MOVE_TEXT, formatInstant } from './text';
+import { ASK_TEXT, BRIEF_TEXT, MOVE_TEXT, formatInstant } from './text';
 
 export const ASK_TOOL = 'answer_question';
-const INTENTS = ['status', 'pause', 'resume', 'cancel', 'change', 'new_matter', 'unclear', 'move_meeting', 'message'] as const satisfies readonly MatterAskIntent[];
+const INTENTS = ['status', 'pause', 'resume', 'cancel', 'change', 'new_matter', 'unclear', 'move_meeting', 'message', 'briefing'] as const satisfies readonly MatterAskIntent[];
 
 /** At most this many open matters are listed to the model (newest first). */
 const MAX_LISTED = 10;
@@ -79,7 +81,7 @@ export const ANSWER_QUESTION_TOOL: ToolDefinition = {
           type: 'string',
           enum: [...INTENTS],
           description:
-            'status: a question about what is happening. pause / resume / cancel: they want that done to a matter. move_meeting: move the meeting that is already booked to another day or time. message: write or say something to the contact of a matter now ("tell him I am late", "send her a reminder", "confirm the meeting with him"). change: any other change to a matter (deadline, follow-ups, the meeting times the assistant may offer, what to ask). new_matter: a new task to hand over to someone the matters do not include. unclear: you cannot tell.',
+            'status: a question about what is happening. pause / resume / cancel: they want that done to a matter. move_meeting: move the meeting that is already booked to another day or time. message: write or say something to the contact of a matter now ("tell him I am late", "send her a reminder", "confirm the meeting with him"). change: any other change to a matter (deadline, follow-ups, the meeting times the assistant may offer, what to ask). briefing: they want to be briefed or prepared for a meeting or a matter ("brief me on my 3 pm", "prepare me for the Carlos meeting"); any meeting, also one the matters do not include. new_matter: a new task to hand over to someone the matters do not include. unclear: you cannot tell.',
         },
         matter_ref: { type: ['string', 'null'], description: 'The ref of the matter it is about ("m1"), or null when none or you cannot tell which.' },
         answer: { type: 'string', description: 'Only for status: the answer, one to three short sentences, from the records only. Empty otherwise.' },
@@ -88,7 +90,7 @@ export const ANSWER_QUESTION_TOOL: ToolDefinition = {
   },
 };
 
-interface Listed {
+export interface Listed {
   ref: string;
   id: string;
   doc: MatterDoc;
@@ -135,7 +137,7 @@ export function matchMatters(text: string, listed: readonly Listed[]): string[] 
   return ids;
 }
 
-function summaryLines(item: Listed): string[] {
+export function summaryLines(item: Listed): string[] {
   const doc = item.doc;
   const mandate = doc.mandate;
   return [
@@ -146,7 +148,7 @@ function summaryLines(item: Listed): string[] {
   ];
 }
 
-async function detailLines(uid: string, item: Listed, deps: MatterDeps): Promise<string[]> {
+export async function detailLines(uid: string, item: Listed, deps: MatterDeps): Promise<string[]> {
   const doc = item.doc;
   const mandate = doc.mandate;
   const zone = mandate?.timeZone ?? doc.timeZone;
@@ -206,83 +208,125 @@ export function handleMatterAsk(callerIn: MatterCaller | null, data: unknown, de
     const caller = requireCaller(callerIn, deps);
     const parsed = matterAskRequestSchema.safeParse(data);
     if (!parsed.success) throw matterError('invalid_request');
-    const { text, language } = parsed.data;
-    const now = deps.now();
-    if (!(await deps.store.consumeDaily(caller.uid, usageDayKey(now), deps.dailyLimit, now.toISOString()))) throw matterError('rate_limited');
-
-    const open = (await deps.store.listMatters(caller.uid, ['active', 'paused'])).sort((a, b) => b.doc.updatedAt.localeCompare(a.doc.updatedAt)).slice(0, MAX_LISTED);
-    const listed: Listed[] = open.map((m, i) => ({ ref: `m${i + 1}`, id: m.id, doc: m.doc }));
-    const asked = parsed.data.matterId ? listed.find((m) => m.id === parsed.data.matterId) : undefined;
-    const matched = matchMatters(text, listed);
-    const focus = asked ?? (matched.length === 1 ? listed.find((m) => m.id === matched[0]) : listed.length === 1 ? listed[0] : undefined);
-
-    const blocks: string[] = [];
-    for (const item of listed) {
-      const lines = item === focus ? await detailLines(caller.uid, item, deps) : summaryLines(item);
-      blocks.push(`<matter ref="${item.ref}">\n${lines.join('\n')}\n</matter>`);
-    }
-    if (listed.length === 0) blocks.push('(no open matters)');
-
-    const messages = askMessages(text, language, blocks);
-    let args: ReturnType<typeof askArgs> = null;
-    let tokens: { promptTokens: number; completionTokens: number } | null = null;
+    await requireConsent(caller.uid, deps);
+    const prep = await prepareAsk(caller.uid, parsed.data, deps);
+    let args: AskArgs | null = null;
+    let tokens: Tokens = null;
     try {
-      await acquireGlobalBudget(deps, messages.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : 0), 0), BUDGET_CHARS_PER_UNIT, caller.uid);
-      const completion = await deps.llm().complete({ messages, tools: [ANSWER_QUESTION_TOOL], toolChoice: 'required', safetyIdentifier: safetyIdentifierFor(caller.uid) });
+      await acquireAskBudget(prep, deps);
+      const completion = await deps.llm().complete({ messages: prep.messages, tools: [ANSWER_QUESTION_TOOL], toolChoice: 'required', safetyIdentifier: safetyIdentifierFor(caller.uid) });
       tokens = completion.usage;
       await recordUsage(deps, completion.usage, caller.uid);
-      const call = completion.toolCalls.find((c) => c.name === ASK_TOOL);
-      if (call) {
-        try {
-          args = askArgs(JSON.parse(call.arguments));
-        } catch {
-          args = null;
-        }
-      }
+      args = askArgsOf(completion.toolCalls);
     } catch (error) {
-      const kind = error instanceof UpstreamError ? error.kind : error instanceof GlobalBudgetExhaustedError ? 'global_budget' : 'unknown';
-      logger.warn('matters.ask_model_failed', { uid: caller.uid, kind });
-      // a status question about one known matter is still answered, from code
-      if (!focus) throw error instanceof SpendCapReachedError ? limitError('spend') : matterError('upstream_error');
+      askModelFailed(prep, error);
     }
-
-    const byRef = args?.ref ? listed.find((m) => m.ref === args!.ref) : undefined;
-    const target = byRef ?? focus ?? null;
-    let intent: MatterAskIntent = args?.intent ?? 'status';
-    let answer: string;
-    if (intent === 'new_matter') {
-      answer = ASK_TEXT.newMatter(language);
-    } else if (intent === 'unclear' || !target) {
-      intent = intent === 'status' && listed.length === 0 ? 'status' : 'unclear';
-      answer = listed.length === 0 ? ASK_TEXT.noMatters(language) : ASK_TEXT.whichMatter(listed.map((m) => m.doc.title), language);
-    } else if (intent === 'pause' && target.doc.status !== 'active') {
-      intent = 'status';
-      answer = ASK_TEXT.alreadyPaused(target.doc.title, language);
-    } else if (intent === 'resume' && target.doc.status !== 'paused') {
-      intent = 'status';
-      answer = ASK_TEXT.notPaused(target.doc.title, language);
-    } else if ((intent === 'move_meeting' || intent === 'message') && (target.doc.status !== 'active' || !target.doc.firstSentAt)) {
-      intent = 'status';
-      answer = ASK_TEXT.alreadyPaused(target.doc.title, language);
-    } else if (intent === 'move_meeting' && !target.doc.booking) {
-      intent = 'status';
-      answer = MOVE_TEXT.noBooking(language);
-    } else if (intent === 'pause' || intent === 'resume' || intent === 'cancel' || intent === 'change' || intent === 'move_meeting' || intent === 'message') {
-      answer = ASK_TEXT.confirm(intent, target.doc.title, language);
-    } else {
-      const said = plainAnswer(args?.answer ?? '');
-      answer = said || ASK_TEXT.status(target.doc, language);
-    }
-
-    if (target) {
-      const nowIso = now.toISOString();
-      await deps.store.updateMatter(caller.uid, target.id, (doc) =>
-        doc ? { result: null, patch: { usage: withModelCall(doc.usage, tokens) }, events: intent === 'status' ? [event('question_answered', nowIso, intent)] : [] } : { result: null },
-      );
-    }
-    logger.info('matters.asked', { uid: caller.uid, intent, matched: matched.length, listed: listed.length, model: args !== null });
-    return { intent, matterId: target?.id ?? null, title: target?.doc.title ?? null, answer };
+    // the callable has no briefing (the streamed answer has): it points to "Brief me"
+    return finishAsk(prep, args, tokens, deps, { briefing: false });
   });
+}
+
+/** What one question needs before the model call (shared by matterAsk and matterStream). */
+export interface AskPrep {
+  uid: string;
+  text: string;
+  language: Language;
+  listed: Listed[];
+  focus: Listed | undefined;
+  matched: string[];
+  messages: PromptMessage[];
+  now: Date;
+}
+
+export type AskArgs = { intent: MatterAskIntent; ref: string | null; answer: string };
+
+/** Counts the daily cap and lists the owner's open matters, with the focused one in detail. */
+export async function prepareAsk(uid: string, request: { text: string; language: Language; matterId?: string | undefined }, deps: MatterDeps): Promise<AskPrep> {
+  const { text, language } = request;
+  const now = deps.now();
+  if (!(await deps.store.consumeDaily(uid, usageDayKey(now), deps.dailyLimit, now.toISOString()))) throw matterError('rate_limited');
+  const open = (await deps.store.listMatters(uid, ['active', 'paused'])).sort((a, b) => b.doc.updatedAt.localeCompare(a.doc.updatedAt)).slice(0, MAX_LISTED);
+  const listed: Listed[] = open.map((m, i) => ({ ref: `m${i + 1}`, id: m.id, doc: m.doc }));
+  const asked = request.matterId ? listed.find((m) => m.id === request.matterId) : undefined;
+  const matched = matchMatters(text, listed);
+  const focus = asked ?? (matched.length === 1 ? listed.find((m) => m.id === matched[0]) : listed.length === 1 ? listed[0] : undefined);
+  const blocks: string[] = [];
+  for (const item of listed) {
+    const lines = item === focus ? await detailLines(uid, item, deps) : summaryLines(item);
+    blocks.push(`<matter ref="${item.ref}">\n${lines.join('\n')}\n</matter>`);
+  }
+  if (listed.length === 0) blocks.push('(no open matters)');
+  return { uid, text, language, listed, focus, matched, messages: askMessages(text, language, blocks), now };
+}
+
+export async function acquireAskBudget(prep: AskPrep, deps: MatterDeps): Promise<void> {
+  await acquireGlobalBudget(deps, prep.messages.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : 0), 0), BUDGET_CHARS_PER_UNIT, prep.uid);
+}
+
+export function askArgsOf(toolCalls: readonly { name: string; arguments: string }[]): AskArgs | null {
+  const call = toolCalls.find((c) => c.name === ASK_TOOL);
+  if (!call) return null;
+  try {
+    return askArgs(JSON.parse(call.arguments));
+  } catch {
+    return null;
+  }
+}
+
+/** A failed model call: a question about one known matter is still answered, from code. */
+export function askModelFailed(prep: AskPrep, error: unknown): void {
+  const kind = error instanceof UpstreamError ? error.kind : error instanceof GlobalBudgetExhaustedError ? 'global_budget' : 'unknown';
+  logger.warn('matters.ask_model_failed', { uid: prep.uid, kind });
+  if (!prep.focus) throw error instanceof SpendCapReachedError ? limitError('spend') : matterError('upstream_error');
+}
+
+/** Code decides what the answer is (see the module header); records the call on the matter. */
+export async function finishAsk(prep: AskPrep, args: AskArgs | null, tokens: Tokens, deps: MatterDeps, options: { briefing: boolean }): Promise<MatterAskResponse> {
+  const { listed, focus, language } = prep;
+  const byRef = args?.ref ? listed.find((m) => m.ref === args.ref) : undefined;
+  const target = byRef ?? focus ?? null;
+  let intent: MatterAskIntent = args?.intent ?? 'status';
+  let answer: string;
+  if (intent === 'briefing') {
+    // A5: the briefing itself follows (matterStream); any meeting may be meant, so no matter is needed
+    if (options.briefing) {
+      answer = '';
+    } else {
+      intent = 'status';
+      answer = BRIEF_TEXT.useBriefMe(language);
+    }
+  } else if (intent === 'new_matter') {
+    answer = ASK_TEXT.newMatter(language);
+  } else if (intent === 'unclear' || !target) {
+    intent = intent === 'status' && listed.length === 0 ? 'status' : 'unclear';
+    answer = listed.length === 0 ? ASK_TEXT.noMatters(language) : ASK_TEXT.whichMatter(listed.map((m) => m.doc.title), language);
+  } else if (intent === 'pause' && target.doc.status !== 'active') {
+    intent = 'status';
+    answer = ASK_TEXT.alreadyPaused(target.doc.title, language);
+  } else if (intent === 'resume' && target.doc.status !== 'paused') {
+    intent = 'status';
+    answer = ASK_TEXT.notPaused(target.doc.title, language);
+  } else if ((intent === 'move_meeting' || intent === 'message') && (target.doc.status !== 'active' || !target.doc.firstSentAt)) {
+    intent = 'status';
+    answer = ASK_TEXT.alreadyPaused(target.doc.title, language);
+  } else if (intent === 'move_meeting' && !target.doc.booking) {
+    intent = 'status';
+    answer = MOVE_TEXT.noBooking(language);
+  } else if (intent === 'pause' || intent === 'resume' || intent === 'cancel' || intent === 'change' || intent === 'move_meeting' || intent === 'message') {
+    answer = ASK_TEXT.confirm(intent, target.doc.title, language);
+  } else {
+    const said = plainAnswer(args?.answer ?? '');
+    answer = said || ASK_TEXT.status(target.doc, language);
+  }
+
+  if (target) {
+    const nowIso = prep.now.toISOString();
+    await deps.store.updateMatter(prep.uid, target.id, (doc) =>
+      doc ? { result: null, patch: { usage: withModelCall(doc.usage, tokens) }, events: intent === 'status' ? [event('question_answered', nowIso, intent)] : [] } : { result: null },
+    );
+  }
+  logger.info('matters.asked', { uid: prep.uid, intent, matched: prep.matched.length, listed: listed.length, model: args !== null });
+  return { intent, matterId: target?.id ?? null, title: target?.doc.title ?? null, answer };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -298,6 +342,7 @@ export function handleMatterSpeak(callerIn: MatterCaller | null, data: unknown, 
   return readable(async () => {
     const caller = requireCaller(callerIn, deps);
     if (deps.naturalVoice !== true || !deps.speech) throw matterError('not_configured');
+    await requireConsent(caller.uid, deps);
     const parsed = matterSpeakRequestSchema.safeParse(data);
     if (!parsed.success) throw matterError('invalid_request');
     const { text, language, matterId } = parsed.data;

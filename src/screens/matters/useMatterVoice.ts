@@ -9,6 +9,9 @@
  *   a tap on stopSpeaking() only stops the voice.
  * - natural: the same answer from matterSpeak (OpenAI text-to-speech, MATTERS_NATURAL_VOICE, demo
  *   only), played with expo-audio from a cache file; it is stopped the same way.
+ * - A5, speakStream(): an answer that is still being written (matterStream). Each sentence is said
+ *   as soon as it is complete (the device voice queues them), so the voice starts at once; finish()
+ *   says the rest, or the final answer instead when code decided another one. Stopped the same way.
  * Nothing the user says is logged.
  */
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
@@ -41,7 +44,27 @@ export interface MatterVoice {
   toggleMic(): void;
   speak(text: string, options?: { natural?: boolean; matterId?: string }): void;
   stopSpeaking(): void;
+  /** A5: says an answer while it arrives (device voice). */
+  speakStream(): SpokenStream;
 }
+
+/** A5: an answer said while it is written. */
+export interface SpokenStream {
+  /** More text arrived; every complete sentence is said at once. */
+  push(piece: string): void;
+  /** The answer is complete: the rest is said, or `finalText` instead when it is not what was said. */
+  finish(finalText?: string): void;
+  /** The answer will not come (an error): stops this stream's voice. */
+  cancel(): void;
+}
+
+/** The end of the first complete sentence in `text` (after its punctuation), or -1. */
+export function sentenceEnd(text: string): number {
+  const match = /[.!?](?=\s)/.exec(text);
+  return match ? match.index + 1 : -1;
+}
+
+const squash = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 export function useMatterVoice(handlers: MatterVoiceHandlers): MatterVoice {
   const latest = useRef(handlers);
@@ -153,6 +176,85 @@ export function useMatterVoice(handlers: MatterVoiceHandlers): MatterVoice {
     else speakDevice(clean, mine);
   };
 
+  const speakStream = (): SpokenStream => {
+    stopSpeaking();
+    if (input.status === 'listening') input.toggle();
+    const mine = generation.current;
+    let buffer = '';
+    let said = '';
+    let queued = 0;
+    let ended = false;
+    const live = () => mine === generation.current;
+    const settle = () => {
+      if (live() && ended && queued === 0) finished();
+    };
+    const utter = (text: string): void => {
+      const clean = text.trim();
+      if (!clean || !live()) return;
+      if (!speakingRef.current) {
+        speakingRef.current = true;
+        setSpeaking(true);
+      }
+      queued += 1;
+      said = said ? `${said} ${clean}` : clean;
+      const done = (): void => {
+        queued -= 1;
+        settle();
+      };
+      try {
+        Speech.speak(clean, {
+          language: voiceLocale(latest.current.language),
+          rate: 1.0,
+          pitch: 1.0,
+          onDone: done,
+          onStopped: done,
+          onError: (error: Error) => {
+            log.warn('speech failed', error);
+            done();
+          },
+        });
+      } catch (error) {
+        log.warn('speech failed', error);
+        done();
+      }
+    };
+    return {
+      push(piece) {
+        if (!live()) return;
+        buffer += piece;
+        let end = sentenceEnd(buffer);
+        while (end > 0) {
+          utter(buffer.slice(0, end));
+          buffer = buffer.slice(end);
+          end = sentenceEnd(buffer);
+        }
+      },
+      finish(finalText) {
+        if (!live()) return;
+        ended = true;
+        const final = finalText === undefined ? null : squash(finalText);
+        const heard = squash(`${said} ${buffer}`);
+        if (final !== null && final !== heard) {
+          if (said && final.startsWith(squash(said))) {
+            utter(final.slice(squash(said).length));
+          } else {
+            // code decided another answer: say that one instead
+            stopSpeaking();
+            speak(final);
+            return;
+          }
+        } else {
+          utter(buffer);
+        }
+        buffer = '';
+        settle();
+      },
+      cancel() {
+        if (live()) stopSpeaking();
+      },
+    };
+  };
+
   // leaving the screen stops the voice
   useEffect(
     () => () => {
@@ -177,5 +279,6 @@ export function useMatterVoice(handlers: MatterVoiceHandlers): MatterVoice {
     },
     speak,
     stopSpeaking,
+    speakStream,
   };
 }
