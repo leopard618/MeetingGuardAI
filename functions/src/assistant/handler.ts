@@ -33,7 +33,7 @@ import { UpstreamError, assistantError } from './errors';
 import type { GlobalBudget } from './globalBudget';
 import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
 import { isPlainConsent, lastUserText, missingMoveQuestion } from './guards';
-import { plainClip } from './plainText';
+import { collapseRepeatedReply, plainClip } from './plainText';
 import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply, listAnswerItems } from './prompt';
 import { recoverToolCallsFromText } from './recover';
 import { consumeQuota, refundQuota, settleClarification, type QuotaDecision, type QuotaStore } from './quota';
@@ -261,7 +261,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     const resolution =
       pendingActions.length > 0 && mapped.actions.length === 0 && plainConsent ? mapped.resolution : null;
 
-    let reply = recovered.text.trim();
+    let reply = collapseRepeatedReply(recovered.text);
     if (reply.length === 0 && completion.refusal) reply = completion.refusal.trim();
     // A read-only answer is never captioned "review and confirm": there is nothing to confirm.
     // It is composed from the rows themselves, because the reply is what gets read aloud and a

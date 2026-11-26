@@ -3,7 +3,7 @@ import { HttpsError } from 'firebase-functions/https';
 
 import { UpstreamError } from '../../src/assistant/errors';
 import { handleAssistant, type AssistantCaller, type AssistantDeps } from '../../src/assistant/handler';
-import { plainClip, plainText } from '../../src/assistant/plainText';
+import { collapseRepeatedReply, plainClip, plainText } from '../../src/assistant/plainText';
 import type { LlmClient, LlmRequest, LlmResult } from '../../src/assistant/llm';
 import { assistantErrorDetailsSchema, assistantResponseSchema, type AssistantRequest } from '../../src/shared/aiContract';
 import { FakeMeetingReader, FakeQuotaStore } from './fakes';
@@ -1123,5 +1123,28 @@ describe('plainText', () => {
   it('clips after mapping, because "..." is longer than the ellipsis character', () => {
     expect(plainClip('ab\u2026', 4)).toBe('ab..');
     expect(plainClip('abc', 10)).toBe('abc');
+  });
+});
+
+describe('collapseRepeatedReply', () => {
+  const question = 'I can help set up "Lunch with Ana" for tomorrow at 1:00 PM. I still need one detail to propose it: is it in person or a video call?';
+
+  it('keeps one copy when the model wrote the same answer twice (WhatsApp test)', () => {
+    expect(collapseRepeatedReply(`${question} ${question}`)).toBe(question);
+    expect(collapseRepeatedReply(`${question}\n${question}\n`)).toBe(question);
+  });
+
+  it('leaves any other text alone', () => {
+    expect(collapseRepeatedReply(`  ${question}  `)).toBe(question);
+    expect(collapseRepeatedReply('Yes yes. Yes yes.')).toBe('Yes yes. Yes yes.');
+    expect(collapseRepeatedReply(`${question} Is it in person?`)).toBe(`${question} Is it in person?`);
+    expect(collapseRepeatedReply('')).toBe('');
+  });
+
+  it('sends a reply the model wrote twice only once, and still counts it as a clarification', async () => {
+    const twice = setup(result({ content: `${question} ${question}`, toolCalls: [] }));
+    const response = await handleAssistant(caller(), chatRequest(), twice.deps);
+    expect(response.reply).toBe(question);
+    expect(twice.quota.root('u1')).toMatchObject({ clarifications: 1 });
   });
 });
