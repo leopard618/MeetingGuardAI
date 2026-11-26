@@ -99,6 +99,8 @@ describe('system prompt', () => {
     expect(prompt).toContain('set meeting_ref to "mabcdefg"');
     expect(prompt).toContain('SPEECH-TO-TEXT transcript');
     expect(prompt).toContain('never guess a date');
+    // WhatsApp test (Nov 26 2026): the model asked for a date for "I book the room" instead of proposing it.
+    expect(prompt).toContain('Never ask a question in this mode');
     expect(prompt).not.toContain('# Follow-up mode');
     expect(fallbackReply('en', 'debrief')).toMatch(/tasks below/);
     expect(fallbackReply('es', 'debrief_empty')).toMatch(/tarea/);
