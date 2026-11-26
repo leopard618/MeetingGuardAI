@@ -634,6 +634,8 @@ export const MATTERS_TUNING = {
   graphTimeoutMs: 10_000,
   /** A4 part 2: how long a "Connect your mailbox" sign-in may take (its state expires then). */
   mailboxStateTtlMs: 10 * 60_000,
+  /** A5: matterStream (an answer, and a briefing after it, each one model call). */
+  streamTimeoutSeconds: 120,
 } as const;
 
 /** Parses MATTERS_ALLOWED_UIDS; '*' allows everyone. */

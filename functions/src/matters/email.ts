@@ -58,9 +58,15 @@ export function newMessageId(matterId: string, domain: string, random: () => str
   return `<${matterId}.${random()}@${domain.toLowerCase()}>`;
 }
 
+/** A5: the owner's signature line (settings) under the assistant's name; nothing when empty. */
+export function signed(name: string, signature: string | undefined): string {
+  const line = (signature ?? '').replace(/[\r\n]+/g, ' ').trim();
+  return line ? `${name}\n${line}` : name;
+}
+
 /** The first email of a matter, exactly as it is sent (and as the draft shows it). */
 export function composeFirstEmail(input: {
-  matter: Pick<MatterDoc, 'mandate' | 'firstEmail' | 'ownerName' | 'ownerEmail' | 'replyToken'> & Partial<Pick<MatterDoc, 'sendFrom' | 'mailboxAddress'>>;
+  matter: Pick<MatterDoc, 'mandate' | 'firstEmail' | 'ownerName' | 'ownerEmail' | 'replyToken'> & Partial<Pick<MatterDoc, 'sendFrom' | 'mailboxAddress' | 'signature'>>;
   matterId: string;
   domain: string;
   fromLocalPart: string;
@@ -79,7 +85,7 @@ export function composeFirstEmail(input: {
     replyTo: replyAddressFor(matter.replyToken, input.domain),
     subject: matter.firstEmail.subject,
     // the model ends with a closing ("Best,") and no name: code signs as the assistant
-    text: `${matter.firstEmail.text.trim()}\n${senderName(matter.ownerName, language)}\n\n${disclosureFooter(matter.ownerName, language)}`,
+    text: `${matter.firstEmail.text.trim()}\n${signed(senderName(matter.ownerName, language), matter.signature)}\n\n${disclosureFooter(matter.ownerName, language)}`,
     messageId: newMessageId(input.matterId, input.domain, input.random),
     inReplyTo: null,
     references: [],
@@ -93,7 +99,7 @@ export function composeFirstEmail(input: {
  * out); the body is the text before the signature.
  */
 export function composeMatterEmail(input: {
-  matter: Pick<MatterDoc, 'mandate' | 'ownerName' | 'replyToken'> & Partial<Pick<MatterDoc, 'sendFrom' | 'mailboxAddress'>>;
+  matter: Pick<MatterDoc, 'mandate' | 'ownerName' | 'replyToken'> & Partial<Pick<MatterDoc, 'sendFrom' | 'mailboxAddress' | 'signature'>>;
   matterId: string;
   uid: string;
   domain: string;
@@ -111,7 +117,7 @@ export function composeMatterEmail(input: {
 }): OutboundEmail {
   if (!input.matter.mandate) throw new Error('The matter has no mandate.');
   const language: Language = input.matter.mandate.language;
-  const name = senderName(input.matter.ownerName, language);
+  const name = signed(senderName(input.matter.ownerName, language), input.matter.signature);
   const footer = disclosureFooter(input.matter.ownerName, language);
   return {
     from: fromHeader(input.matter, name, input.domain, input.fromLocalPart),

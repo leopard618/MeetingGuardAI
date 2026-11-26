@@ -15,7 +15,7 @@
  *   is a card the owner sends on the matter page.
  * Every string lives in the "matters" namespace (EN + ES). Nothing typed or said is logged.
  */
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Switch, Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
@@ -23,12 +23,13 @@ import Toast from 'react-native-toast-message';
 import { MGButton } from '../../components/ui';
 import type { MatterAskResponse, MatterDraftResponse, MatterSlot } from '../../core/aiContract';
 import { toAppError } from '../../core/errors';
+import { getDeviceTimeZone } from '../../core/time';
 import { toBaseLanguage } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { matterService } from '../../services/matters';
 import { spacing, useAppTheme } from '../../theme';
 import { voiceCommand } from '../assistant/voiceModel';
-import { matterErrorKey } from './matterErrors';
+import { isStreamUnavailable, matterErrorKey } from './matterErrors';
 import { formatWhen } from './matterFormat';
 import { isActionIntent } from './matterVoice';
 import { useMatterVoice } from './useMatterVoice';
@@ -42,12 +43,14 @@ export interface AskPanelProps {
   onNewMatter?(text: string): void;
   /** A3 feedback: the contact's name, for "Let them know?" (on a matter page). */
   contactName?: string | undefined;
+  /** A5: on a matter page opened from a briefing notification, the briefing starts at once. */
+  autoBrief?: boolean;
   testID?: string;
 }
 
-type Busy = 'ask' | 'act' | 'confirmChange' | 'move' | 'letThemKnow' | null;
+type Busy = 'ask' | 'act' | 'confirmChange' | 'move' | 'letThemKnow' | 'brief' | null;
 
-export function AskPanel({ matterId, onChanged, onNewMatter, contactName, testID = 'matters-ask' }: AskPanelProps): ReactElement {
+export function AskPanel({ matterId, onChanged, onNewMatter, contactName, autoBrief = false, testID = 'matters-ask' }: AskPanelProps): ReactElement {
   const t = useT();
   const { language: appLanguage } = useLanguage();
   const language = toBaseLanguage(appLanguage); // M12: the executive assistant stays en/es
@@ -63,6 +66,8 @@ export function AskPanel({ matterId, onChanged, onNewMatter, contactName, testID
   const [busy, setBusy] = useState<Busy>(null);
   const [natural, setNatural] = useState(false);
   const [spokenMode, setSpokenMode] = useState(false);
+  /** A5: the answer while it is being written (streamed). */
+  const [live, setLive] = useState('');
 
   const showError = (caught: unknown): void => {
     Toast.show({ type: 'error', text1: t(matterErrorKey(toAppError(caught))) });
@@ -88,18 +93,76 @@ export function AskPanel({ matterId, onChanged, onNewMatter, contactName, testID
     setChange(null);
     setMove(null);
     setLetThem(null);
+    // A5: the answer streams and the device voice starts at the first sentence (the natural voice,
+    // demo only, still waits for the whole answer)
+    const streaming = spoken && !natural ? voice.speakStream() : null;
+    setLive('');
     try {
-      const answer = await matterService.ask({ text: words, language, ...(matterId ? { matterId } : {}) });
+      let answer: MatterAskResponse;
+      try {
+        answer = (
+          await matterService.streamAsk({ text: words, language, timeZone: getDeviceTimeZone(), ...(matterId ? { matterId } : {}) }, (piece) => {
+            setLive((current) => current + piece);
+            streaming?.push(piece);
+          })
+        ).ask;
+      } catch (caught: unknown) {
+        // a stream that could not start: the same question, answered whole
+        if (!isStreamUnavailable(caught)) throw caught;
+        answer = await matterService.ask({ text: words, language, ...(matterId ? { matterId } : {}) });
+      }
       setReply(answer);
       setAsked(words);
       setQuestion('');
-      say(isActionIntent(answer.intent) ? `${answer.answer} ${t('matters:voice.sayYes')}` : answer.answer, spoken);
+      const toSay = isActionIntent(answer.intent) ? `${answer.answer} ${t('matters:voice.sayYes')}` : answer.answer;
+      if (streaming) streaming.finish(toSay);
+      else say(toSay, spoken);
     } catch (caught: unknown) {
+      streaming?.cancel();
       showError(caught);
     } finally {
+      setLive('');
       setBusy(null);
     }
   };
+
+  /** A5: "Brief me" on a matter page: the briefing streams and is spoken as it arrives. */
+  const brief = async (): Promise<void> => {
+    if (!matterId) return;
+    setBusy('brief');
+    setChange(null);
+    setMove(null);
+    setLetThem(null);
+    setReply(null);
+    setLive('');
+    const streaming = natural ? null : voice.speakStream();
+    try {
+      const briefing = await matterService.streamBriefing({ language, matterId, timeZone: getDeviceTimeZone() }, (piece) => {
+        setLive((current) => current + piece);
+        streaming?.push(piece);
+      });
+      setReply({ intent: 'briefing', matterId, title: briefing.title, answer: briefing.text });
+      if (streaming) streaming.finish(briefing.text);
+      else say(briefing.text, true);
+    } catch (caught: unknown) {
+      streaming?.cancel();
+      showError(caught);
+    } finally {
+      setLive('');
+      setBusy(null);
+    }
+  };
+
+  // opened from a briefing notification: once
+  const [autoBriefed, setAutoBriefed] = useState(false);
+  useEffect(() => {
+    if (!autoBrief || autoBriefed || !matterId) return;
+    const start = (): void => {
+      setAutoBriefed(true);
+      void brief();
+    };
+    start();
+  });
 
   const act = async (): Promise<void> => {
     if (!reply) return;
@@ -305,6 +368,16 @@ export function AskPanel({ matterId, onChanged, onNewMatter, contactName, testID
         <Switch value={natural} onValueChange={setNatural} testID={`${testID}-natural`} />
       </View>
 
+      {matterId ? (
+        <MGButton variant="tonal" icon="account-voice" style={styles.rowButton} onPress={() => void brief()} loading={busy === 'brief'} disabled={busy !== null} testID={`${testID}-brief`}>
+          {t('matters:brief.button')}
+        </MGButton>
+      ) : null}
+      {(busy === 'ask' || busy === 'brief') && live ? (
+        <View style={styles.answer} testID={`${testID}-live`}>
+          <Text variant="bodyMedium">{live}</Text>
+        </View>
+      ) : null}
       {reply ? (
         <View style={styles.answer} testID={`${testID}-answer`}>
           <Text variant="bodyMedium" selectable>

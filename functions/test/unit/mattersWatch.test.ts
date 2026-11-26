@@ -570,6 +570,7 @@ function baseMatter() {
     purgedAt: null,
     sendFrom: 'assistant' as const,
     mailboxAddress: null,
+    signature: '',
   };
 }
 

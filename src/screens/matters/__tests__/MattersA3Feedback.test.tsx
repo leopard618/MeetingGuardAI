@@ -38,6 +38,7 @@ const mockService = {
   message: jest.fn(),
   readNewTime: jest.fn(),
   moveMeeting: jest.fn(),
+  streamAsk: jest.fn(),
 };
 jest.mock('../../../services/matters', () => ({
   matterService: new Proxy(
@@ -99,6 +100,8 @@ beforeEach(async () => {
   mockVoice.status = 'idle';
   mockService.listOpen.mockResolvedValue([ITEM]);
   mockService.getPage.mockResolvedValue(PAGE);
+  // A5: no stream in these tests: the panel asks the callable instead (the fallback)
+  mockService.streamAsk.mockRejectedValue(Object.assign(new Error('no stream'), { details: { stream: 'unavailable' } }));
   await i18n.changeLanguage('en');
 });
 

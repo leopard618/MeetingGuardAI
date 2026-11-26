@@ -26,7 +26,7 @@
  */
 import type { FullScreenAlarmModule, FullScreenAlarmSpec, Unsubscribe } from '../../core/contracts';
 import { appEvents, type AppEventMap, type EventBus } from '../../core/events';
-import { BRIEFING_NOTIFICATION_ID_PREFIX, briefingNotificationId, channelFor } from '../../core/identifiers';
+import { BRIEFING_NOTIFICATION_ID_PREFIX, MATTERS_DEEP_LINK, briefingNotificationId, channelFor } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
 import { expandOccurrences } from '../../core/recurrence';
 import { addDaysToLocalDate, dayRangeUtc, getDeviceTimeZone, todayInZone, zonedDateTimeToUtcIso } from '../../core/time';
@@ -172,7 +172,7 @@ function hashContent(parts: readonly string[]): string {
  * stays readable in a collapsed notification, and from the counts rather than the full list so
  * that editing one meeting title does not reschedule the briefing.
  */
-export function renderBriefingSpec(item: BriefingItem, preferences: Preferences, deps: AlertTextDeps): BriefingSpec {
+export function renderBriefingSpec(item: BriefingItem, preferences: Preferences, deps: AlertTextDeps, assistantNeedsYou: number | null = null): BriefingSpec {
   const { t } = deps;
   const sentences: string[] = [];
 
@@ -195,6 +195,12 @@ export function renderBriefingSpec(item: BriefingItem, preferences: Preferences,
   }
   if (item.dueTaskCount > 0) sentences.push(t('alerts:briefing.tasksDue', { count: item.dueTaskCount }));
   if (item.overdueTaskCount > 0) sentences.push(t('alerts:briefing.tasksOverdue', { count: item.overdueTaskCount }));
+  // A5: the executive assistant's line (the last digest's count; left out when unknown or old). The
+  // assistant speaks English and Spanish only, so its line is in its own namespace and only there.
+  // With the line, a tap (or the Android full-screen summary) opens the assistant's "Today".
+  const assistantLine = assistantNeedsYou !== null && assistantNeedsYou > 0 && /^(?:en|es)(?:-|$)/.test(deps.language);
+  if (assistantLine) sentences.push(t('matters:briefingLine.assistant', { count: assistantNeedsYou }));
+  const url = assistantLine ? MATTERS_DEEP_LINK : null;
 
   const body = sentences.length > 0 ? sentences.join(' ') : t('alerts:briefing.empty');
   const title = t('alerts:briefing.title');
@@ -203,7 +209,8 @@ export function renderBriefingSpec(item: BriefingItem, preferences: Preferences,
     kind: 'briefing',
     localDateKey: item.localDateKey,
     fireAt: item.fireAt,
-    hash: hashContent([title, body]),
+    hash: hashContent(url ? [title, body, url] : [title, body]),
+    ...(url ? { url } : {}),
   };
   return {
     identifier: item.identifier,
@@ -237,7 +244,8 @@ export function toBriefingAlarmSpec(spec: BriefingSpec, preferences: Preferences
     atMs: Date.parse(spec.fireAt),
     title: spec.title,
     body: spec.body,
-    deepLink: '',
+    // A5: the assistant's "Today" when the summary has its line; else the app itself
+    deepLink: spec.data.url ?? '',
     channelId: channelFor('max', preferences.vibrationEnabled),
   };
 }
@@ -264,6 +272,8 @@ export interface BriefingDeps {
   appState?: { subscribe(listener: (state: string) => void): Unsubscribe };
   deviceTimeZone?: () => string;
   now?: () => Date;
+  /** A5: how many things wait for the owner in the executive assistant (null: unknown); absent = no line. */
+  assistantNeedsYou?: () => Promise<number | null>;
 }
 
 export interface BriefingScheduler {
@@ -315,7 +325,8 @@ export function createBriefingScheduler(deps: BriefingDeps): BriefingScheduler {
       desired = computeBriefingPlan(meetings, tasks, preferences, now, timeZone);
     }
 
-    const specs = preferences === null ? [] : desired.map((item) => renderBriefingSpec(item, preferences, textDeps(preferences, timeZone)));
+    const assistant = desired.length > 0 && deps.assistantNeedsYou ? await deps.assistantNeedsYou().catch(() => null) : null;
+    const specs = preferences === null ? [] : desired.map((item) => renderBriefingSpec(item, preferences, textDeps(preferences, timeZone), assistant));
     const specById = new Map(specs.map((spec) => [spec.identifier, spec]));
 
     // Full-screen only when the user asked for it, the module is present (Android), and the

@@ -461,9 +461,14 @@ export function assistantDeepLink(options: { followUpMeetingId?: string | null }
   return `${DEEP_LINK_PREFIX}assistant?followup=${id}`;
 }
 
+/** A5: the executive assistant's matters screen ("Today" at its top). */
+export const MATTERS_DEEP_LINK = `${DEEP_LINK_PREFIX}matters`;
+
 export type ParsedDeepLink =
   | { type: 'meeting'; meetingId: string }
   | { type: 'assistant'; followUpMeetingId: string | null }
+  /** A5: the executive assistant's matters (a briefing notification: one matter, brief = start the briefing). */
+  | { type: 'matters'; matterId: string | null; brief: boolean }
   | { type: 'unknown' };
 
 export function parseDeepLink(url: string): ParsedDeepLink {
@@ -486,6 +491,20 @@ export function parseDeepLink(url: string): ParsedDeepLink {
       }
     }
     return { type: 'assistant', followUpMeetingId };
+  }
+  // A5: meetingguardai://matters?matter=<id>&brief=1 (the mailbox return URL, matters/mailbox, stays unknown)
+  if (segments[0] === 'matters' && segments.length === 1) {
+    let matterId: string | null = null;
+    let brief = false;
+    for (const pair of queryPart.split('&')) {
+      const [key, value = ''] = pair.split('=', 2);
+      if (key === 'matter') {
+        const decoded = safeDecode(value);
+        matterId = decoded !== null && /^[A-Za-z0-9]{1,64}$/.test(decoded) ? decoded : null;
+      }
+      if (key === 'brief') brief = value === '1';
+    }
+    return { type: 'matters', matterId, brief: brief && matterId !== null };
   }
   return { type: 'unknown' };
 }

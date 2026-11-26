@@ -95,7 +95,8 @@ export { fathomConnect, fathomOAuth, fathomWebhook } from './summaries';
 // adds matterMessage and matterMove (callables: each only makes a card the owner sends). A4 adds
 // matterDelete and matterUsage (callables), matterAdminSwitch and matterAdminUsage (admin dashboard).
 // A4 part 2 adds matterMailbox (callable) and matterMailboxCallback (Microsoft's sign-in redirect),
-// and matterWatch (callable: "Watch this thread").
+// and matterWatch (callable: "Watch this thread"). A5 adds matterSettings and matterDigest
+// (callables) and matterStream (HTTP: streamed answers and briefings, the Firebase ID token as Bearer).
 export {
   assistantInboundEmail,
   matterAdminSwitch,
@@ -111,6 +112,9 @@ export {
   matterInboundRead,
   matterMailbox,
   matterWatch,
+  matterSettings,
+  matterDigest,
+  matterStream,
   matterMailboxCallback,
   matterMessage,
   matterMove,

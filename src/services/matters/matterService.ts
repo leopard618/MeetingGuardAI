@@ -24,6 +24,12 @@
  *   browser (expo-web-browser, loaded lazily) and resolves once the browser comes back.
  *   matterWatch ("Watch this thread"): the forwards waiting, a draft from one (the usual draft,
  *   confirmed the usual way), or dismiss one.
+ * - A5: matterSettings (the settings and the consent), matterDigest (the morning digest) and
+ *   matterStream (answers and briefings streamed as they are written, matterStream.ts): streamAsk
+ *   and streamBriefing call onText with each piece and resolve the done line; an error line becomes
+ *   an AppError like the callables'. A stream that cannot start rejects with details.stream
+ *   'unavailable' (askAnswer then asks the callable instead). consent_required maps to
+ *   permission_denied with that reason, so the screen shows the consent.
  */
 import { httpsCallable } from 'firebase/functions';
 
@@ -54,6 +60,16 @@ import {
   matterMailboxResponseSchema,
   matterWatchRequestSchema,
   matterWatchResponseSchema,
+  matterSettingsRequestSchema,
+  matterSettingsResponseSchema,
+  matterDigestRequestSchema,
+  matterDigestResponseSchema,
+  matterStreamRequestSchema,
+  type MatterAskResponse as StreamAskResponse,
+  type MatterBriefing,
+  type MatterDigestResponse,
+  type MatterPrefs,
+  type MatterSettingsResponse,
   MATTER_MAILBOX_RETURN_URL,
   matterConfirmRequestSchema,
   matterConfirmResponseSchema,
@@ -79,11 +95,13 @@ import {
   type MatterSetStatusResponse,
   type MatterSpeakResponse,
   type MatterStatusAction,
+  type MatterStreamLine,
 } from '../../core/aiContract';
 import { AppError, isAppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { env } from '../../config/env';
-import { functions } from '../../config/firebase';
+import { auth, functions } from '../../config/firebase';
+import { createHttpStreamTransport, streamUrl, type FetchLike, type StreamTransport } from './matterStream';
 
 const log = createLogger('matters');
 
@@ -103,7 +121,9 @@ export type MatterCallableName =
   | typeof CALLABLES.matterDelete
   | typeof CALLABLES.matterUsage
   | typeof CALLABLES.matterMailbox
-  | typeof CALLABLES.matterWatch;
+  | typeof CALLABLES.matterWatch
+  | typeof CALLABLES.matterSettings
+  | typeof CALLABLES.matterDigest;
 
 export interface MatterTransport {
   call(name: MatterCallableName, request: unknown, options: { timeoutMs: number }): Promise<unknown>;
@@ -156,6 +176,16 @@ export interface MatterService {
   watchDraft(watchId: string, language: Language, timeZone: string): Promise<MatterWatchResponse>;
   /** Deletes a waiting forward. */
   watchDismiss(watchId: string): Promise<MatterWatchResponse>;
+  // ---- A5 ----
+  settings(): Promise<MatterSettingsResponse>;
+  /** applyToOpen: the follow-ups and the copy rule also go to the running matters. */
+  saveSettings(prefs: MatterPrefs, timeZone: string, applyToOpen?: boolean): Promise<MatterSettingsResponse>;
+  giveConsent(version: number, timeZone: string): Promise<MatterSettingsResponse>;
+  digest(language: Language, timeZone: string): Promise<MatterDigestResponse>;
+  /** A question streamed: onText gets the answer as it is written; resolves what code decided (and a briefing, for "brief me"). */
+  streamAsk(input: { text: string; language: Language; matterId?: string; timeZone: string }, onText: (piece: string) => void): Promise<{ ask: StreamAskResponse; briefing: MatterBriefing | null }>;
+  /** A briefing streamed: of a matter, or of the meeting the words name. */
+  streamBriefing(input: { language: Language; matterId?: string; text?: string; timeZone: string }, onText: (piece: string) => void): Promise<MatterBriefing>;
 }
 
 export type MatterOpenItem = NonNullable<MatterViewResponse['matters']>[number];
@@ -170,6 +200,7 @@ const REASON_TO_APP_CODE: Readonly<Record<MatterErrorCode, AppErrorCode>> = {
   not_allowed: 'permission_denied',
   rate_limited: 'quota_exceeded',
   upstream_error: 'upstream_error',
+  consent_required: 'permission_denied',
 };
 
 function readCode(error: unknown): string | null {
@@ -199,6 +230,8 @@ export interface MatterServiceDeps {
   getTransport(): MatterTransport | null;
   enabled(): boolean;
   timeoutMs?: number;
+  /** A5: matterStream (absent: streamed answers are not available). */
+  getStream?(): StreamTransport | null;
 }
 
 export function createMatterService(deps: MatterServiceDeps): MatterService {
@@ -268,7 +301,45 @@ export function createMatterService(deps: MatterServiceDeps): MatterService {
       call(CALLABLES.matterWatch, validated(matterWatchRequestSchema, { action: 'draft', watchId, language, timeZone }), (raw) => matterWatchResponseSchema.safeParse(raw)),
     watchDismiss: async (watchId) =>
       call(CALLABLES.matterWatch, validated(matterWatchRequestSchema, { action: 'dismiss', watchId }), (raw) => matterWatchResponseSchema.safeParse(raw)),
+    settings: async () => call(CALLABLES.matterSettings, { action: 'get' }, (raw) => matterSettingsResponseSchema.safeParse(raw)),
+    saveSettings: async (prefs, timeZone, applyToOpen = false) =>
+      call(
+        CALLABLES.matterSettings,
+        validated(matterSettingsRequestSchema, { action: 'save', prefs, timeZone, ...(applyToOpen ? { applyToOpen: true } : {}) }),
+        (raw) => matterSettingsResponseSchema.safeParse(raw),
+      ),
+    giveConsent: async (version, timeZone) =>
+      call(CALLABLES.matterSettings, validated(matterSettingsRequestSchema, { action: 'consent', version, timeZone }), (raw) => matterSettingsResponseSchema.safeParse(raw)),
+    digest: async (language, timeZone) => call(CALLABLES.matterDigest, validated(matterDigestRequestSchema, { language, timeZone }), (raw) => matterDigestResponseSchema.safeParse(raw)),
+    streamAsk: async (input, onText) => {
+      const done = await streamCall({ kind: 'ask', ...input, text: input.text.trim() }, onText);
+      if (!done.ask) throw new AppError('upstream_error', 'invalid matterStream answer');
+      return { ask: done.ask, briefing: done.briefing ?? null };
+    },
+    streamBriefing: async (input, onText) => {
+      const done = await streamCall({ kind: 'briefing', ...input, ...(input.text ? { text: input.text.trim() } : {}) }, onText);
+      if (!done.briefing) throw new AppError('upstream_error', 'invalid matterStream answer');
+      return done.briefing;
+    },
   };
+
+  /** One streamed call: text pieces to onText; the done line resolves; an error line rejects like a callable. */
+  async function streamCall(request: unknown, onText: (piece: string) => void): Promise<Extract<MatterStreamLine, { t: 'done' }>> {
+    if (!deps.enabled()) throw new AppError('not_configured', 'The assistant is off in this build');
+    if (!matterStreamRequestSchema.safeParse(request).success) throw new AppError('invalid_input', 'invalid matter request');
+    const stream = deps.getStream?.() ?? null;
+    if (!stream) throw new AppError('not_configured', 'The streamed answers are not available.', { details: { stream: 'unavailable' } });
+    let done: Extract<MatterStreamLine, { t: 'done' }> | null = null;
+    let failed: Extract<MatterStreamLine, { t: 'error' }> | null = null;
+    await stream.open(request, (line) => {
+      if (line.t === 'text') onText(line.v);
+      else if (line.t === 'done') done = line;
+      else failed = line;
+    });
+    if (failed) throw mapMatterError({ details: { reason: (failed as { reason: string }).reason, ...((failed as { limit?: string }).limit ? { limit: (failed as { limit?: string }).limit } : {}) } });
+    if (!done) throw new AppError('upstream_error', 'The streamed answer ended early.');
+    return done;
+  }
 }
 
 interface WebBrowserLike {
@@ -313,7 +384,23 @@ function firebaseTransport(): MatterTransport | null {
   };
 }
 
+/** A5: matterStream over expo/fetch (a body read as it arrives), with the signed-in user's ID token. */
+function firebaseStream(): StreamTransport | null {
+  const instance = functions;
+  if (!instance) return null;
+  return createHttpStreamTransport({
+    url: () => streamUrl(env.functionsRegion, instance.app.options.projectId),
+    token: async () => (await auth?.currentUser?.getIdToken()) ?? null,
+    fetch: (url, init) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- loaded on first use: the streaming fetch of Expo
+      const expoFetch = (require('expo/fetch') as { fetch: FetchLike }).fetch;
+      return expoFetch(url, init);
+    },
+  });
+}
+
 export const matterService: MatterService = createMatterService({
   getTransport: firebaseTransport,
   enabled: () => env.mattersEnabled,
+  getStream: firebaseStream,
 });

@@ -108,6 +108,8 @@ export interface BriefingData {
   fireAt: string;
   /** Hash of everything visible: a changed body reschedules, an unchanged one is kept. */
   hash: string;
+  /** A5: with the executive assistant's line, a tap opens its "Today" (meetingguardai://matters). */
+  url?: string;
 }
 
 /** The optional daily agenda notification (V2 Stage 1, week 4; src/services/alerts/briefing.ts). */

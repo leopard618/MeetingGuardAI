@@ -3,7 +3,7 @@
 All notable changes to Meeting Guard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
-## [Unreleased] - Executive assistant (A1 to A4, switched off)
+## [Unreleased] - Executive assistant (A1 to A5, switched off)
 
 The AI executive assistant of the November 10, 2026 plan, built in steps. Nothing here is visible
 to users: the assistant stays switched off in every release until its beta (A10).
@@ -203,6 +203,34 @@ to users: the assistant stays switched off in every release until its beta (A10)
     the owner confirms. The card stays as "Draft ready" (it opens that draft again) until the
     draft is confirmed or cancelled; cards nobody opens are deleted after a week; new callable
     matterWatch.
+- **A5, the assistant complete in the app**, switched off like the rest:
+  - a consent screen before first use (what is processed by OpenAI through our server); the server
+    refuses model calls until the current version is agreed;
+  - "Today" on the matters screen: the morning digest written by code (what needs you, what moved,
+    follow-ups due, meetings it arranged), read aloud on request; its count is a line in the daily
+    briefing notification;
+  - briefings: "Brief me" on a matter, "brief me on my 3 pm" for any meeting, and a notification
+    before each meeting the assistant booked that opens the matter and starts the briefing;
+  - spoken answers that start at once: answers and briefings stream from the server (matterStream)
+    and the voice says each sentence as soon as it is written; an app that cannot stream gets the
+    whole answer as before;
+  - Assistant settings: the assistant's address, the Outlook mailbox (moved here), follow-ups,
+    working hours and days (also when follow-ups go out), the language of the emails, a signature
+    line, a copy or a daily summary, how long a matter runs, the meeting length, briefings before
+    meetings, and the usage meter; "Also change my running matters" applies the follow-ups and the
+    copy rule to the running matters too (asked once more); times are picked with the phone's time
+    picker and Save stays at the bottom while something changed;
+  - the daily summary email for matters set to "a daily summary instead of copies" (one that cannot
+    be sent is tried again for an hour, then waits for the next day);
+  - the digest is fetched when the app opens, so the daily briefing line and the briefings before
+    booked meetings are current without opening the matters screen; with the assistant's line, the
+    daily briefing (and the Android full-screen summary) opens "Today";
+  - a clearer design of the assistant's screens: a header with what is running and what needs you,
+    "Today" as tappable rows with counts, the consent as three short points, cards on the matter
+    page shown as cards, the timeline as a line of dots, and "Manage this matter";
+  - on the matter page: "Try again" or cancel for a first email that did not go out, and "Add an
+    email to this matter" (forward one from your Outlook to the matter's address);
+  - new callables matterSettings and matterDigest, the HTTP function matterStream.
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 

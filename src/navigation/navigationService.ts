@@ -91,6 +91,8 @@ export function intentForDeepLink(url: string, options: { fromNotification?: boo
             ? { followup: parsed.followUpMeetingId, ...(options.fromNotification === true ? { autoStart: true } : {}) }
             : undefined,
       };
+    case 'matters':
+      return { name: 'Matters', params: parsed.matterId !== null ? { matterId: parsed.matterId, ...(parsed.brief ? { brief: true } : {}) } : undefined };
     default:
       return null;
   }

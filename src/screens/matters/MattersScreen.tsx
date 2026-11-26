@@ -26,32 +26,45 @@
  * section; tapping one drafts the answer (the usual draft, with their email shown above it);
  * tapped again ("Draft ready") it opens that same draft; the close button removes one (asks
  * first). Nothing is sent until the owner confirms.
+ * A5: before first use, the consent (what is sent to OpenAI through our server); "Today", the
+ * morning digest (written by code on the server) with "Read aloud"; "Assistant settings" (a page:
+ * AssistantSettings.tsx, where the mailbox now lives); the digest also feeds the daily briefing
+ * notification's line and the briefings before booked meetings (assistantNotifications.ts); a
+ * briefing notification opens its matter here (route params matterId and brief).
+ * Design (A5): a header card with what is running and what needs the owner (and the settings
+ * button), "Today" as tappable rows grouped by section with counts, "Hand over a new matter" in its
+ * own card, and the consent as three short points with icons.
  * Every string lives in the "matters" namespace (EN + ES). Nothing typed is logged.
  */
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useCallback, useEffect, useState, type ComponentProps, type ReactElement } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { IconButton, Switch, Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
-import type {
-  MatterConfirmResponse,
-  MatterDraftResponse,
-  MatterMailboxResponse,
-  MatterSendOutcome,
-  MatterUsageResponse,
-  MatterWatchItem,
-  MatterWatchResponse,
+import { Badge, Banner, Card, ListGroup, ListRow, MGButton } from '../../components/ui';
+import {
+  MATTER_CONSENT_VERSION,
+  type MatterConfirmResponse,
+  type MatterDigestResponse,
+  type MatterDraftResponse,
+  type MatterMailboxResponse,
+  type MatterSettingsResponse,
+  type MatterSendOutcome,
+  type MatterUsageResponse,
+  type MatterWatchItem,
+  type MatterWatchResponse,
 } from '../../core/aiContract';
 import { toAppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
 import { toBaseLanguage } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
-import { matterService, openMailboxSignIn, type MatterOpenItem } from '../../services/matters';
-import { spacing, useAppTheme } from '../../theme';
+import { matterService, rememberDigest, scheduleBriefings, type MatterOpenItem } from '../../services/matters';
+import { radii, spacing, useAppTheme } from '../../theme';
 import { voiceCommand } from '../assistant/voiceModel';
 import { ScreenBody, Section } from '../shared/Section';
 import { AskPanel } from './AskPanel';
+import { AssistantSettings } from './AssistantSettings';
 import { MatterPage } from './MatterPage';
 import { matterErrorKey } from './matterErrors';
 import { useMatterVoice } from './useMatterVoice';
@@ -59,7 +72,23 @@ import { useMatterVoice } from './useMatterVoice';
 export { matterErrorKey };
 
 
-type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | 'mailbox' | 'watch' | null;
+type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | 'mailbox' | 'watch' | 'consent' | null;
+type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/** "Today": the order of its parts and their icons. */
+const DIGEST_PARTS: readonly { key: 'needsYou' | 'moved' | 'followUps' | 'meetings'; icon: IconName }[] = [
+  { key: 'needsYou', icon: 'alert-circle-outline' },
+  { key: 'moved', icon: 'swap-horizontal' },
+  { key: 'followUps', icon: 'email-sync-outline' },
+  { key: 'meetings', icon: 'calendar-check-outline' },
+];
+
+/** The consent's points (the last paragraph is the question above the buttons). */
+const CONSENT_POINTS: readonly { key: 'p1' | 'p2' | 'p3'; icon: IconName }[] = [
+  { key: 'p1', icon: 'cloud-lock-outline' },
+  { key: 'p2', icon: 'shield-lock-outline' },
+  { key: 'p3', icon: 'delete-clock-outline' },
+];
 type Done = { kind: 'sent' } | { kind: 'sending' } | { kind: 'not_sent' } | { kind: 'unknown'; inactiveRecipient: boolean } | { kind: 'cancelled' };
 
 function doneFor(result: MatterConfirmResponse): Done {
@@ -72,7 +101,13 @@ function doneFor(result: MatterConfirmResponse): Done {
   return kinds[result.outcome];
 }
 
-export function MattersScreen(): ReactElement {
+/** A5: React Navigation passes the route; a briefing notification sets matterId (and brief). */
+export interface MattersScreenProps {
+  route?: { params?: { matterId?: string; brief?: boolean } | undefined };
+  navigation?: { goBack(): void; setParams?(params: Record<string, unknown>): void };
+}
+
+export function MattersScreen({ route, navigation }: MattersScreenProps = {}): ReactElement {
   const t = useT();
   const { language } = useLanguage();
   const { colors } = useAppTheme();
@@ -89,14 +124,20 @@ export function MattersScreen(): ReactElement {
   const [mailbox, setMailbox] = useState<MatterMailboxResponse | null>(null);
   /** "Watch this thread": the forwarded emails waiting; null while unknown (hidden then). */
   const [watch, setWatch] = useState<MatterWatchResponse | null>(null);
+  /** A5: the settings and consent (null while unknown), the morning digest, the settings page. */
+  const [settings, setSettings] = useState<MatterSettingsResponse | null>(null);
+  const [digest, setDigest] = useState<MatterDigestResponse | null>(null);
+  const [view, setView] = useState<'main' | 'settings'>('main');
+  const [autoBrief, setAutoBrief] = useState(false);
   /** A3: the matter was dictated, so the assistant answers aloud. */
   const [spoken, setSpoken] = useState(false);
   const base = toBaseLanguage(language); // M12: the executive assistant stays en/es
+  const muted = { color: colors.onSurfaceVariant };
 
   // every state update comes after the await (react-hooks/set-state-in-effect); the list is a
   // convenience, so a failed read (or the assistant off) simply shows none
   const loadOpen = useCallback(async (): Promise<void> => {
-    const [list, meter, box, watching] = await Promise.all([
+    const [list, meter, box, watching, prefs, today] = await Promise.all([
       matterService.listOpen().catch((): MatterOpenItem[] => []),
       Promise.resolve()
         .then(() => matterService.usage())
@@ -107,12 +148,24 @@ export function MattersScreen(): ReactElement {
       Promise.resolve()
         .then(() => matterService.watchList())
         .catch(() => null),
+      Promise.resolve()
+        .then(() => matterService.settings())
+        .catch(() => null),
+      Promise.resolve()
+        .then(() => matterService.digest(base, getDeviceTimeZone()))
+        .catch(() => null),
     ]);
     setOpenMatters(list);
     setUsage(meter);
     setMailbox(box);
     setWatch(watching);
-  }, []);
+    setSettings(prefs);
+    setDigest(today);
+    if (today) {
+      void rememberDigest(today);
+      void scheduleBriefings(today, { title: (title) => t('matters:brief.notificationTitle', { title }), body: t('matters:brief.notificationBody') });
+    }
+  }, [base, t]);
 
   useEffect(() => {
     const start = (): void => {
@@ -120,6 +173,24 @@ export function MattersScreen(): ReactElement {
     };
     start();
   }, [loadOpen]);
+
+  // A5: a briefing notification opens its matter and starts the briefing
+  const routeMatterId = route?.params?.matterId;
+  const routeBrief = route?.params?.brief === true;
+  useEffect(() => {
+    if (!routeMatterId) return;
+    const open = (): void => {
+      setOpenMatterId(routeMatterId);
+      setAutoBrief(routeBrief);
+      navigation?.setParams?.({ matterId: undefined, brief: undefined });
+    };
+    open();
+  }, [routeMatterId, routeBrief, navigation]);
+
+  const agree = (): Promise<void> =>
+    run('consent', async () => {
+      setSettings(await matterService.giveConsent(MATTER_CONSENT_VERSION, getDeviceTimeZone()));
+    });
 
   const run = useCallback(
     async (kind: Exclude<Busy, null>, action: () => Promise<void>): Promise<void> => {
@@ -157,32 +228,6 @@ export function MattersScreen(): ReactElement {
       setAnswer('');
       sayDraft(next, spoken);
     });
-
-  // A4 part 2: the sign-in happens in the browser; only the server knows how it ended
-  const connectMailbox = (): Promise<void> =>
-    run('mailbox', async () => {
-      const link = await matterService.mailboxConnectLink(base);
-      if (!link.authUrl) return;
-      await openMailboxSignIn(link.authUrl);
-      const status = await matterService.mailboxStatus();
-      setMailbox(status);
-      Toast.show({ type: status.connected ? 'success' : 'info', text1: t(status.connected ? 'matters:mailbox.connected' : 'matters:mailbox.notConnected') });
-    });
-
-  const disconnectMailbox = (): void => {
-    Alert.alert(t('matters:mailbox.disconnectTitle'), t('matters:mailbox.disconnectMessage'), [
-      { text: t('matters:mailbox.disconnectKeep'), style: 'cancel' },
-      {
-        text: t('matters:mailbox.disconnectConfirm'),
-        style: 'destructive',
-        onPress: () =>
-          void run('mailbox', async () => {
-            setMailbox(await matterService.mailboxDisconnect());
-            Toast.show({ type: 'success', text1: t('matters:mailbox.disconnected') });
-          }),
-      },
-    ]);
-  };
 
   const sendFromMailbox = (on: boolean): Promise<void> =>
     run('mailbox', async () => {
@@ -284,6 +329,7 @@ export function MattersScreen(): ReactElement {
 
   const closeMatter = (): void => {
     setOpenMatterId(null);
+    setAutoBrief(false);
     void loadOpen();
   };
 
@@ -347,45 +393,190 @@ export function MattersScreen(): ReactElement {
     );
   }
 
-  if (openMatterId) {
+  // A5: the consent before first use (the server refuses model calls without it)
+  if (settings && (!settings.consent || settings.consent.version < settings.consentVersion)) {
     return (
       <ScreenBody>
-        <MatterPage matterId={openMatterId} onBack={closeMatter} />
+        <View testID="matters-consent">
+          <Card accent="primary" style={styles.hero}>
+            <MaterialCommunityIcons name="robot-outline" size={32} color={colors.primary} />
+            <Text variant="headlineSmall" style={styles.heroTitle} accessibilityRole="header">
+              {t('matters:consent.title')}
+            </Text>
+            <Text variant="bodyMedium" style={muted}>
+              {t('matters:consent.subtitle')}
+            </Text>
+          </Card>
+          {CONSENT_POINTS.map(({ key, icon }) => (
+            <View key={key} style={styles.point} testID={`matters-consent-${key}`}>
+              <View style={[styles.pointIcon, { backgroundColor: colors.primaryContainer }]}>
+                <MaterialCommunityIcons name={icon} size={22} color={colors.onPrimaryContainer} />
+              </View>
+              <Text variant="bodyMedium" style={styles.grow}>
+                {t(`matters:consent.${key}`)}
+              </Text>
+            </View>
+          ))}
+          <Text variant="titleSmall" style={styles.question}>
+            {t('matters:consent.p4')}
+          </Text>
+          <MGButton style={styles.action} onPress={() => void agree()} loading={busy === 'consent'} disabled={busy !== null} testID="matters-consent-agree">
+            {t('matters:consent.agree')}
+          </MGButton>
+          <MGButton variant="ghost" onPress={() => navigation?.goBack()} disabled={busy !== null} testID="matters-consent-later">
+            {t('matters:consent.later')}
+          </MGButton>
+        </View>
       </ScreenBody>
     );
   }
 
-  if (!draft) {
+  if (openMatterId) {
     return (
       <ScreenBody>
-        <Text variant="bodyMedium" style={[styles.explainer, { color: colors.onSurfaceVariant }]}>
-          {t('matters:intro')}
-        </Text>
-        <TextInput
-          mode="outlined"
-          label={t('matters:request.label')}
-          placeholder={t('matters:request.placeholder')}
-          value={request}
-          onChangeText={setRequest}
-          multiline
-          numberOfLines={6}
-          maxLength={2000}
-          testID="matters-request"
-        />
-        <View style={styles.buttons}>
-          <MGButton style={styles.action} onPress={() => void prepare()} loading={busy === 'prepare'} disabled={busy !== null || request.trim().length === 0} testID="matters-prepare">
-            {t('matters:prepare')}
-          </MGButton>
-          {micButton}
-          {stopButton}
-        </View>
+        <MatterPage matterId={openMatterId} onBack={closeMatter} autoBrief={autoBrief} />
+      </ScreenBody>
+    );
+  }
+
+  if (view === 'settings' && settings) {
+    // the settings page has its own screen body (Save fixed at the bottom)
+    return (
+      <AssistantSettings
+        settings={settings}
+        mailbox={mailbox}
+        usage={usage}
+        language={base}
+        onBack={() => {
+          setView('main');
+          void loadOpen();
+        }}
+        onSaved={setSettings}
+        onMailbox={setMailbox}
+      />
+    );
+  }
+
+  if (!draft) {
+    const running = (openMatters ?? []).filter((item) => item.status === 'active' || item.status === 'paused').length;
+    const needYou = digest ? digest.needsYou : (openMatters ?? []).reduce((sum, item) => sum + (item.pendingApprovals ?? 0), 0);
+    const digestEmpty = digest !== null && digest.needsYou === 0 && Object.values(digest.sections).every((items) => items.length === 0);
+    return (
+      <ScreenBody>
+        <Card accent="primary" style={styles.hero} testID="matters-header">
+          <View style={styles.heroRow}>
+            <View style={[styles.pointIcon, { backgroundColor: colors.primary }]}>
+              <MaterialCommunityIcons name="robot-outline" size={24} color={colors.onPrimary} />
+            </View>
+            <View style={styles.grow}>
+              <Text variant="titleLarge" accessibilityRole="header">
+                {t('matters:home.title')}
+              </Text>
+              <Text variant="bodyMedium" style={muted} testID="matters-header-status">
+                {running > 0 ? t('matters:home.running', { count: running }) : t('matters:home.none')}
+              </Text>
+            </View>
+            {settings ? (
+              <IconButton icon="cog-outline" mode="contained-tonal" onPress={() => setView('settings')} accessibilityLabel={t('matters:home.settings')} testID="matters-settings-open" />
+            ) : null}
+          </View>
+          {needYou > 0 ? (
+            <View style={styles.heroBadges}>
+              <Badge tone="warning" label={t('matters:home.needYou', { count: needYou })} testID="matters-header-need" />
+            </View>
+          ) : null}
+          {usage ? (
+            <View testID="matters-usage" style={styles.heroUsage}>
+              {usage.today.capReached ? <Banner tone="warning" text={t('matters:usage.capReached')} testID="matters-usage-cap" /> : null}
+              <Text variant="bodySmall" style={muted}>
+                {t('matters:usage.month', {
+                  matters: usage.matters.used,
+                  mattersLimit: usage.matters.limit,
+                  emails: usage.emails.used,
+                  emailsLimit: usage.emails.limit,
+                })}
+              </Text>
+            </View>
+          ) : null}
+        </Card>
+
+        {digest ? (
+          <Section testID="matters-digest">
+            <View style={styles.sectionHead}>
+              <Text variant="titleMedium" accessibilityRole="header" style={styles.grow}>
+                {t('matters:digest.title')}
+              </Text>
+              <MGButton variant="tonal" size="sm" icon="volume-high" onPress={() => voice.speak(digest.spoken)} testID="matters-digest-read">
+                {t('matters:digest.read')}
+              </MGButton>
+            </View>
+            {DIGEST_PARTS.map(({ key, icon }) =>
+              digest.sections[key].length > 0 ? (
+                <View key={key} style={styles.digestPart} testID={`matters-digest-${key}`}>
+                  <View style={styles.partHead}>
+                    <MaterialCommunityIcons name={icon} size={18} color={key === 'needsYou' ? colors.error : colors.primary} />
+                    <Text variant="labelLarge" style={styles.grow}>
+                      {t(`matters:digest.${key}`)}
+                    </Text>
+                    <Badge tone={key === 'needsYou' ? 'warning' : 'neutral'} label={String(digest.sections[key].length)} />
+                  </View>
+                  <ListGroup>
+                    {digest.sections[key].map((item, index) => (
+                      <ListRow
+                        key={`${item.matterId ?? 'all'}-${index}`}
+                        title={item.title}
+                        supporting={item.text}
+                        {...(item.matterId ? { trailing: 'chevron' as const, onPress: () => setOpenMatterId(item.matterId), accessibilityRole: 'button' as const } : {})}
+                        testID={`matters-digest-${key}-${index}`}
+                      />
+                    ))}
+                  </ListGroup>
+                </View>
+              ) : null,
+            )}
+            {digestEmpty ? (
+              <View style={styles.partHead}>
+                <MaterialCommunityIcons name="check-circle-outline" size={20} color={colors.primary} />
+                <Text variant="bodyMedium" style={[styles.grow, muted]}>
+                  {t('matters:digest.allClear')}
+                </Text>
+              </View>
+            ) : null}
+          </Section>
+        ) : null}
+
+        <Section title={t('matters:home.newTitle')} testID="matters-new-section">
+          <Text variant="bodySmall" style={[styles.hint, muted]}>
+            {t('matters:home.newHint')}
+          </Text>
+          <TextInput
+            mode="outlined"
+            outlineStyle={{ borderRadius: radii.md }}
+            label={t('matters:request.label')}
+            placeholder={t('matters:request.placeholder')}
+            value={request}
+            onChangeText={setRequest}
+            multiline
+            numberOfLines={5}
+            maxLength={2000}
+            testID="matters-request"
+          />
+          <View style={styles.buttons}>
+            <MGButton icon="send-outline" style={styles.action} onPress={() => void prepare()} loading={busy === 'prepare'} disabled={busy !== null || request.trim().length === 0} testID="matters-prepare">
+              {t('matters:prepare')}
+            </MGButton>
+            {micButton}
+            {stopButton}
+          </View>
+        </Section>
+
         {openMatters && openMatters.length > 0 ? (
           <Section title={t('matters:open.title')} testID="matters-open-list">
             <ListGroup>
               {openMatters.map((item) => (
                 <ListRow
                   key={item.matterId}
-                  icon="email-fast-outline"
+                  icon={item.pendingApprovals ? 'alert-circle-outline' : item.status === 'paused' ? 'pause-circle-outline' : 'email-fast-outline'}
                   title={item.title}
                   supporting={
                     item.pendingApprovals
@@ -398,54 +589,6 @@ export function MattersScreen(): ReactElement {
                   testID={`matters-open-${item.matterId}`}
                 />
               ))}
-            </ListGroup>
-          </Section>
-        ) : null}
-        {usage ? (
-          <View testID="matters-usage">
-            {usage.today.capReached ? <Banner tone="warning" text={t('matters:usage.capReached')} testID="matters-usage-cap" /> : null}
-            <Text variant="bodySmall" style={[styles.explainer, { color: colors.onSurfaceVariant }]}>
-              {t('matters:usage.month', {
-                matters: usage.matters.used,
-                mattersLimit: usage.matters.limit,
-                emails: usage.emails.used,
-                emailsLimit: usage.emails.limit,
-              })}
-            </Text>
-          </View>
-        ) : null}
-        {mailbox?.available ? (
-          <Section title={t('matters:mailbox.title')} testID="matters-mailbox">
-            <ListGroup>
-              {mailbox.connected ? (
-                <>
-                  <ListRow
-                    icon="microsoft-outlook"
-                    title={t('matters:mailbox.connectedAs', { address: mailbox.address ?? '' })}
-                    supporting={t('matters:mailbox.connectedHint')}
-                    testID="matters-mailbox-address"
-                  />
-                  <ListRow
-                    icon="link-variant-off"
-                    title={t('matters:mailbox.disconnect')}
-                    onPress={disconnectMailbox}
-                    disabled={busy !== null}
-                    accessibilityRole="button"
-                    testID="matters-mailbox-disconnect"
-                  />
-                </>
-              ) : (
-                <ListRow
-                  icon="microsoft-outlook"
-                  title={t('matters:mailbox.connect')}
-                  supporting={t('matters:mailbox.connectHint')}
-                  trailing="chevron"
-                  onPress={() => void connectMailbox()}
-                  disabled={busy !== null}
-                  accessibilityRole="button"
-                  testID="matters-mailbox-connect"
-                />
-              )}
             </ListGroup>
           </Section>
         ) : null}
@@ -487,6 +630,9 @@ export function MattersScreen(): ReactElement {
         ) : null}
         {openMatters && openMatters.length > 0 ? (
           <Section title={t('matters:ask.title')} testID="matters-ask-section">
+            <Text variant="bodySmall" style={[styles.hint, muted]}>
+              {t('matters:home.askHint')}
+            </Text>
             <AskPanel
               onChanged={() => void loadOpen()}
               onNewMatter={(text) => {
@@ -615,4 +761,17 @@ const styles = StyleSheet.create({
   action: { marginTop: spacing.md, marginBottom: spacing.md },
   change: { marginTop: spacing.lg },
   buttons: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.sm },
+  digestPart: { marginTop: spacing.md },
+  hint: { marginBottom: spacing.md },
+  grow: { flex: 1 },
+  hero: { marginBottom: spacing.lg, padding: spacing.lg, rowGap: spacing.xs },
+  heroTitle: { marginTop: spacing.sm },
+  heroRow: { flexDirection: 'row', alignItems: 'center', columnGap: spacing.md },
+  heroBadges: { flexDirection: 'row', marginTop: spacing.md },
+  heroUsage: { marginTop: spacing.md },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', columnGap: spacing.sm },
+  partHead: { flexDirection: 'row', alignItems: 'center', columnGap: spacing.sm, marginBottom: spacing.sm, marginTop: spacing.sm },
+  point: { flexDirection: 'row', alignItems: 'flex-start', columnGap: spacing.md, marginBottom: spacing.lg },
+  pointIcon: { width: 40, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+  question: { marginTop: spacing.sm },
 });

@@ -1,5 +1,11 @@
+import { createInstance } from 'i18next';
+
+import enAlerts from '../../../i18n/locales/en/alerts.json';
+import enMatters from '../../../i18n/locales/en/matters.json';
+import esAlerts from '../../../i18n/locales/es/alerts.json';
+import esMatters from '../../../i18n/locales/es/matters.json';
 import { buildTask, type Preferences, type Task } from '../../../core/types';
-import { BRIEFING_DAYS_AHEAD, computeBriefingPlan, renderBriefingSpec } from '../briefing';
+import { BRIEFING_DAYS_AHEAD, computeBriefingPlan, renderBriefingSpec, toBriefingAlarmSpec } from '../briefing';
 import { makeMeeting, makePrefs, textDeps } from '../__fixtures__/alertFixtures';
 
 /** 2026-10-05 is a Monday. 09:00 Madrid (CEST, +02:00) = 07:00Z. */
@@ -160,5 +166,44 @@ describe('renderBriefingSpec', () => {
     const renamed = render({ meetingCount: 1, firstMeetingAt: '2026-10-06T07:30:00.000Z', titles: ['Kickoff with Ana'] });
     expect(same.data.hash).toBe(first.data.hash);
     expect(renamed.data.hash).not.toBe(first.data.hash);
+  });
+});
+
+// A5: the executive assistant's line, from its last morning digest (its own "matters" texts)
+describe('renderBriefingSpec: the assistant line', () => {
+  function withMatters(language: 'en' | 'es') {
+    const instance = createInstance();
+    void instance.init({
+      resources: { en: { alerts: enAlerts, matters: enMatters }, es: { alerts: esAlerts, matters: esMatters } },
+      lng: language,
+      ns: ['alerts', 'matters'],
+      defaultNS: 'alerts',
+      initAsync: false,
+      interpolation: { escapeValue: false },
+    });
+    const fixed = instance.getFixedT(language);
+    return { ...textDeps(language, ZONE), t: ((key: string, options?: Record<string, unknown>) => fixed(key, options) as unknown as string) as ReturnType<typeof textDeps>['t'] };
+  }
+
+  it('adds how many things wait in the assistant; nothing when none or unknown', () => {
+    const base = computeBriefingPlan([], [], prefs(), NOW, ZONE)[0]!;
+    const item = { ...base, meetingCount: 1, firstMeetingAt: '2026-10-06T07:30:00.000Z', titles: ['Kickoff'] };
+    expect(renderBriefingSpec(item, prefs(), withMatters('en'), 2).body).toBe('1 meeting today at 09:30: Kickoff. Assistant: 2 things need you.');
+    expect(renderBriefingSpec(item, prefs(), withMatters('es'), 1).body).toContain('Asistente: 1 cosa te necesita.');
+    expect(renderBriefingSpec(item, prefs(), withMatters('en'), 0).body).toBe('1 meeting today at 09:30: Kickoff.');
+    expect(renderBriefingSpec(item, prefs(), withMatters('en'), null).body).toBe('1 meeting today at 09:30: Kickoff.');
+    // the assistant speaks English and Spanish only: no line in another language
+    expect(renderBriefingSpec(item, prefs(), { ...withMatters('en'), language: 'pt' as never }, 2).body).toBe('1 meeting today at 09:30: Kickoff.');
+  });
+
+  it('with the line, a tap and the Android full-screen summary open the assistant Today; without it, the app itself', () => {
+    const base = computeBriefingPlan([], [], prefs(), NOW, ZONE)[0]!;
+    const item = { ...base, meetingCount: 1, firstMeetingAt: '2026-10-06T07:30:00.000Z', titles: ['Kickoff'] };
+    const withLine = renderBriefingSpec(item, prefs(), withMatters('en'), 2);
+    expect(withLine.data.url).toBe('meetingguardai://matters');
+    expect(toBriefingAlarmSpec(withLine, prefs()).deepLink).toBe('meetingguardai://matters');
+    const without = renderBriefingSpec(item, prefs(), withMatters('en'), 0);
+    expect(without.data.url).toBeUndefined();
+    expect(toBriefingAlarmSpec(without, prefs()).deepLink).toBe('');
   });
 });

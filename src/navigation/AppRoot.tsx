@@ -36,6 +36,7 @@ import { alertEngine, briefingScheduler, startAlertHealthReporter, statusNotific
 import { AuthProvider } from '../services/auth';
 import { DataProvider } from '../services/data';
 import { startGuestNotifier } from '../services/guests';
+import { startAssistantDigestRefresh } from '../services/matters';
 import { captureException } from '../services/sentry';
 import { reportUpdateLaunch } from '../services/updates';
 import { registerWhatsAppZoneRefresh } from '../services/whatsapp';
@@ -110,7 +111,10 @@ export function AppRoot(): ReactElement | null {
     const offAlertHealth = startAlertHealthReporter(() => alertEngine.getStatus());
     // M14: a notification when a guest answers a reply link (while a session is active).
     const offGuests = startGuestNotifier();
+    // A5: the executive assistant's digest on app open (the briefing line, the meeting briefings)
+    const offAssistantDigest = startAssistantDigestRefresh({ onUpdated: () => void briefingScheduler.reconcile() });
     return () => {
+      offAssistantDigest();
       offGuests();
       offWhatsAppZone();
       offAlertHealth();

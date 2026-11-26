@@ -60,7 +60,9 @@ import {
   withModelCall,
   type ForwardedEmail,
   type MatterDoc,
+  type MatterMessage,
 } from './model';
+import { prefsOf, requireConsent } from './settings';
 import type { InboundMarker, MatterStore } from './store';
 import { ownerDisplayName } from './text';
 
@@ -384,6 +386,63 @@ export async function receiveForward(email: InboundEmail, payload: unknown, mark
   return 'watch';
 }
 
+/**
+ * A5, "Add an email to this matter": the owner forwards an email of the conversation to the
+ * matter's own address from the connected mailbox. The same checks as a forward to watch (the
+ * owner's mailbox, DKIM aligned); then the newest forwarded message joins the matter as an email
+ * from the sender its wrapper names, marked as forwarded and NOT verified (auth 'unverified'), so
+ * the usual read makes a card and nothing is ever sent automatically because of it. null: not a
+ * verified forward from the owner's mailbox; the webhook stores the email as usual.
+ */
+export async function receiveIntoMatter(
+  email: InboundEmail,
+  payload: unknown,
+  marker: InboundMarker,
+  match: { uid: string; matterId: string },
+  matter: MatterDoc,
+  deps: WatchInboundDeps & { addInbound: MatterStore['addInboundMessage'] },
+): Promise<InboundOutcome | null> {
+  const from = email.from.email.trim().toLowerCase();
+  const owners = await deps.mailboxOwners(from);
+  if (owners.length !== 1 || owners[0] !== match.uid || email.autoReply) return null;
+  const now = deps.now();
+  const auth = deps.checkSender ? await deps.checkSender({ raw: email.raw, from: email.from.email, spf: email.spf, priority: true, now }) : null;
+  if (auth?.verdict !== 'trusted') return null;
+  const parsed = parseForward(payload, email.subject);
+  const sender = parsed?.from.email && parsed.from.email !== from && !isOwnDomain(parsed.from.email, deps.domain) ? parsed.from.email : null;
+  if (!parsed || !sender || !parsed.text) return null;
+  const nowIso = now.toISOString();
+  const role = matter.mandate?.contacts.some((c) => c.email.toLowerCase() === sender) ? 'contact' : 'other';
+  const message: MatterMessage = {
+    direction: 'inbound',
+    status: 'received',
+    rfcMessageId: `<forwarded.${email.providerId}@postmark>`,
+    inReplyTo: null,
+    references: [],
+    from: { name: parsed.from.name, email: sender },
+    to: [],
+    cc: [],
+    subject: parsed.subject.slice(0, MATTER_LIMITS.subjectChars),
+    text: parsed.text,
+    at: nowIso,
+    providerId: email.providerId,
+    // the forward is the owner's; what it quotes is not verified: read, never answered automatically
+    auth: { verdict: 'unverified', fromAligned: false, spf: email.spf, arcTrusted: false, reason: 'forwarded_by_owner' },
+    senderRole: role,
+    autoReply: false,
+    attachments: [],
+    readState: matter.status === 'active' ? 'none' : 'skipped',
+    readAttempts: 0,
+    readClaimedAt: null,
+    readOutcome: null,
+  };
+  const label = parsed.from.name ? `${parsed.from.name} <${sender}>` : sender;
+  const outcome = await deps.addInbound(match.uid, match.matterId, message, event('email_received', nowIso, `${label} (forwarded by you)`), marker);
+  if (outcome === 'duplicate') return 'duplicate';
+  logger.info('matters.forward_added', { uid: match.uid, matterId: match.matterId, role });
+  return 'stored';
+}
+
 // ---------------------------------------------------------------------------------------------
 // matterWatch
 // ---------------------------------------------------------------------------------------------
@@ -475,6 +534,7 @@ async function watchAction(callerIn: MatterCaller | null, data: unknown, deps: M
   }
   const caller = requireCaller(callerIn, deps);
   if (!isValidTimeZone(request.timeZone)) throw matterError('invalid_request');
+  await requireConsent(caller.uid, deps);
   const store = deps.watches;
   if (!store) throw matterError('not_configured');
   const now = deps.now();
@@ -514,6 +574,7 @@ async function draftFromCard(caller: MatterCaller, card: WatchRecord, language: 
   const ownerEmail = verifiedEmail(caller);
   const ownerName = ownerDisplayName(caller.name, deps.domain);
   const mailbox = await defaultMailbox(caller.uid, deps);
+  const prefs = await prefsOf(caller.uid, deps);
   const thread: ForwardedEmail = card.forwarded;
   const requestText = card.note.trim() || DEFAULT_REQUEST[language === 'es' ? 'es' : 'en'];
   const now = deps.now();
@@ -521,7 +582,7 @@ async function draftFromCard(caller: MatterCaller, card: WatchRecord, language: 
   const result = await runDraft(
     deps,
     caller.uid,
-    { request: requestText, language, timeZone, ownerName, ownerEmail, now, domain: deps.domain, thread },
+    { request: requestText, language, timeZone, ownerName, ownerEmail, now, domain: deps.domain, thread, defaults: prefs },
     (t) => {
       tokens = t;
     },
@@ -535,7 +596,7 @@ async function draftFromCard(caller: MatterCaller, card: WatchRecord, language: 
     source: 'text',
     ownerName,
     ownerEmail,
-    ...draftFields(result, ownerEmail, language, schedulingFor(result.mandate, deps), mailbox),
+    ...draftFields(result, ownerEmail, language, schedulingFor(result.mandate, deps), mailbox, prefs.signature),
     usage: withModelCall(EMPTY_USAGE, tokens),
     mandateVersion: 1,
     confirmedHash: null,

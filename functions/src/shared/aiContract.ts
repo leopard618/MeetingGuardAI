@@ -147,6 +147,9 @@ export const CALLABLES = {
   matterMailbox: 'matterMailbox',
   // A4 part 2: "Watch this thread" (forwards from the owner's mailbox waiting as cards)
   matterWatch: 'matterWatch',
+  // A5: the assistant's settings and consent, the morning digest
+  matterSettings: 'matterSettings',
+  matterDigest: 'matterDigest',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -2507,6 +2510,14 @@ export const matterViewResponseSchema = z.object({
       events: z.array(matterEventViewSchema).optional().catch([]),
       /** A3: usage and estimated cost. */
       usage: matterUsageViewSchema.nullable().optional().catch(null),
+      /** A5: the matter's own address ("Add an email to this matter": forward one there from the connected mailbox). */
+      address: z.string().nullable().optional().catch(null),
+      /** A5: the first email did not go out: failed (retry with draftHash, or cancel) or unknown (never resent). */
+      firstSend: z
+        .object({ state: z.enum(['failed', 'unknown']), draftHash: z.string().regex(DRAFT_HASH_PATTERN).nullable() })
+        .nullable()
+        .optional()
+        .catch(null),
     })
     .nullable(),
 });
@@ -2547,7 +2558,8 @@ export type MatterChangeRequest = z.infer<typeof matterChangeRequestSchema>;
  * (the app calls matterDraft). A3 feedback: move_meeting (the app calls matterMove with the words) and
  * message (the app calls matterMessage with the words).
  */
-export const MATTER_ASK_INTENTS = ['status', 'pause', 'resume', 'cancel', 'change', 'new_matter', 'unclear', 'move_meeting', 'message'] as const;
+// A5: briefing ("brief me on my 3 pm"); only the streamed answer (matterStream) uses it
+export const MATTER_ASK_INTENTS = ['status', 'pause', 'resume', 'cancel', 'change', 'new_matter', 'unclear', 'move_meeting', 'message', 'briefing'] as const;
 export type MatterAskIntent = (typeof MATTER_ASK_INTENTS)[number];
 
 export const matterAskRequestSchema = z
@@ -2773,6 +2785,8 @@ export const MATTER_ERROR_CODES = [
   'not_allowed',
   'rate_limited',
   'upstream_error',
+  /** A5: the owner has not agreed to the current consent text (matterSettings consent) yet. */
+  'consent_required',
 ] as const;
 export type MatterErrorCode = (typeof MATTER_ERROR_CODES)[number];
 
@@ -2785,11 +2799,146 @@ export const MATTER_ERROR_HTTPS_CODES = {
   not_allowed: 'permission-denied',
   rate_limited: 'resource-exhausted',
   upstream_error: 'unavailable',
+  consent_required: 'failed-precondition',
 } as const satisfies Record<MatterErrorCode, string>;
 
 /** A4: a rate_limited error says which limit (limit). */
 export const matterErrorDetailsSchema = z.object({ reason: z.enum(MATTER_ERROR_CODES), limit: z.enum(MATTER_LIMIT_KINDS).optional() });
 export type MatterErrorDetails = z.infer<typeof matterErrorDetailsSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// A5: settings and consent, the morning digest, streamed answers and briefings
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The consent text the owner agrees to before first use (EN and ES in the app). Raising this
+ * number shows the screen again; the server refuses model calls (consent_required) until then.
+ */
+export const MATTER_CONSENT_VERSION = 1;
+const hhmmSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
+
+/**
+ * The owner's assistant settings. Working hours, quiet days and the signature apply to every
+ * matter at once (they only narrow what is offered, or sign the emails); the rest are the
+ * defaults of NEW drafts when the owner does not say otherwise (a running matter changes through
+ * its own Change, read back and confirmed).
+ */
+export const matterPrefsSchema = z
+  .object({
+    followUpEveryDays: z.number().int().min(1).max(14),
+    /** 0: no follow-ups unless the owner asks for them. */
+    followUpMaxCount: z.number().int().min(0).max(10),
+    workStart: hhmmSchema,
+    workEnd: hhmmSchema,
+    /** Days times may be offered on: 0 Sunday to 6 Saturday. */
+    workDays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+    emailLanguage: z.enum(['auto', 'en', 'es']),
+    /** A line under the assistant's name in every email (plain text; empty for none). */
+    signature: z.string().max(120).refine((s) => !/[\r\n]/.test(s), { message: 'One line.' }),
+    copyOwner: z.enum(['cc', 'daily_summary']),
+    /** How long a new matter runs when the owner does not say; null: the assistant asks. */
+    defaultDays: z.number().int().min(1).max(90).nullable(),
+    meetingMinutes: z.number().int().min(5).max(480),
+    /** Where new matters send from while a mailbox is connected. */
+    sendFrom: z.enum(['mailbox', 'assistant']),
+    /** A briefing this many minutes before a meeting the assistant booked; 0: none. */
+    briefingMinutes: z.number().int().min(0).max(240),
+    /** When the daily summary email goes out (matters set to a daily summary), in timeZone. */
+    summaryTime: hhmmSchema,
+  })
+  .strict()
+  .refine((p) => p.workStart < p.workEnd, { message: 'Working hours must end after they start.' })
+  .refine((p) => new Set(p.workDays).size === p.workDays.length, { message: 'Each day once.' });
+export type MatterPrefs = z.infer<typeof matterPrefsSchema>;
+
+export const DEFAULT_MATTER_PREFS: MatterPrefs = {
+  followUpEveryDays: 2,
+  followUpMaxCount: 3,
+  workStart: '09:00',
+  workEnd: '18:00',
+  workDays: [1, 2, 3, 4, 5],
+  emailLanguage: 'auto',
+  signature: '',
+  copyOwner: 'cc',
+  defaultDays: null,
+  meetingMinutes: 30,
+  sendFrom: 'mailbox',
+  briefingMinutes: 30,
+  summaryTime: '08:00',
+};
+
+export const matterSettingsRequestSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('get') }).strict(),
+  /** applyToOpen: the follow-ups and the copy rule also go to the running matters (a mandate change each). */
+  z.object({ action: z.literal('save'), prefs: matterPrefsSchema, timeZone: timeZoneSchema, applyToOpen: z.boolean().optional() }).strict(),
+  z.object({ action: z.literal('consent'), version: z.number().int().min(1).max(1000), timeZone: timeZoneSchema }).strict(),
+]);
+export type MatterSettingsRequest = z.infer<typeof matterSettingsRequestSchema>;
+export const matterSettingsResponseSchema = z.object({
+  prefs: matterPrefsSchema,
+  /** The consent the owner gave (version and when); null when never. */
+  consent: z.object({ version: z.number().int(), at: z.string() }).nullable(),
+  /** The version the app must show (MATTER_CONSENT_VERSION on the server). */
+  consentVersion: z.number().int(),
+  /** The assistant's own address (read only). */
+  address: z.string(),
+  /** How many matters are running (active or paused), for "apply to my open matters too". */
+  openMatters: z.number().int().min(0).optional(),
+  /** save with applyToOpen: how many running matters were changed. */
+  applied: z.number().int().min(0).optional(),
+});
+export type MatterSettingsResponse = z.infer<typeof matterSettingsResponseSchema>;
+
+/** One line of the digest: about a matter (matterId) or general (null). */
+export const matterDigestItemSchema = z.object({ matterId: z.string().nullable(), title: z.string(), text: z.string() });
+export type MatterDigestItem = z.infer<typeof matterDigestItemSchema>;
+export const matterDigestRequestSchema = z.object({ language: languageSchema, timeZone: timeZoneSchema }).strict();
+export const matterDigestResponseSchema = z.object({
+  generatedAt: z.string(),
+  /** How many things wait for the owner (the daily briefing notification's line). */
+  needsYou: z.number().int().min(0),
+  /** Written by code from the owner's matters only, never by the model. */
+  sections: z.object({
+    moved: z.array(matterDigestItemSchema),
+    needsYou: z.array(matterDigestItemSchema),
+    followUps: z.array(matterDigestItemSchema),
+    meetings: z.array(matterDigestItemSchema),
+  }),
+  /** The digest as one spoken text. */
+  spoken: z.string(),
+  /** Meetings the assistant booked in the next days, for the briefing notifications (0 minutes: none). */
+  briefings: z.array(z.object({ matterId: z.string(), title: z.string(), start: z.string() })),
+  briefingMinutes: z.number().int().min(0),
+});
+export type MatterDigestResponse = z.infer<typeof matterDigestResponseSchema>;
+
+/**
+ * A5, matterStream (HTTP POST, Authorization: Bearer <Firebase ID token>): an answer or a briefing
+ * streamed as it is written, so the app speaks from the first sentence. The body is
+ * newline-delimited JSON (matterStreamLineSchema): text pieces, then one done (or error) line. A
+ * client that cannot read a stream reads the whole body at the end: the same lines.
+ * - ask: matterAsk's question (a "brief me" question goes on to the briefing in the same call);
+ * - briefing: who, why, the correspondence, open commitments and pending decisions of a matter
+ *   (matterId), or of the meeting the words name (text), from the records only.
+ */
+export const MATTER_STREAM_FUNCTION = 'matterStream';
+export const matterStreamRequestSchema = z.discriminatedUnion('kind', [
+  z
+    .object({ kind: z.literal('ask'), text: z.string().trim().min(1).max(MATTER_LIMITS_CONTRACT.requestChars), language: languageSchema, matterId: matterIdSchema.optional(), timeZone: timeZoneSchema })
+    .strict(),
+  z
+    .object({ kind: z.literal('briefing'), language: languageSchema, matterId: matterIdSchema.optional(), text: z.string().trim().min(1).max(MATTER_LIMITS_CONTRACT.requestChars).optional(), timeZone: timeZoneSchema })
+    .strict(),
+]);
+export type MatterStreamRequest = z.infer<typeof matterStreamRequestSchema>;
+export const matterBriefingSchema = z.object({ text: z.string(), matterId: z.string().nullable(), title: z.string().nullable() });
+export type MatterBriefing = z.infer<typeof matterBriefingSchema>;
+export const matterStreamLineSchema = z.discriminatedUnion('t', [
+  z.object({ t: z.literal('text'), v: z.string() }),
+  z.object({ t: z.literal('done'), ask: matterAskResponseSchema.optional(), briefing: matterBriefingSchema.optional() }),
+  z.object({ t: z.literal('error'), reason: z.enum(MATTER_ERROR_CODES), limit: z.enum(MATTER_LIMIT_KINDS).optional() }),
+]);
+export type MatterStreamLine = z.infer<typeof matterStreamLineSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Server helpers (pure)

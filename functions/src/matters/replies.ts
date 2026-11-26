@@ -95,6 +95,7 @@ import { allowedRanges, fitSlot, loadBusy, offerSlots, searchBounds, type SlotFi
 import { readRangeOf, resolvePick } from './scheduling';
 import { followUpDueAt, inWorkingHours, nextActionAt, nextWorkingSlot } from './schedule';
 import { checkSend } from './sendCheck';
+import { prefsOf, runDailySummaries, workingHoursOf } from './settings';
 import type { CardUpdate } from './store';
 import { confirmationText, followUpText, formatInstant, matterTaskOrigin, meetingOrigin, meetingTitle, offerTimesText, quoteBelow, replySubject, senderName } from './text';
 
@@ -412,7 +413,8 @@ async function planScheduling(input: {
   const now = deps.now();
   const { fromMs, toMs } = searchBounds(now, mandate.endsAt);
   const busy = await loadBusy(deps.meetings, input.uid, fromMs, toMs);
-  const allowed = allowedRanges(meeting, zone, fromMs, toMs);
+  // A5: the owner's working hours and days (settings)
+  const allowed = allowedRanges(meeting, zone, fromMs, toMs, workingHoursOf(await prefsOf(input.uid, deps)));
   // free times to offer, kept to when the contact would like to meet (readRange), if they said
   const offer = async (range: TimeRange | null): Promise<SchedulePlan> => {
     const { slots, nearest } = offerSlots({ busy, allowed, durationMinutes: meeting.durationMinutes, zone, count: MATTER_LIMITS.maxOfferedSlots, range, fromMs, toMs });
@@ -493,12 +495,13 @@ export async function bookSlot(input: { uid: string; matterId: string; slot: Slo
   const end = Date.parse(slot.end);
   // the calendar again, right before booking (it may have changed since the reply was read)
   const busy = await loadBusy(deps.meetings, uid, start - DAY_MS, end + DAY_MS);
+  const hours = workingHoursOf(await prefsOf(uid, deps));
   const fit =
     by === 'auto'
       ? (() => {
           const { fromMs } = searchBounds(now, mandate.endsAt);
           const endsAtMs = Date.parse(mandate.endsAt);
-          return fitSlot(slot, { busy, allowed: allowedRanges(mandate.meeting!, zone, fromMs, endsAtMs), fromMs, endsAtMs });
+          return fitSlot(slot, { busy, allowed: allowedRanges(mandate.meeting!, zone, fromMs, endsAtMs, hours), fromMs, endsAtMs });
         })()
       : fitSlot(slot, { busy, allowed: [{ start: now.getTime(), end: Number.MAX_SAFE_INTEGER }], fromMs: now.getTime(), endsAtMs: Number.MAX_SAFE_INTEGER });
   if (fit !== 'ok') return fit;
@@ -1054,6 +1057,12 @@ export function handleMatterView(callerIn: MatterCaller | null, data: unknown, d
         ),
         events: events.map((e) => ({ type: e.type, at: e.at, detail: e.detail })),
         usage: { ...doc.usage, costUsd: costUsd(doc.usage, deps.prices) },
+        // A5: where to forward an email of this conversation, and a first email that did not go out
+        address: replyAddressFor(doc.replyToken, deps.domain),
+        firstSend:
+          doc.status === 'active' && (doc.firstSendState === 'failed' || doc.firstSendState === 'unknown')
+            ? { state: doc.firstSendState, draftHash: doc.firstSendState === 'failed' ? doc.confirmedHash : null }
+            : null,
       },
     };
   });
@@ -1073,6 +1082,8 @@ export interface TickResult {
   purged?: number;
   /** A4 part 2: forwarded threads that waited too long and were deleted (watch.ts). */
   watchesDeleted?: number;
+  /** A5: daily summary emails sent (settings.ts). */
+  summaries?: number;
   schedules: number;
   ended: number;
   followUps: number;
@@ -1094,6 +1105,8 @@ export async function runMatterTick(deps: MatterDeps, batch: { schedules: number
     }
   }
   if (!deps.enabled) return result;
+  // A5: the daily summary of the matters set to "a daily summary instead of copies"
+  if (deps.prefs) result.summaries = await runDailySummaries(deps, batch.schedules);
   for (const entry of await deps.store.dueSchedules(now.toISOString(), batch.schedules)) {
     result.schedules += 1;
     try {
@@ -1119,6 +1132,7 @@ async function processSchedule(uid: string, matterId: string, deps: MatterDeps):
   const now = deps.now();
   const nowMs = now.getTime();
   const nowIso = now.toISOString();
+  const hours = workingHoursOf(await prefsOf(uid, deps));
   const plan = await deps.store.updateMatter<TickPlan>(uid, matterId, (doc) => {
     if (!doc || doc.status !== 'active' || !doc.mandate) return { result: { kind: 'none' }, schedule: { nextActionAt: null } };
     const end = Date.parse(doc.mandate.endsAt);
@@ -1144,7 +1158,8 @@ async function processSchedule(uid: string, matterId: string, deps: MatterDeps):
     if (due === null) return later(end);
     if (nowMs < due) return later(due);
     const zone = current.mandate!.timeZone;
-    if (!inWorkingHours(now, zone)) return later(nextWorkingSlot(now, zone).getTime());
+    // A5: the owner's working hours and quiet days
+    if (!inWorkingHours(now, zone, hours)) return later(nextWorkingSlot(now, zone, hours).getTime());
     const bounced = new Set(current.bouncedRecipients.map((a) => a.toLowerCase()));
     const to = current.mandate!.contacts.map((c) => c.email).filter((e) => !bounced.has(e.toLowerCase()));
     if (to.length === 0) return later(end);
@@ -1181,7 +1196,7 @@ async function sendFollowUp(uid: string, matterId: string, plan: Extract<TickPla
   const claimed = await claimSend(deps, uid, now);
   if (claimed !== 'ok') {
     logger.warn('matters.follow_up_capped', { uid, matterId, cap: claimed });
-    await release(nextWorkingSlot(new Date(now.getTime() + 12 * 3_600_000), mandate.timeZone).getTime());
+    await release(nextWorkingSlot(new Date(now.getTime() + 12 * 3_600_000), mandate.timeZone, workingHoursOf(await prefsOf(uid, deps))).getTime());
     return;
   }
   const thread = await deps.store.listMessages(uid, matterId, THREAD_MESSAGES);

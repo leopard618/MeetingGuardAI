@@ -2,6 +2,7 @@
  * The app's alert engine singleton (owner: alerts): engineCore wired to the real ports.
  * Layer L4: imports core, i18n + format (L1), data barrel (L2). Never imports ./tasks or the auth barrel.
  */
+import { assistantNeedsYou } from '../matters/assistantNotifications';
 import type { FormatOptions, TranslateFn } from '../../core/contracts';
 import { appEvents } from '../../core/events';
 import { createLogger } from '../../core/logger';
@@ -76,6 +77,8 @@ export const briefingScheduler: BriefingScheduler = createBriefingScheduler({
   events: appEvents,
   appState: createAppStatePort(),
   deviceTimeZone: getDeviceTimeZone,
+  // A5: the executive assistant's line from its last morning digest
+  assistantNeedsYou: () => assistantNeedsYou(),
 });
 
 /**
